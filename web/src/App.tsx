@@ -74,6 +74,19 @@ type DeviceRecord = {
   primary_ip: string | null;
   primary_mac: string | null;
 };
+type DeviceDetail = DeviceRecord & {
+  interfaces: Array<{
+    id: number;
+    name: string;
+    mac_address: string | null;
+    ip_addresses: Array<{
+      id: number;
+      address: string;
+      assignment_type: string;
+      network_id: number | null;
+    }>;
+  }>;
+};
 type NetworkRecord = {
   id: number;
   cidr: string;
@@ -586,6 +599,24 @@ function DevicesView({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceDetail | null>(null);
+  const [detailError, setDetailError] = useState("");
+  const [editForm, setEditForm] = useState({
+    name: "",
+    device_type: "Equipo",
+    status: "active",
+    vendor: "",
+    model: "",
+    operating_system: "",
+    location: "",
+    notes: "",
+  });
+  const [interfaceForm, setInterfaceForm] = useState({
+    name: "eth1",
+    mac_address: "",
+    ip_address: "",
+    network_id: "",
+  });
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredDevices = devices.filter((device) => {
@@ -609,6 +640,124 @@ function DevicesView({
 
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateEditField(field: keyof typeof editForm, value: string) {
+    setEditForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateInterfaceField(field: keyof typeof interfaceForm, value: string) {
+    setInterfaceForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function loadDeviceDetail(deviceId: number) {
+    setDetailError("");
+    const response = await fetch(`${API_BASE_URL}/inventory/devices/${deviceId}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      setDetailError("No se pudo cargar el dispositivo.");
+      return;
+    }
+    const device = (await response.json()) as DeviceDetail;
+    setSelectedDevice(device);
+    setEditForm({
+      name: device.name,
+      device_type: device.device_type,
+      status: device.status,
+      vendor: device.vendor ?? "",
+      model: device.model ?? "",
+      operating_system: device.operating_system ?? "",
+      location: device.location ?? "",
+      notes: device.notes ?? "",
+    });
+  }
+
+  async function saveDeviceChanges(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedDevice) {
+      return;
+    }
+    setDetailError("");
+
+    const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({
+        name: editForm.name,
+        device_type: editForm.device_type,
+        status: editForm.status,
+        vendor: editForm.vendor || null,
+        model: editForm.model || null,
+        operating_system: editForm.operating_system || null,
+        location: editForm.location || null,
+        notes: editForm.notes || null,
+      }),
+    });
+    if (!response.ok) {
+      setDetailError("No se pudo guardar. Revisa nombres duplicados o campos invalidos.");
+      return;
+    }
+    setSelectedDevice((await response.json()) as DeviceDetail);
+    await onCreated();
+  }
+
+  async function addInterface(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedDevice) {
+      return;
+    }
+    setDetailError("");
+
+    const response = await fetch(
+      `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/interfaces`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({
+          name: interfaceForm.name,
+          mac_address: interfaceForm.mac_address || null,
+          ip_address: interfaceForm.ip_address || null,
+          network_id: interfaceForm.network_id ? Number(interfaceForm.network_id) : null,
+        }),
+      },
+    );
+    if (!response.ok) {
+      setDetailError("No se pudo agregar la interfaz. Revisa duplicados o formato.");
+      return;
+    }
+    setInterfaceForm({ name: "eth1", mac_address: "", ip_address: "", network_id: "" });
+    await loadDeviceDetail(selectedDevice.id);
+    await onCreated();
+  }
+
+  async function deactivateSelectedDevice() {
+    if (!selectedDevice) {
+      return;
+    }
+    setDetailError("");
+    const response = await fetch(
+      `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/deactivate`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      },
+    );
+    if (!response.ok) {
+      setDetailError("No se pudo desactivar el dispositivo.");
+      return;
+    }
+    setSelectedDevice((await response.json()) as DeviceDetail);
+    await onCreated();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -717,9 +866,12 @@ function DevicesView({
                 {filteredDevices.map((device) => (
                   <tr key={device.id}>
                     <td>
-                      <a className="device-name" href="#">
+                      <button
+                        className="device-name row-action"
+                        onClick={() => loadDeviceDetail(device.id)}
+                      >
                         {device.name}
-                      </a>
+                      </button>
                     </td>
                     <td>
                       <span className={`pill ${typeTone(device.device_type)}`}>
@@ -845,6 +997,164 @@ function DevicesView({
                 {isSubmitting ? "Guardando..." : "Crear dispositivo"}
               </button>
             </form>
+          </article>
+        )}
+
+        {selectedDevice && (
+          <article className="panel device-detail-panel">
+            <div className="detail-heading">
+              <div>
+                <h2>{selectedDevice.name}</h2>
+                <p>{selectedDevice.primary_ip ?? "Sin IP principal"}</p>
+              </div>
+              <button className="text-button" onClick={() => setSelectedDevice(null)}>
+                Cerrar
+              </button>
+            </div>
+
+            {detailError && <p className="login-error">{detailError}</p>}
+
+            <form className="inventory-form" onSubmit={saveDeviceChanges}>
+              <label>
+                Nombre
+                <input
+                  onChange={(event) => updateEditField("name", event.target.value)}
+                  required
+                  value={editForm.name}
+                />
+              </label>
+              <label>
+                Tipo
+                <select
+                  onChange={(event) => updateEditField("device_type", event.target.value)}
+                  value={editForm.device_type}
+                >
+                  <option>Equipo</option>
+                  <option>Servidor</option>
+                  <option>Switch</option>
+                  <option>Router</option>
+                  <option>Access Point</option>
+                  <option>Impresora</option>
+                  <option>Otro</option>
+                </select>
+              </label>
+              <label>
+                Estado
+                <select
+                  onChange={(event) => updateEditField("status", event.target.value)}
+                  value={editForm.status}
+                >
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                  <option value="reserved">Reservado</option>
+                  <option value="unknown">Desconocido</option>
+                </select>
+              </label>
+              <label>
+                Fabricante
+                <input
+                  onChange={(event) => updateEditField("vendor", event.target.value)}
+                  value={editForm.vendor}
+                />
+              </label>
+              <label>
+                Modelo
+                <input
+                  onChange={(event) => updateEditField("model", event.target.value)}
+                  value={editForm.model}
+                />
+              </label>
+              <label>
+                Sistema operativo
+                <input
+                  onChange={(event) => updateEditField("operating_system", event.target.value)}
+                  value={editForm.operating_system}
+                />
+              </label>
+              <label className="form-wide">
+                Ubicacion
+                <input
+                  onChange={(event) => updateEditField("location", event.target.value)}
+                  value={editForm.location}
+                />
+              </label>
+              <label className="form-wide">
+                Notas
+                <textarea
+                  onChange={(event) => updateEditField("notes", event.target.value)}
+                  value={editForm.notes}
+                />
+              </label>
+              <button className="login-button form-wide" type="submit">
+                Guardar cambios
+              </button>
+            </form>
+
+            <div className="detail-section">
+              <h3>Interfaces</h3>
+              <div className="interface-list">
+                {selectedDevice.interfaces.map((item) => (
+                  <div className="interface-row" key={item.id}>
+                    <strong>{item.name}</strong>
+                    <span>{item.mac_address ?? "Sin MAC"}</span>
+                    <small>
+                      {item.ip_addresses.length
+                        ? item.ip_addresses.map((ip) => ip.address).join(", ")
+                        : "Sin IP"}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <form className="inventory-form detail-section" onSubmit={addInterface}>
+              <h3 className="form-wide">Agregar interfaz</h3>
+              <label>
+                Nombre
+                <input
+                  onChange={(event) => updateInterfaceField("name", event.target.value)}
+                  required
+                  value={interfaceForm.name}
+                />
+              </label>
+              <label>
+                MAC
+                <input
+                  onChange={(event) => updateInterfaceField("mac_address", event.target.value)}
+                  placeholder="00:11:22:33:44:aa"
+                  value={interfaceForm.mac_address}
+                />
+              </label>
+              <label>
+                IP
+                <input
+                  onChange={(event) => updateInterfaceField("ip_address", event.target.value)}
+                  placeholder="10.0.0.20"
+                  value={interfaceForm.ip_address}
+                />
+              </label>
+              <label>
+                Subred
+                <select
+                  onChange={(event) => updateInterfaceField("network_id", event.target.value)}
+                  value={interfaceForm.network_id}
+                >
+                  <option value="">Sin subred</option>
+                  {networks.map((network) => (
+                    <option key={network.id} value={network.id}>
+                      {network.cidr} - {network.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="login-button form-wide" type="submit">
+                Agregar interfaz
+              </button>
+            </form>
+
+            <button className="danger-action" onClick={deactivateSelectedDevice}>
+              Desactivar dispositivo
+            </button>
           </article>
         )}
       </section>
