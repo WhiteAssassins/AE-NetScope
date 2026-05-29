@@ -9,12 +9,12 @@ from app.schemas.inventory import (
     DeviceResponse,
     DeviceUpdate,
     DeviceWithInterfaceCreate,
-    IpAddressCreate,
-    IpAddressRecordResponse,
-    IpAddressUpdate,
     InterfaceCreate,
     InterfaceRecordResponse,
     InterfaceResponse,
+    IpAddressCreate,
+    IpAddressRecordResponse,
+    IpAddressUpdate,
     NetworkCreate,
     NetworkResponse,
     VlanCreate,
@@ -40,8 +40,8 @@ from app.services.inventory import (
     list_networks,
     list_vlans,
     network_to_response,
-    update_ip_address,
     update_device,
+    update_ip_address,
 )
 
 router = APIRouter(prefix="/inventory")
