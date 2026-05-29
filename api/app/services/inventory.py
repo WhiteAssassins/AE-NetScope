@@ -80,7 +80,9 @@ async def update_network(
 
 
 async def delete_network(session: AsyncSession, network: Network) -> None:
-    ip_addresses = await session.execute(select(IpAddress).where(IpAddress.network_id == network.id))
+    ip_addresses = await session.execute(
+        select(IpAddress).where(IpAddress.network_id == network.id)
+    )
     for ip_address in ip_addresses.scalars():
         ip_address.network_id = None
     await session.delete(network)
