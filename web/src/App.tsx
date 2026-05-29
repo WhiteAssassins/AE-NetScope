@@ -204,15 +204,7 @@ function App() {
     setCsrfToken("");
   }
 
-  useEffect(() => {
-    if (!user || user.must_change_password) {
-      return;
-    }
-
-    refreshInventory().catch(() => undefined);
-  }, [user]);
-
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/inventory/dashboard`, {
       credentials: "include",
     });
@@ -224,9 +216,9 @@ function App() {
     if (response.ok) {
       setDashboard((await response.json()) as DashboardSummary);
     }
-  }
+  }, []);
 
-  async function loadDevices() {
+  const loadDevices = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/inventory/devices`, {
       credentials: "include",
     });
@@ -238,20 +230,28 @@ function App() {
     if (response.ok) {
       setDevices((await response.json()) as DeviceRecord[]);
     }
-  }
+  }, []);
 
-  async function loadNetworks() {
+  const loadNetworks = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/inventory/networks`, {
       credentials: "include",
     });
     if (response.ok) {
       setNetworks((await response.json()) as NetworkRecord[]);
     }
-  }
+  }, []);
 
-  async function refreshInventory() {
+  const refreshInventory = useCallback(async () => {
     await Promise.all([loadDashboard(), loadDevices(), loadNetworks()]);
-  }
+  }, [loadDashboard, loadDevices, loadNetworks]);
+
+  useEffect(() => {
+    if (!user || user.must_change_password) {
+      return;
+    }
+
+    refreshInventory().catch(() => undefined);
+  }, [refreshInventory, user]);
 
   if (isLoading) {
     return <div className="auth-loading">AE NetScope</div>;
