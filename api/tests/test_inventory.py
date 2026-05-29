@@ -63,6 +63,43 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
         json={"cidr": "10.0.0.0/24", "name": "Core", "gateway": "10.0.0.1"},
     )
     assert network.status_code == 201
+    assert network.json()["usable_hosts"] == 254
+    assert network.json()["utilization_percent"] == 0
+
+    invalid_network = await client.post(
+        "/api/inventory/networks",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": "10.0.1.0/24", "name": "Bad Gateway", "gateway": "10.0.2.1"},
+    )
+    assert invalid_network.status_code == 422
+
+    updated_network = await client.patch(
+        f"/api/inventory/networks/{network.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"location": "MDF", "vlan_id": vlan.json()["id"]},
+    )
+    assert updated_network.status_code == 200
+    assert updated_network.json()["location"] == "MDF"
+    assert updated_network.json()["vlan"]["vlan_id"] == 10
+
+    vlans = await client.get("/api/inventory/vlans")
+    assert vlans.status_code == 200
+    assert vlans.json()[0]["network_count"] == 1
+
+    updated_vlan = await client.patch(
+        f"/api/inventory/vlans/{vlan.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"name": "Core LAN", "description": "Core switching segment"},
+    )
+    assert updated_vlan.status_code == 200
+    assert updated_vlan.json()["name"] == "Core LAN"
+
+    duplicate_vlan = await client.post(
+        "/api/inventory/vlans",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"vlan_id": 10, "name": "Duplicate"},
+    )
+    assert duplicate_vlan.status_code == 409
 
     device = await client.post(
         "/api/inventory/devices",
@@ -85,3 +122,117 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     assert dashboard.status_code == 200
     assert dashboard.json()["stats"]["devices"] == 1
     assert dashboard.json()["stats"]["ip_addresses"] == 1
+
+    detail = await client.get(f"/api/inventory/devices/{device.json()['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["name"] == "SW-Core-01"
+    assert detail.json()["interfaces"][0]["ip_addresses"][0]["address"] == "10.0.0.2"
+
+    updated = await client.patch(
+        f"/api/inventory/devices/{device.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"location": "Rack A1", "model": "AE-48P"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["location"] == "Rack A1"
+    assert updated.json()["model"] == "AE-48P"
+
+    interface = await client.post(
+        f"/api/inventory/devices/{device.json()['id']}/interfaces",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "name": "eth1",
+            "mac_address": "00:11:22:33:44:56",
+            "ip_address": "10.0.0.3",
+            "network_id": network.json()["id"],
+        },
+    )
+    assert interface.status_code == 201
+    assert interface.json()["name"] == "eth1"
+    assert interface.json()["ip_addresses"][0]["address"] == "10.0.0.3"
+
+    ip_list = await client.get("/api/inventory/ip-addresses")
+    assert ip_list.status_code == 200
+    assert ip_list.json()[0]["mac_address"] == "00:11:22:33:44:55"
+    assert ip_list.json()[0]["state"] == "active"
+
+    interfaces = await client.get("/api/inventory/interfaces")
+    assert interfaces.status_code == 200
+    assert interfaces.json()[0]["device_name"] == "SW-Core-01"
+
+    reserved_ip = await client.post(
+        "/api/inventory/ip-addresses",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "address": "10.0.0.10",
+            "assignment_type": "reserved",
+            "network_id": network.json()["id"],
+        },
+    )
+    assert reserved_ip.status_code == 201
+    assert reserved_ip.json()["state"] == "reserved"
+
+    updated_ip = await client.patch(
+        f"/api/inventory/ip-addresses/{reserved_ip.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "assignment_type": "static",
+            "interface_id": interface.json()["id"],
+        },
+    )
+    assert updated_ip.status_code == 200
+    assert updated_ip.json()["state"] == "active"
+    assert updated_ip.json()["device_name"] == "SW-Core-01"
+
+    duplicate_ip = await client.post(
+        "/api/inventory/ip-addresses",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"address": "10.0.0.10"},
+    )
+    assert duplicate_ip.status_code == 409
+
+    outside_ip = await client.post(
+        "/api/inventory/ip-addresses",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"address": "10.0.8.10", "network_id": network.json()["id"]},
+    )
+    assert outside_ip.status_code == 422
+
+    deleted_ip = await client.delete(
+        f"/api/inventory/ip-addresses/{reserved_ip.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deleted_ip.status_code == 204
+
+    deactivated = await client.post(
+        f"/api/inventory/devices/{device.json()['id']}/deactivate",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deactivated.status_code == 200
+    assert deactivated.json()["status"] == "inactive"
+
+    deleted_device = await client.delete(
+        f"/api/inventory/devices/{device.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deleted_device.status_code == 204
+
+    ip_list_after_device_delete = await client.get("/api/inventory/ip-addresses")
+    assert ip_list_after_device_delete.status_code == 200
+    assert all(item["interface_id"] is None for item in ip_list_after_device_delete.json())
+
+    deleted_network = await client.delete(
+        f"/api/inventory/networks/{network.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deleted_network.status_code == 204
+
+    ip_list_after_network_delete = await client.get("/api/inventory/ip-addresses")
+    assert ip_list_after_network_delete.status_code == 200
+    assert all(item["network_id"] is None for item in ip_list_after_network_delete.json())
+
+    deleted_vlan = await client.delete(
+        f"/api/inventory/vlans/{vlan.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deleted_vlan.status_code == 204
