@@ -25,3 +25,10 @@ The current version contains the web dashboard foundation. Backend services and 
 - React
 - TypeScript
 - Vite
+- FastAPI planned for the API
+- PostgreSQL planned for production data
+- Redis planned for cache, queues, and background jobs
+
+## Configuration
+
+Copy `.env.example` to `.env` for local configuration when backend services are added. Do not commit `.env`.
