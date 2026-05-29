@@ -22,6 +22,8 @@ from app.schemas.inventory import (
     NetworkUpdate,
     VlanCreate,
     VlanResponse,
+    VlanSummaryResponse,
+    VlanUpdate,
 )
 from app.services.audit import write_audit_event
 from app.services.inventory import (
@@ -32,12 +34,16 @@ from app.services.inventory import (
     create_vlan,
     dashboard_summary,
     deactivate_device,
+    delete_device,
     delete_ip_address,
+    delete_network,
+    delete_vlan,
     device_to_detail_response,
     device_to_response,
     get_device,
     get_ip_address,
     get_network,
+    get_vlan,
     ip_address_to_response,
     ip_belongs_to_network,
     list_devices,
@@ -49,6 +55,8 @@ from app.services.inventory import (
     update_device,
     update_ip_address,
     update_network,
+    update_vlan,
+    vlan_to_summary_response,
 )
 
 router = APIRouter(prefix="/inventory")
@@ -329,6 +337,31 @@ async def deactivate_device_endpoint(
     return await device_to_detail_response(session, device)
 
 
+@router.delete(
+    "/devices/{device_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def delete_device_endpoint(
+    device_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    device = await get_device(session, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+
+    name = device.name
+    await delete_device(session, device)
+    await write_audit_event(
+        session,
+        "inventory.device_deleted",
+        f"Device deleted: {name}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
 @router.get("/networks", response_model=list[NetworkResponse])
 async def networks(session: SessionDep, _: CurrentUser) -> list[NetworkResponse]:
     return await list_networks(session)
@@ -411,14 +444,39 @@ async def update_network_endpoint(
     return await network_to_response(session, network)
 
 
-@router.get("/vlans", response_model=list[VlanResponse])
-async def vlans(session: SessionDep, _: CurrentUser) -> list[VlanResponse]:
+@router.delete(
+    "/networks/{network_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def delete_network_endpoint(
+    network_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    network = await get_network(session, network_id)
+    if network is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+
+    cidr = network.cidr
+    await delete_network(session, network)
+    await write_audit_event(
+        session,
+        "inventory.network_deleted",
+        f"Network deleted: {cidr}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
+@router.get("/vlans", response_model=list[VlanSummaryResponse])
+async def vlans(session: SessionDep, _: CurrentUser) -> list[VlanSummaryResponse]:
     return await list_vlans(session)
 
 
 @router.post(
     "/vlans",
-    response_model=VlanResponse,
+    response_model=VlanSummaryResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
 )
@@ -426,8 +484,15 @@ async def create_vlan_endpoint(
     payload: VlanCreate,
     session: SessionDep,
     current_user: CurrentUser,
-) -> VlanResponse:
-    vlan = await create_vlan(session, payload)
+) -> VlanSummaryResponse:
+    try:
+        vlan = await create_vlan(session, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="VLAN ID already exists.",
+        ) from exc
     await write_audit_event(
         session,
         "inventory.vlan_created",
@@ -435,9 +500,63 @@ async def create_vlan_endpoint(
         actor_user_id=current_user.id,
     )
     await session.commit()
-    return VlanResponse(
-        id=vlan.id,
-        vlan_id=vlan.vlan_id,
-        name=vlan.name,
-        description=vlan.description,
+    return await vlan_to_summary_response(session, vlan)
+
+
+@router.patch(
+    "/vlans/{vlan_pk}",
+    response_model=VlanSummaryResponse,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def update_vlan_endpoint(
+    vlan_pk: int,
+    payload: VlanUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> VlanSummaryResponse:
+    vlan = await get_vlan(session, vlan_pk)
+    if vlan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
+
+    try:
+        vlan = await update_vlan(session, vlan, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="VLAN ID already exists.",
+        ) from exc
+
+    await write_audit_event(
+        session,
+        "inventory.vlan_updated",
+        f"VLAN updated: {vlan.vlan_id}",
+        actor_user_id=current_user.id,
     )
+    await session.commit()
+    return await vlan_to_summary_response(session, vlan)
+
+
+@router.delete(
+    "/vlans/{vlan_pk}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def delete_vlan_endpoint(
+    vlan_pk: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    vlan = await get_vlan(session, vlan_pk)
+    if vlan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
+
+    vlan_id = vlan.vlan_id
+    await delete_vlan(session, vlan)
+    await write_audit_event(
+        session,
+        "inventory.vlan_deleted",
+        f"VLAN deleted: {vlan_id}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
