@@ -39,6 +39,12 @@ textarea {
   cursor: pointer;
 }
 
+.button-reset:hover,
+.button-reset:focus,
+.button-reset:active {
+  background: transparent;
+}
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -212,7 +218,9 @@ textarea {
   min-height: 54px;
   align-items: center;
   gap: 18px;
+  border: 0;
   border-radius: 9px;
+  background: transparent;
   padding: 0 14px;
   color: #19243a;
   font-size: 16px;
@@ -227,6 +235,10 @@ textarea {
   background: #eef0ff;
   color: #0c43ff;
   font-weight: 720;
+}
+
+.nav-item:not(.active):hover {
+  background: rgba(244, 246, 251, 0.72);
 }
 
 .nav-item.active svg {
@@ -518,6 +530,15 @@ textarea {
   align-items: start;
 }
 
+.device-layout:has(.device-detail-panel):not(:has(.device-form-panel)) {
+  grid-template-columns: minmax(0, 1fr) 430px;
+  align-items: start;
+}
+
+.device-layout:has(.device-form-panel) .device-detail-panel {
+  grid-column: 1 / -1;
+}
+
 .device-table-panel,
 .device-form-panel {
   min-height: 0;
@@ -604,6 +625,95 @@ textarea {
   color: #1b7f48;
   font-size: 14px;
   padding: 11px 13px;
+}
+
+.row-action {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.row-action:hover {
+  text-decoration: underline;
+}
+
+.device-detail-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.detail-heading h2 {
+  margin-bottom: 6px;
+}
+
+.detail-heading p {
+  margin: 0;
+  color: #66728a;
+  font-size: 14px;
+}
+
+.detail-heading .text-button {
+  color: #0646ff;
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.detail-section {
+  border-top: 1px solid #e7ebf2;
+  padding-top: 20px;
+}
+
+.detail-section h3,
+.inventory-form h3 {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.interface-list {
+  display: grid;
+  gap: 10px;
+}
+
+.interface-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.8fr) minmax(120px, 1fr) minmax(120px, 1fr);
+  gap: 12px;
+  border: 1px solid #e7ebf2;
+  border-radius: 8px;
+  background: #fbfcff;
+  padding: 12px;
+  color: #536079;
+  font-size: 13px;
+}
+
+.interface-row strong {
+  color: #172033;
+}
+
+.interface-row small {
+  color: #66728a;
+  font-size: 13px;
+}
+
+.danger-action {
+  min-height: 44px;
+  border: 1px solid #ffd2d6;
+  border-radius: 9px;
+  background: #fff3f4;
+  color: #c02633;
+  cursor: pointer;
+  font-weight: 760;
 }
 
 .dashboard-grid {
