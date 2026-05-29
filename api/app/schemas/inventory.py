@@ -106,11 +106,57 @@ class IpAddressResponse(BaseModel):
     network_id: int | None
 
 
+class IpAddressCreate(BaseModel):
+    address: str
+    assignment_type: str = Field(default="static", max_length=32)
+    network_id: int | None = None
+    interface_id: int | None = None
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, value: str) -> str:
+        return str(ipaddress.ip_address(value))
+
+
+class IpAddressUpdate(BaseModel):
+    address: str | None = None
+    assignment_type: str | None = Field(default=None, max_length=32)
+    network_id: int | None = None
+    interface_id: int | None = None
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return str(ipaddress.ip_address(value))
+
+
+class IpAddressRecordResponse(IpAddressResponse):
+    interface_id: int | None
+    interface_name: str | None
+    mac_address: str | None
+    device_id: int | None
+    device_name: str | None
+    network_cidr: str | None
+    vlan_id: int | None
+    vlan_name: str | None
+    state: str
+
+
 class InterfaceResponse(BaseModel):
     id: int
     name: str
     mac_address: str | None
     ip_addresses: list[IpAddressResponse]
+
+
+class InterfaceRecordResponse(BaseModel):
+    id: int
+    name: str
+    mac_address: str | None
+    device_id: int
+    device_name: str
 
 
 class DeviceDetailResponse(DeviceResponse):
