@@ -2,13 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
+from app.models.inventory import Network, NetworkInterface
 from app.schemas.inventory import (
     DashboardSummary,
     DeviceDetailResponse,
     DeviceResponse,
     DeviceUpdate,
     DeviceWithInterfaceCreate,
+    IpAddressCreate,
+    IpAddressRecordResponse,
+    IpAddressUpdate,
     InterfaceCreate,
+    InterfaceRecordResponse,
     InterfaceResponse,
     NetworkCreate,
     NetworkResponse,
@@ -19,6 +24,7 @@ from app.services.audit import write_audit_event
 from app.services.inventory import (
     add_device_interface,
     create_device,
+    create_ip_address,
     create_network,
     create_vlan,
     dashboard_summary,
@@ -26,10 +32,15 @@ from app.services.inventory import (
     device_to_detail_response,
     device_to_response,
     get_device,
+    get_ip_address,
+    ip_address_to_response,
     list_devices,
+    list_interfaces,
+    list_ip_addresses,
     list_networks,
     list_vlans,
     network_to_response,
+    update_ip_address,
     update_device,
 )
 
@@ -158,6 +169,89 @@ async def add_device_interface_endpoint(
     await session.commit()
     detail = await device_to_detail_response(session, device)
     return next(item for item in detail.interfaces if item.id == interface.id)
+
+
+@router.get("/ip-addresses", response_model=list[IpAddressRecordResponse])
+async def ip_addresses(session: SessionDep, _: CurrentUser) -> list[IpAddressRecordResponse]:
+    return await list_ip_addresses(session)
+
+
+@router.get("/interfaces", response_model=list[InterfaceRecordResponse])
+async def interfaces(session: SessionDep, _: CurrentUser) -> list[InterfaceRecordResponse]:
+    return await list_interfaces(session)
+
+
+@router.post(
+    "/ip-addresses",
+    response_model=IpAddressRecordResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def create_ip_address_endpoint(
+    payload: IpAddressCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> IpAddressRecordResponse:
+    if payload.network_id and await session.get(Network, payload.network_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
+
+    try:
+        ip_address = await create_ip_address(session, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="IP address already exists.",
+        ) from exc
+
+    await write_audit_event(
+        session,
+        "inventory.ip_created",
+        f"IP address created: {ip_address.address}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await ip_address_to_response(session, ip_address)
+
+
+@router.patch(
+    "/ip-addresses/{ip_address_id}",
+    response_model=IpAddressRecordResponse,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def update_ip_address_endpoint(
+    ip_address_id: int,
+    payload: IpAddressUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> IpAddressRecordResponse:
+    ip_address = await get_ip_address(session, ip_address_id)
+    if ip_address is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IP address not found.")
+    if payload.network_id and await session.get(Network, payload.network_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
+
+    try:
+        ip_address = await update_ip_address(session, ip_address, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="IP address already exists.",
+        ) from exc
+
+    await write_audit_event(
+        session,
+        "inventory.ip_updated",
+        f"IP address updated: {ip_address.address}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await ip_address_to_response(session, ip_address)
 
 
 @router.post(
