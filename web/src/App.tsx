@@ -26,7 +26,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import "./App.css";
@@ -82,6 +82,26 @@ type NetworkRecord = {
 type ViewName = "dashboard" | "devices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+
+async function fetchInventoryData() {
+  const [dashboardResponse, devicesResponse, networksResponse] = await Promise.all([
+    fetch(`${API_BASE_URL}/inventory/dashboard`, { credentials: "include" }),
+    fetch(`${API_BASE_URL}/inventory/devices`, { credentials: "include" }),
+    fetch(`${API_BASE_URL}/inventory/networks`, { credentials: "include" }),
+  ]);
+
+  if (dashboardResponse.status === 401 || devicesResponse.status === 401) {
+    throw new Error("unauthorized");
+  }
+
+  return {
+    dashboard: dashboardResponse.ok
+      ? ((await dashboardResponse.json()) as DashboardSummary)
+      : null,
+    devices: devicesResponse.ok ? ((await devicesResponse.json()) as DeviceRecord[]) : [],
+    networks: networksResponse.ok ? ((await networksResponse.json()) as NetworkRecord[]) : [],
+  };
+}
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
   {
@@ -189,8 +209,19 @@ function App() {
           const csrfData = (await csrfResponse.json()) as { csrf_token: string };
           setCsrfToken(csrfData.csrf_token);
         }
+        if (!data.user.must_change_password) {
+          const inventoryData = await fetchInventoryData();
+          setDashboard(inventoryData.dashboard);
+          setDevices(inventoryData.devices);
+          setNetworks(inventoryData.networks);
+        }
       })
-      .catch(() => setUser(null))
+      .catch((error) => {
+        setUser(null);
+        if (error instanceof Error && error.message === "unauthorized") {
+          setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -204,54 +235,19 @@ function App() {
     setCsrfToken("");
   }
 
-  const loadDashboard = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/inventory/dashboard`, {
-      credentials: "include",
-    });
-    if (response.status === 401) {
-      setUser(null);
-      setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
-      return;
+  async function refreshInventory() {
+    try {
+      const inventoryData = await fetchInventoryData();
+      setDashboard(inventoryData.dashboard);
+      setDevices(inventoryData.devices);
+      setNetworks(inventoryData.networks);
+    } catch (error) {
+      if (error instanceof Error && error.message === "unauthorized") {
+        setUser(null);
+        setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+      }
     }
-    if (response.ok) {
-      setDashboard((await response.json()) as DashboardSummary);
-    }
-  }, []);
-
-  const loadDevices = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/inventory/devices`, {
-      credentials: "include",
-    });
-    if (response.status === 401) {
-      setUser(null);
-      setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
-      return;
-    }
-    if (response.ok) {
-      setDevices((await response.json()) as DeviceRecord[]);
-    }
-  }, []);
-
-  const loadNetworks = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/inventory/networks`, {
-      credentials: "include",
-    });
-    if (response.ok) {
-      setNetworks((await response.json()) as NetworkRecord[]);
-    }
-  }, []);
-
-  const refreshInventory = useCallback(async () => {
-    await Promise.all([loadDashboard(), loadDevices(), loadNetworks()]);
-  }, [loadDashboard, loadDevices, loadNetworks]);
-
-  useEffect(() => {
-    if (!user || user.must_change_password) {
-      return;
-    }
-
-    refreshInventory().catch(() => undefined);
-  }, [refreshInventory, user]);
+  }
 
   if (isLoading) {
     return <div className="auth-loading">AE NetScope</div>;
@@ -265,6 +261,9 @@ function App() {
           setUser(nextUser);
           setCsrfToken(nextCsrfToken);
           setSessionMessage("");
+          if (!nextUser.must_change_password) {
+            refreshInventory().catch(() => undefined);
+          }
         }}
       />
     );
