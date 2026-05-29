@@ -251,7 +251,9 @@ async def update_ip_address_endpoint(
     if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
     next_address = payload.address if payload.address is not None else ip_address.address
-    next_network_id = payload.network_id if payload.network_id is not None else ip_address.network_id
+    next_network_id = (
+        payload.network_id if payload.network_id is not None else ip_address.network_id
+    )
     if next_network_id and not await ip_belongs_to_network(session, next_address, next_network_id):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
