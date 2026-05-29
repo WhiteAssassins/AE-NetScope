@@ -105,6 +105,10 @@ type VlanRecord = {
   vlan_id: number;
   name: string;
   description: string | null;
+  network_count: number;
+  ip_count: number;
+  usable_hosts: number;
+  utilization_percent: number;
 };
 type InterfaceRecord = {
   id: number;
@@ -128,7 +132,7 @@ type IpMacRecord = {
   vlan_name: string | null;
   state: string;
 };
-type ViewName = "dashboard" | "devices" | "ipMacs" | "networks";
+type ViewName = "dashboard" | "devices" | "ipMacs" | "networks" | "vlans";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
@@ -393,6 +397,9 @@ function App() {
                     if (item.label === "Subredes") {
                       setView("networks");
                     }
+                    if (item.label === "VLANs") {
+                      setView("vlans");
+                    }
                   }}
                 >
                   <item.icon size={19} strokeWidth={1.8} />
@@ -625,13 +632,15 @@ function App() {
               networks={networks}
               onChanged={refreshInventory}
             />
-          ) : (
+          ) : view === "networks" ? (
             <NetworksView
               csrfToken={csrfToken}
               networks={networks}
               onChanged={refreshInventory}
               vlans={vlans}
             />
+          ) : (
+            <VlansView csrfToken={csrfToken} onChanged={refreshInventory} vlans={vlans} />
           )}
         </section>
 
@@ -841,6 +850,24 @@ function DevicesView({
     await onCreated();
   }
 
+  async function deleteSelectedDevice() {
+    if (!selectedDevice) {
+      return;
+    }
+    setDetailError("");
+    const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
+    if (!response.ok) {
+      setDetailError("No se pudo eliminar el dispositivo.");
+      return;
+    }
+    setSelectedDevice(null);
+    await onCreated();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -901,6 +928,34 @@ function DevicesView({
       setError("No se pudo conectar con la API.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedNetwork() {
+    if (!selectedNetwork) {
+      return;
+    }
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/networks/${selectedNetwork.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+
+      if (!response.ok) {
+        setError("No se pudo eliminar la subred.");
+        return;
+      }
+
+      setMessage("Subred eliminada.");
+      resetForm();
+      setShowForm(false);
+      await onChanged();
+    } catch {
+      setError("No se pudo conectar con la API.");
     }
   }
 
@@ -1235,6 +1290,9 @@ function DevicesView({
 
             <button className="danger-action" onClick={deactivateSelectedDevice}>
               Desactivar dispositivo
+            </button>
+            <button className="danger-action" onClick={deleteSelectedDevice}>
+              Eliminar dispositivo
             </button>
           </article>
         )}
@@ -1876,6 +1934,11 @@ function NetworksView({
                     : "Crear subred"}
               </button>
             </form>
+            {selectedNetwork && (
+              <button className="danger-action panel-action" onClick={deleteSelectedNetwork}>
+                Eliminar subred
+              </button>
+            )}
           </article>
         )}
       </section>
