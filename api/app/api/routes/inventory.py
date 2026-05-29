@@ -21,7 +21,6 @@ from app.schemas.inventory import (
     NetworkResponse,
     NetworkUpdate,
     VlanCreate,
-    VlanResponse,
     VlanSummaryResponse,
     VlanUpdate,
 )
