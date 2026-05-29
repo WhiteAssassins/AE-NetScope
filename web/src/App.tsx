@@ -61,6 +61,25 @@ type DashboardSummary = {
   services: Array<{ name: string; device_count: number; status: string }>;
   networks: Array<{ cidr: string; device_count: number }>;
 };
+type DeviceRecord = {
+  id: number;
+  name: string;
+  device_type: string;
+  status: string;
+  vendor: string | null;
+  model: string | null;
+  operating_system: string | null;
+  location: string | null;
+  notes: string | null;
+  primary_ip: string | null;
+  primary_mac: string | null;
+};
+type NetworkRecord = {
+  id: number;
+  cidr: string;
+  name: string;
+};
+type ViewName = "dashboard" | "devices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
@@ -143,6 +162,9 @@ const changes = [
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [devices, setDevices] = useState<DeviceRecord[]>([]);
+  const [networks, setNetworks] = useState<NetworkRecord[]>([]);
+  const [view, setView] = useState<ViewName>("dashboard");
   const [csrfToken, setCsrfToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [sessionMessage, setSessionMessage] = useState("");
@@ -187,20 +209,49 @@ function App() {
       return;
     }
 
-    fetch(`${API_BASE_URL}/inventory/dashboard`, { credentials: "include" })
-      .then(async (response) => {
-        if (response.status === 401) {
-          setUser(null);
-          setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
-          return;
-        }
-        if (!response.ok) {
-          return;
-        }
-        setDashboard((await response.json()) as DashboardSummary);
-      })
-      .catch(() => undefined);
+    refreshInventory().catch(() => undefined);
   }, [user]);
+
+  async function loadDashboard() {
+    const response = await fetch(`${API_BASE_URL}/inventory/dashboard`, {
+      credentials: "include",
+    });
+    if (response.status === 401) {
+      setUser(null);
+      setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+      return;
+    }
+    if (response.ok) {
+      setDashboard((await response.json()) as DashboardSummary);
+    }
+  }
+
+  async function loadDevices() {
+    const response = await fetch(`${API_BASE_URL}/inventory/devices`, {
+      credentials: "include",
+    });
+    if (response.status === 401) {
+      setUser(null);
+      setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+      return;
+    }
+    if (response.ok) {
+      setDevices((await response.json()) as DeviceRecord[]);
+    }
+  }
+
+  async function loadNetworks() {
+    const response = await fetch(`${API_BASE_URL}/inventory/networks`, {
+      credentials: "include",
+    });
+    if (response.ok) {
+      setNetworks((await response.json()) as NetworkRecord[]);
+    }
+  }
+
+  async function refreshInventory() {
+    await Promise.all([loadDashboard(), loadDevices(), loadNetworks()]);
+  }
 
   if (isLoading) {
     return <div className="auth-loading">AE NetScope</div>;
@@ -247,14 +298,25 @@ function App() {
             <div className="nav-group" key={group.label || "main"}>
               {group.label && <p className="nav-label">{group.label}</p>}
               {group.items.map((item) => (
-                <a
-                  className={item.active ? "nav-item active" : "nav-item"}
-                  href="#"
+                <button
+                  className={
+                    isActiveNav(item.label, view)
+                      ? "nav-item active button-reset"
+                      : "nav-item button-reset"
+                  }
                   key={item.label}
+                  onClick={() => {
+                    if (item.label === "Dashboard") {
+                      setView("dashboard");
+                    }
+                    if (item.label === "Dispositivos") {
+                      setView("devices");
+                    }
+                  }}
                 >
                   <item.icon size={19} strokeWidth={1.8} />
                   <span>{item.label}</span>
-                </a>
+                </button>
               ))}
             </div>
           ))}
@@ -302,12 +364,14 @@ function App() {
         </header>
 
         <section className="content">
-          <div className="page-title">
-            <h1>Bienvenido, {user.username}</h1>
-            <p>Resumen general de tu red</p>
-          </div>
+          {view === "dashboard" ? (
+            <>
+              <div className="page-title">
+                <h1>Bienvenido, {user.username}</h1>
+                <p>Resumen general de tu red</p>
+              </div>
 
-          <section className="stats-grid" aria-label="Resumen del inventario">
+              <section className="stats-grid" aria-label="Resumen del inventario">
             {stats.map((stat) => (
               <article className="stat-card" key={stat.label}>
                 <div className={`stat-icon ${stat.tone}`}>
@@ -320,13 +384,13 @@ function App() {
                 </div>
               </article>
             ))}
-          </section>
+              </section>
 
-          <section className="dashboard-grid">
+              <section className="dashboard-grid">
             <Card className="recent-devices span-7" title="Dispositivos recientes">
-              <a className="card-link top-link" href="#">
+              <button className="card-link top-link text-button" onClick={() => setView("devices")}>
                 Ver todos
-              </a>
+              </button>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -463,7 +527,16 @@ function App() {
                 Ver todo el historial de cambios
               </a>
             </Card>
-          </section>
+              </section>
+            </>
+          ) : (
+            <DevicesView
+              csrfToken={csrfToken}
+              devices={devices}
+              networks={networks}
+              onCreated={refreshInventory}
+            />
+          )}
         </section>
 
         <footer className="footer">
@@ -479,6 +552,301 @@ function App() {
         </footer>
       </main>
     </div>
+  );
+}
+
+function DevicesView({
+  csrfToken,
+  devices,
+  networks,
+  onCreated,
+}: {
+  csrfToken: string;
+  devices: DeviceRecord[];
+  networks: NetworkRecord[];
+  onCreated: () => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    device_type: "Equipo",
+    vendor: "",
+    model: "",
+    operating_system: "",
+    location: "",
+    notes: "",
+    interface_name: "eth0",
+    mac_address: "",
+    ip_address: "",
+    network_id: "",
+  });
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredDevices = devices.filter((device) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return [
+      device.name,
+      device.device_type,
+      device.status,
+      device.vendor,
+      device.model,
+      device.operating_system,
+      device.location,
+      device.primary_ip,
+      device.primary_mac,
+    ]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(normalizedQuery));
+  });
+
+  function updateField(field: keyof typeof form, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setIsSubmitting(true);
+
+    const payload = {
+      name: form.name,
+      device_type: form.device_type,
+      vendor: form.vendor || null,
+      model: form.model || null,
+      operating_system: form.operating_system || null,
+      location: form.location || null,
+      notes: form.notes || null,
+      interface:
+        form.mac_address || form.ip_address
+          ? {
+              name: form.interface_name || "eth0",
+              mac_address: form.mac_address || null,
+              ip_address: form.ip_address || null,
+              network_id: form.network_id ? Number(form.network_id) : null,
+            }
+          : null,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/devices`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        setError("No se pudo crear el dispositivo. Revisa campos duplicados o invalidos.");
+        return;
+      }
+
+      setMessage("Dispositivo creado.");
+      setForm({
+        name: "",
+        device_type: "Equipo",
+        vendor: "",
+        model: "",
+        operating_system: "",
+        location: "",
+        notes: "",
+        interface_name: "eth0",
+        mac_address: "",
+        ip_address: "",
+        network_id: "",
+      });
+      await onCreated();
+    } catch {
+      setError("No se pudo conectar con la API.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-title page-title-row">
+        <div>
+          <h1>Dispositivos</h1>
+          <p>Inventario operativo de hosts, equipos de red y servidores.</p>
+        </div>
+        <button className="primary-action" onClick={() => setShowForm((value) => !value)}>
+          <PlusIcon size={18} strokeWidth={2} />
+          {showForm ? "Ocultar formulario" : "Nuevo dispositivo"}
+        </button>
+      </div>
+
+      <section className="device-layout">
+        <article className="panel device-table-panel">
+          <div className="device-toolbar">
+            <label className="inline-search">
+              <Search size={18} strokeWidth={1.8} />
+              <input
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por nombre, IP, MAC, tipo..."
+                value={query}
+              />
+            </label>
+            <span>{filteredDevices.length} dispositivos</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>IP principal</th>
+                  <th>MAC</th>
+                  <th>Fabricante</th>
+                  <th>Ubicacion</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDevices.map((device) => (
+                  <tr key={device.id}>
+                    <td>
+                      <a className="device-name" href="#">
+                        {device.name}
+                      </a>
+                    </td>
+                    <td>
+                      <span className={`pill ${typeTone(device.device_type)}`}>
+                        {device.device_type}
+                      </span>
+                    </td>
+                    <td>{device.primary_ip ?? "-"}</td>
+                    <td>{device.primary_mac ?? "-"}</td>
+                    <td>{device.vendor ?? "-"}</td>
+                    <td>{device.location ?? "-"}</td>
+                    <td>
+                      <span className="status-dot" /> {titleCase(device.status)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        {showForm && (
+          <article className="panel device-form-panel">
+            <h2>Nuevo dispositivo</h2>
+            <form className="inventory-form" onSubmit={handleSubmit}>
+              <label>
+                Nombre
+                <input
+                  onChange={(event) => updateField("name", event.target.value)}
+                  required
+                  value={form.name}
+                />
+              </label>
+              <label>
+                Tipo
+                <select
+                  onChange={(event) => updateField("device_type", event.target.value)}
+                  value={form.device_type}
+                >
+                  <option>Equipo</option>
+                  <option>Servidor</option>
+                  <option>Switch</option>
+                  <option>Router</option>
+                  <option>Access Point</option>
+                  <option>Impresora</option>
+                  <option>Otro</option>
+                </select>
+              </label>
+              <label>
+                Fabricante
+                <input
+                  onChange={(event) => updateField("vendor", event.target.value)}
+                  value={form.vendor}
+                />
+              </label>
+              <label>
+                Modelo
+                <input
+                  onChange={(event) => updateField("model", event.target.value)}
+                  value={form.model}
+                />
+              </label>
+              <label>
+                Sistema operativo
+                <input
+                  onChange={(event) => updateField("operating_system", event.target.value)}
+                  value={form.operating_system}
+                />
+              </label>
+              <label>
+                Ubicacion
+                <input
+                  onChange={(event) => updateField("location", event.target.value)}
+                  value={form.location}
+                />
+              </label>
+              <label>
+                Interfaz
+                <input
+                  onChange={(event) => updateField("interface_name", event.target.value)}
+                  value={form.interface_name}
+                />
+              </label>
+              <label>
+                MAC
+                <input
+                  onChange={(event) => updateField("mac_address", event.target.value)}
+                  placeholder="00:11:22:33:44:aa"
+                  value={form.mac_address}
+                />
+              </label>
+              <label>
+                IP
+                <input
+                  onChange={(event) => updateField("ip_address", event.target.value)}
+                  placeholder="10.0.0.10"
+                  value={form.ip_address}
+                />
+              </label>
+              <label>
+                Subred
+                <select
+                  onChange={(event) => updateField("network_id", event.target.value)}
+                  value={form.network_id}
+                >
+                  <option value="">Sin subred</option>
+                  {networks.map((network) => (
+                    <option key={network.id} value={network.id}>
+                      {network.cidr} - {network.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-wide">
+                Notas
+                <textarea
+                  onChange={(event) => updateField("notes", event.target.value)}
+                  value={form.notes}
+                />
+              </label>
+              {message && <p className="form-success">{message}</p>}
+              {error && <p className="login-error form-wide">{error}</p>}
+              <button className="login-button form-wide" disabled={isSubmitting} type="submit">
+                {isSubmitting ? "Guardando..." : "Crear dispositivo"}
+              </button>
+            </form>
+          </article>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -753,6 +1121,13 @@ function buildChartData(dashboard: DashboardSummary | null) {
 
 function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function isActiveNav(label: string, view: ViewName) {
+  return (
+    (label === "Dashboard" && view === "dashboard") ||
+    (label === "Dispositivos" && view === "devices")
+  );
 }
 
 function typeTone(type: string) {
