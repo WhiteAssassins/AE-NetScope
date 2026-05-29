@@ -1765,6 +1765,19 @@ function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function stateLabel(value: string) {
+  if (value === "active") return "Activa";
+  if (value === "reserved") return "Reservada";
+  if (value === "unassigned") return "Sin asignar";
+  return titleCase(value);
+}
+
+function stateTone(value: string) {
+  if (value === "active") return "green";
+  if (value === "reserved") return "orange";
+  return "gray";
+}
+
 function isActiveNav(label: string, view: ViewName) {
   return (
     (label === "Dashboard" && view === "dashboard") ||
