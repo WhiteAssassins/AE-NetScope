@@ -769,6 +769,28 @@ textarea {
   font-weight: 760;
 }
 
+.panel-action {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.usage-cell {
+  display: grid;
+  grid-template-columns: minmax(74px, auto) 120px auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.usage-cell meter {
+  width: 120px;
+  height: 8px;
+}
+
+.usage-cell small {
+  color: #66728a;
+  font-size: 12px;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
