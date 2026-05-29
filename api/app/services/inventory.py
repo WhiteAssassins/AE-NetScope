@@ -9,7 +9,11 @@ from app.schemas.inventory import (
     DeviceResponse,
     DeviceUpdate,
     DeviceWithInterfaceCreate,
+    IpAddressCreate,
+    IpAddressRecordResponse,
+    IpAddressUpdate,
     InterfaceCreate,
+    InterfaceRecordResponse,
     InterfaceResponse,
     IpAddressResponse,
     NetworkCreate,
@@ -107,6 +111,109 @@ async def add_device_interface(
         await session.flush()
 
     return interface
+
+
+async def list_ip_addresses(session: AsyncSession) -> list[IpAddressRecordResponse]:
+    result = await session.execute(
+        select(IpAddress, NetworkInterface, Device, Network, Vlan)
+        .outerjoin(NetworkInterface, IpAddress.interface_id == NetworkInterface.id)
+        .outerjoin(Device, NetworkInterface.device_id == Device.id)
+        .outerjoin(Network, IpAddress.network_id == Network.id)
+        .outerjoin(Vlan, Network.vlan_id == Vlan.id)
+        .order_by(IpAddress.address)
+    )
+    return [
+        ip_address_to_record(ip_address, interface, device, network, vlan)
+        for ip_address, interface, device, network, vlan in result.all()
+    ]
+
+
+async def list_interfaces(session: AsyncSession) -> list[InterfaceRecordResponse]:
+    result = await session.execute(
+        select(NetworkInterface, Device)
+        .join(Device, NetworkInterface.device_id == Device.id)
+        .order_by(Device.name, NetworkInterface.name)
+    )
+    return [
+        InterfaceRecordResponse(
+            id=interface.id,
+            name=interface.name,
+            mac_address=interface.mac_address,
+            device_id=device.id,
+            device_name=device.name,
+        )
+        for interface, device in result.all()
+    ]
+
+
+async def get_ip_address(session: AsyncSession, ip_address_id: int) -> IpAddress | None:
+    return await session.get(IpAddress, ip_address_id)
+
+
+async def create_ip_address(session: AsyncSession, payload: IpAddressCreate) -> IpAddress:
+    ip_address = IpAddress(**payload.model_dump())
+    session.add(ip_address)
+    await session.flush()
+    return ip_address
+
+
+async def update_ip_address(
+    session: AsyncSession,
+    ip_address: IpAddress,
+    payload: IpAddressUpdate,
+) -> IpAddress:
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(ip_address, key, value)
+    await session.flush()
+    return ip_address
+
+
+async def ip_address_to_response(
+    session: AsyncSession,
+    ip_address: IpAddress,
+) -> IpAddressRecordResponse:
+    result = await session.execute(
+        select(IpAddress, NetworkInterface, Device, Network, Vlan)
+        .outerjoin(NetworkInterface, IpAddress.interface_id == NetworkInterface.id)
+        .outerjoin(Device, NetworkInterface.device_id == Device.id)
+        .outerjoin(Network, IpAddress.network_id == Network.id)
+        .outerjoin(Vlan, Network.vlan_id == Vlan.id)
+        .where(IpAddress.id == ip_address.id)
+    )
+    row = result.one()
+    return ip_address_to_record(*row)
+
+
+def ip_address_to_record(
+    ip_address: IpAddress,
+    interface: NetworkInterface | None,
+    device: Device | None,
+    network: Network | None,
+    vlan: Vlan | None,
+) -> IpAddressRecordResponse:
+    return IpAddressRecordResponse(
+        id=ip_address.id,
+        address=ip_address.address,
+        assignment_type=ip_address.assignment_type,
+        network_id=ip_address.network_id,
+        interface_id=ip_address.interface_id,
+        interface_name=interface.name if interface else None,
+        mac_address=interface.mac_address if interface else None,
+        device_id=device.id if device else None,
+        device_name=device.name if device else None,
+        network_cidr=network.cidr if network else None,
+        vlan_id=vlan.vlan_id if vlan else None,
+        vlan_name=vlan.name if vlan else None,
+        state=ip_address_state(ip_address, interface),
+    )
+
+
+def ip_address_state(ip_address: IpAddress, interface: NetworkInterface | None) -> str:
+    if ip_address.assignment_type == "reserved":
+        return "reserved"
+    if interface is None:
+        return "unassigned"
+    return "active"
 
 
 def device_select() -> Select[tuple[Device, str | None, str | None]]:
