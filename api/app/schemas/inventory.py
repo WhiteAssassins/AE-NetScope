@@ -54,6 +54,17 @@ class DeviceCreate(BaseModel):
     notes: str | None = None
 
 
+class DeviceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    device_type: str | None = Field(default=None, min_length=1, max_length=60)
+    status: str | None = Field(default=None, max_length=32)
+    vendor: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+    operating_system: str | None = Field(default=None, max_length=120)
+    location: str | None = Field(default=None, max_length=120)
+    notes: str | None = None
+
+
 class InterfaceCreate(BaseModel):
     name: str = Field(default="eth0", min_length=1, max_length=80)
     mac_address: str | None = None
@@ -86,6 +97,24 @@ class DeviceResponse(DeviceCreate):
     id: int
     primary_ip: str | None = None
     primary_mac: str | None = None
+
+
+class IpAddressResponse(BaseModel):
+    id: int
+    address: str
+    assignment_type: str
+    network_id: int | None
+
+
+class InterfaceResponse(BaseModel):
+    id: int
+    name: str
+    mac_address: str | None
+    ip_addresses: list[IpAddressResponse]
+
+
+class DeviceDetailResponse(DeviceResponse):
+    interfaces: list[InterfaceResponse]
 
 
 class DashboardStats(BaseModel):

@@ -5,8 +5,13 @@ from app.models.inventory import Device, IpAddress, Network, NetworkInterface, S
 from app.schemas.inventory import (
     DashboardStats,
     DashboardSummary,
+    DeviceDetailResponse,
     DeviceResponse,
+    DeviceUpdate,
     DeviceWithInterfaceCreate,
+    InterfaceCreate,
+    InterfaceResponse,
+    IpAddressResponse,
     NetworkCreate,
     NetworkNode,
     NetworkResponse,
@@ -58,6 +63,50 @@ async def create_device(session: AsyncSession, payload: DeviceWithInterfaceCreat
             await session.flush()
 
     return device
+
+
+async def get_device(session: AsyncSession, device_id: int) -> Device | None:
+    return await session.get(Device, device_id)
+
+
+async def update_device(session: AsyncSession, device: Device, payload: DeviceUpdate) -> Device:
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(device, key, value)
+    await session.flush()
+    return device
+
+
+async def deactivate_device(session: AsyncSession, device: Device) -> Device:
+    device.status = "inactive"
+    await session.flush()
+    return device
+
+
+async def add_device_interface(
+    session: AsyncSession,
+    device: Device,
+    payload: InterfaceCreate,
+) -> NetworkInterface:
+    interface = NetworkInterface(
+        device_id=device.id,
+        name=payload.name,
+        mac_address=payload.mac_address,
+    )
+    session.add(interface)
+    await session.flush()
+
+    if payload.ip_address:
+        session.add(
+            IpAddress(
+                address=payload.ip_address,
+                assignment_type=payload.assignment_type,
+                network_id=payload.network_id,
+                interface_id=interface.id,
+            )
+        )
+        await session.flush()
+
+    return interface
 
 
 def device_select() -> Select[tuple[Device, str | None, str | None]]:
@@ -124,6 +173,40 @@ async def device_to_response(session: AsyncSession, device: Device) -> DeviceRes
         notes=selected_device.notes,
         primary_ip=ip_address,
         primary_mac=mac_address,
+    )
+
+
+async def device_to_detail_response(session: AsyncSession, device: Device) -> DeviceDetailResponse:
+    base = await device_to_response(session, device)
+    result = await session.execute(
+        select(NetworkInterface, IpAddress)
+        .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
+        .where(NetworkInterface.device_id == device.id)
+        .order_by(NetworkInterface.name, IpAddress.address)
+    )
+
+    interface_map: dict[int, InterfaceResponse] = {}
+    for interface, ip_address in result.all():
+        if interface.id not in interface_map:
+            interface_map[interface.id] = InterfaceResponse(
+                id=interface.id,
+                name=interface.name,
+                mac_address=interface.mac_address,
+                ip_addresses=[],
+            )
+        if ip_address:
+            interface_map[interface.id].ip_addresses.append(
+                IpAddressResponse(
+                    id=ip_address.id,
+                    address=ip_address.address,
+                    assignment_type=ip_address.assignment_type,
+                    network_id=ip_address.network_id,
+                )
+            )
+
+    return DeviceDetailResponse(
+        **base.model_dump(),
+        interfaces=list(interface_map.values()),
     )
 
 
