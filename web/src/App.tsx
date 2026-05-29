@@ -904,34 +904,6 @@ function DevicesView({
     }
   }
 
-  async function deleteSelectedIp() {
-    if (!selectedIp) {
-      return;
-    }
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory/ip-addresses/${selectedIp.id}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "X-CSRF-Token": csrfToken },
-      });
-
-      if (!response.ok) {
-        setError("No se pudo eliminar la IP.");
-        return;
-      }
-
-      setMessage("IP eliminada.");
-      resetForm();
-      setShowForm(false);
-      await onChanged();
-    } catch {
-      setError("No se pudo conectar con la API.");
-    }
-  }
-
   return (
     <>
       <div className="page-title page-title-row">
@@ -1383,6 +1355,34 @@ function IpMacsView({
       setError("No se pudo conectar con la API.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedIp() {
+    if (!selectedIp) {
+      return;
+    }
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/ip-addresses/${selectedIp.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+
+      if (!response.ok) {
+        setError("No se pudo eliminar la IP.");
+        return;
+      }
+
+      setMessage("IP eliminada.");
+      resetForm();
+      setShowForm(false);
+      await onChanged();
+    } catch {
+      setError("No se pudo conectar con la API.");
     }
   }
 
