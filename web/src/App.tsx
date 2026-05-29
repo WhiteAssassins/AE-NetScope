@@ -91,6 +91,20 @@ type NetworkRecord = {
   id: number;
   cidr: string;
   name: string;
+  gateway: string | null;
+  location: string | null;
+  status: string;
+  vlan_id: number | null;
+  vlan: VlanRecord | null;
+  ip_count: number;
+  usable_hosts: number;
+  utilization_percent: number;
+};
+type VlanRecord = {
+  id: number;
+  vlan_id: number;
+  name: string;
+  description: string | null;
 };
 type InterfaceRecord = {
   id: number;
@@ -114,16 +128,23 @@ type IpMacRecord = {
   vlan_name: string | null;
   state: string;
 };
-type ViewName = "dashboard" | "devices" | "ipMacs";
+type ViewName = "dashboard" | "devices" | "ipMacs" | "networks";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 async function fetchInventoryData() {
-  const [dashboardResponse, devicesResponse, networksResponse, ipMacsResponse, interfacesResponse] =
-    await Promise.all([
+  const [
+    dashboardResponse,
+    devicesResponse,
+    networksResponse,
+    vlansResponse,
+    ipMacsResponse,
+    interfacesResponse,
+  ] = await Promise.all([
     fetch(`${API_BASE_URL}/inventory/dashboard`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/devices`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/networks`, { credentials: "include" }),
+    fetch(`${API_BASE_URL}/inventory/vlans`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/ip-addresses`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/interfaces`, { credentials: "include" }),
   ]);
@@ -138,6 +159,7 @@ async function fetchInventoryData() {
       : null,
     devices: devicesResponse.ok ? ((await devicesResponse.json()) as DeviceRecord[]) : [],
     networks: networksResponse.ok ? ((await networksResponse.json()) as NetworkRecord[]) : [],
+    vlans: vlansResponse.ok ? ((await vlansResponse.json()) as VlanRecord[]) : [],
     ipMacs: ipMacsResponse.ok ? ((await ipMacsResponse.json()) as IpMacRecord[]) : [],
     interfaces: interfacesResponse.ok
       ? ((await interfacesResponse.json()) as InterfaceRecord[])
@@ -226,6 +248,7 @@ function App() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [networks, setNetworks] = useState<NetworkRecord[]>([]);
+  const [vlans, setVlans] = useState<VlanRecord[]>([]);
   const [ipMacs, setIpMacs] = useState<IpMacRecord[]>([]);
   const [interfaces, setInterfaces] = useState<InterfaceRecord[]>([]);
   const [view, setView] = useState<ViewName>("dashboard");
@@ -258,6 +281,7 @@ function App() {
           setDashboard(inventoryData.dashboard);
           setDevices(inventoryData.devices);
           setNetworks(inventoryData.networks);
+          setVlans(inventoryData.vlans);
           setIpMacs(inventoryData.ipMacs);
           setInterfaces(inventoryData.interfaces);
         }
@@ -287,6 +311,7 @@ function App() {
       setDashboard(inventoryData.dashboard);
       setDevices(inventoryData.devices);
       setNetworks(inventoryData.networks);
+      setVlans(inventoryData.vlans);
       setIpMacs(inventoryData.ipMacs);
       setInterfaces(inventoryData.interfaces);
     } catch (error) {
@@ -364,6 +389,9 @@ function App() {
                     }
                     if (item.label === "IPs y MACs") {
                       setView("ipMacs");
+                    }
+                    if (item.label === "Subredes") {
+                      setView("networks");
                     }
                   }}
                 >
@@ -589,13 +617,20 @@ function App() {
               networks={networks}
               onCreated={refreshInventory}
             />
-          ) : (
+          ) : view === "ipMacs" ? (
             <IpMacsView
               csrfToken={csrfToken}
               interfaces={interfaces}
               ipMacs={ipMacs}
               networks={networks}
               onChanged={refreshInventory}
+            />
+          ) : (
+            <NetworksView
+              csrfToken={csrfToken}
+              networks={networks}
+              onChanged={refreshInventory}
+              vlans={vlans}
             />
           )}
         </section>
@@ -866,6 +901,34 @@ function DevicesView({
       setError("No se pudo conectar con la API.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedIp() {
+    if (!selectedIp) {
+      return;
+    }
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/ip-addresses/${selectedIp.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+
+      if (!response.ok) {
+        setError("No se pudo eliminar la IP.");
+        return;
+      }
+
+      setMessage("IP eliminada.");
+      resetForm();
+      setShowForm(false);
+      await onChanged();
+    } catch {
+      setError("No se pudo conectar con la API.");
     }
   }
 
@@ -1485,6 +1548,11 @@ function IpMacsView({
                 {isSubmitting ? "Guardando..." : selectedIp ? "Guardar IP" : "Registrar IP"}
               </button>
             </form>
+            {selectedIp && (
+              <button className="danger-action panel-action" onClick={deleteSelectedIp}>
+                Eliminar IP
+              </button>
+            )}
           </article>
         )}
       </section>
