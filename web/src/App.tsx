@@ -273,7 +273,10 @@ function App() {
     return (
       <ChangePasswordScreen
         csrfToken={csrfToken}
-        onPasswordChanged={(nextUser) => setUser(nextUser)}
+        onPasswordChanged={(nextUser) => {
+          setUser(nextUser);
+          refreshInventory().catch(() => undefined);
+        }}
       />
     );
   }
