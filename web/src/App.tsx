@@ -931,34 +931,6 @@ function DevicesView({
     }
   }
 
-  async function deleteSelectedNetwork() {
-    if (!selectedNetwork) {
-      return;
-    }
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory/networks/${selectedNetwork.id}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "X-CSRF-Token": csrfToken },
-      });
-
-      if (!response.ok) {
-        setError("No se pudo eliminar la subred.");
-        return;
-      }
-
-      setMessage("Subred eliminada.");
-      resetForm();
-      setShowForm(false);
-      await onChanged();
-    } catch {
-      setError("No se pudo conectar con la API.");
-    }
-  }
-
   return (
     <>
       <div className="page-title page-title-row">
@@ -1740,6 +1712,34 @@ function NetworksView({
       setError("No se pudo conectar con la API.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedNetwork() {
+    if (!selectedNetwork) {
+      return;
+    }
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/networks/${selectedNetwork.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+
+      if (!response.ok) {
+        setError("No se pudo eliminar la subred.");
+        return;
+      }
+
+      setMessage("Subred eliminada.");
+      resetForm();
+      setShowForm(false);
+      await onChanged();
+    } catch {
+      setError("No se pudo conectar con la API.");
     }
   }
 
