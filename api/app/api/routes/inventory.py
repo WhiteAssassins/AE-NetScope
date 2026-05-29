@@ -209,7 +209,7 @@ async def create_ip_address_endpoint(
         payload.network_id,
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="IP address does not belong to the selected network.",
         )
 
@@ -256,7 +256,7 @@ async def update_ip_address_endpoint(
     )
     if next_network_id and not await ip_belongs_to_network(session, next_address, next_network_id):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="IP address does not belong to the selected network.",
         )
 
@@ -388,7 +388,7 @@ async def update_network_endpoint(
         strict=False,
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="Gateway must belong to the network CIDR.",
         )
 
