@@ -12,8 +12,21 @@ class VlanCreate(BaseModel):
     description: str | None = None
 
 
+class VlanUpdate(BaseModel):
+    vlan_id: int | None = Field(default=None, ge=1, le=4094)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+
+
 class VlanResponse(VlanCreate):
     id: int
+
+
+class VlanSummaryResponse(VlanResponse):
+    network_count: int = 0
+    ip_count: int = 0
+    usable_hosts: int = 0
+    utilization_percent: float = 0
 
 
 class NetworkCreate(BaseModel):
