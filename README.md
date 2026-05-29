@@ -4,8 +4,10 @@ AE NetScope is a self-hosted web app for organizing LAN inventory data such as d
 
 ## Run
 
-```bash
-docker compose up --build
+From the project root, run:
+
+```bat
+start-dev.cmd
 ```
 
 Then open:
@@ -23,4 +25,3 @@ The current version contains the web dashboard foundation. Backend services and 
 - React
 - TypeScript
 - Vite
-- Docker Compose
