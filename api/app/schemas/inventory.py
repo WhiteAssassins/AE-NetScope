@@ -1,7 +1,7 @@
 import ipaddress
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MAC_PATTERN = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 
@@ -36,11 +36,45 @@ class NetworkCreate(BaseModel):
             return value
         return str(ipaddress.ip_address(value))
 
+    @model_validator(mode="after")
+    def validate_gateway_in_network(self) -> "NetworkCreate":
+        if self.gateway and ipaddress.ip_address(self.gateway) not in ipaddress.ip_network(
+            self.cidr,
+            strict=False,
+        ):
+            raise ValueError("Gateway must belong to the network CIDR.")
+        return self
+
+
+class NetworkUpdate(BaseModel):
+    cidr: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    gateway: str | None = None
+    location: str | None = Field(default=None, max_length=120)
+    status: str | None = Field(default=None, max_length=32)
+    vlan_id: int | None = None
+
+    @field_validator("cidr")
+    @classmethod
+    def validate_cidr(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return str(ipaddress.ip_network(value, strict=False))
+
+    @field_validator("gateway")
+    @classmethod
+    def validate_gateway(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return str(ipaddress.ip_address(value))
+
 
 class NetworkResponse(NetworkCreate):
     id: int
     vlan: VlanResponse | None = None
     ip_count: int = 0
+    usable_hosts: int = 0
+    utilization_percent: float = 0
 
 
 class DeviceCreate(BaseModel):
