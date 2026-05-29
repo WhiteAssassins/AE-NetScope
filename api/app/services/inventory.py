@@ -1,3 +1,5 @@
+import ipaddress
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,7 @@ from app.schemas.inventory import (
     NetworkCreate,
     NetworkNode,
     NetworkResponse,
+    NetworkUpdate,
     RecentDevice,
     ServiceSummary,
     VlanCreate,
@@ -36,6 +39,21 @@ async def create_vlan(session: AsyncSession, payload: VlanCreate) -> Vlan:
 async def create_network(session: AsyncSession, payload: NetworkCreate) -> Network:
     network = Network(**payload.model_dump())
     session.add(network)
+    await session.flush()
+    return network
+
+
+async def get_network(session: AsyncSession, network_id: int) -> Network | None:
+    return await session.get(Network, network_id)
+
+
+async def update_network(
+    session: AsyncSession,
+    network: Network,
+    payload: NetworkUpdate,
+) -> Network:
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(network, key, value)
     await session.flush()
     return network
 
@@ -166,6 +184,18 @@ async def update_ip_address(
         setattr(ip_address, key, value)
     await session.flush()
     return ip_address
+
+
+async def delete_ip_address(session: AsyncSession, ip_address: IpAddress) -> None:
+    await session.delete(ip_address)
+    await session.flush()
+
+
+async def ip_belongs_to_network(session: AsyncSession, address: str, network_id: int) -> bool:
+    network = await session.get(Network, network_id)
+    if network is None:
+        return False
+    return ipaddress.ip_address(address) in ipaddress.ip_network(network.cidr, strict=False)
 
 
 async def ip_address_to_response(
@@ -337,26 +367,7 @@ async def list_networks(session: AsyncSession) -> list[NetworkResponse]:
         ip_count = await session.scalar(
             select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
         )
-        responses.append(
-            NetworkResponse(
-                id=network.id,
-                cidr=network.cidr,
-                name=network.name,
-                gateway=network.gateway,
-                location=network.location,
-                status=network.status,
-                vlan_id=network.vlan_id,
-                vlan=VlanResponse(
-                    id=vlan.id,
-                    vlan_id=vlan.vlan_id,
-                    name=vlan.name,
-                    description=vlan.description,
-                )
-                if vlan
-                else None,
-                ip_count=ip_count or 0,
-            )
-        )
+        responses.append(network_response(network, vlan, ip_count or 0))
     return responses
 
 
@@ -365,6 +376,12 @@ async def network_to_response(session: AsyncSession, network: Network) -> Networ
     ip_count = await session.scalar(
         select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
     )
+    return network_response(network, vlan, ip_count or 0)
+
+
+def network_response(network: Network, vlan: Vlan | None, ip_count: int) -> NetworkResponse:
+    usable_hosts = network_usable_hosts(network.cidr)
+    utilization_percent = round((ip_count / usable_hosts) * 100, 1) if usable_hosts else 0
     return NetworkResponse(
         id=network.id,
         cidr=network.cidr,
@@ -381,8 +398,17 @@ async def network_to_response(session: AsyncSession, network: Network) -> Networ
         )
         if vlan
         else None,
-        ip_count=ip_count or 0,
+        ip_count=ip_count,
+        usable_hosts=usable_hosts,
+        utilization_percent=utilization_percent,
     )
+
+
+def network_usable_hosts(cidr: str) -> int:
+    network = ipaddress.ip_network(cidr, strict=False)
+    if network.version == 4 and network.prefixlen <= 30:
+        return max(network.num_addresses - 2, 0)
+    return network.num_addresses
 
 
 async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
