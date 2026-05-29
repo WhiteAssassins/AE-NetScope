@@ -26,6 +26,8 @@ from app.schemas.inventory import (
     ServiceSummary,
     VlanCreate,
     VlanResponse,
+    VlanSummaryResponse,
+    VlanUpdate,
 )
 
 
@@ -34,6 +36,25 @@ async def create_vlan(session: AsyncSession, payload: VlanCreate) -> Vlan:
     session.add(vlan)
     await session.flush()
     return vlan
+
+
+async def get_vlan(session: AsyncSession, vlan_id: int) -> Vlan | None:
+    return await session.get(Vlan, vlan_id)
+
+
+async def update_vlan(session: AsyncSession, vlan: Vlan, payload: VlanUpdate) -> Vlan:
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(vlan, key, value)
+    await session.flush()
+    return vlan
+
+
+async def delete_vlan(session: AsyncSession, vlan: Vlan) -> None:
+    networks = await session.execute(select(Network).where(Network.vlan_id == vlan.id))
+    for network in networks.scalars():
+        network.vlan_id = None
+    await session.delete(vlan)
+    await session.flush()
 
 
 async def create_network(session: AsyncSession, payload: NetworkCreate) -> Network:
@@ -56,6 +77,14 @@ async def update_network(
         setattr(network, key, value)
     await session.flush()
     return network
+
+
+async def delete_network(session: AsyncSession, network: Network) -> None:
+    ip_addresses = await session.execute(select(IpAddress).where(IpAddress.network_id == network.id))
+    for ip_address in ip_addresses.scalars():
+        ip_address.network_id = None
+    await session.delete(network)
+    await session.flush()
 
 
 async def create_device(session: AsyncSession, payload: DeviceWithInterfaceCreate) -> Device:
@@ -102,6 +131,26 @@ async def deactivate_device(session: AsyncSession, device: Device) -> Device:
     device.status = "inactive"
     await session.flush()
     return device
+
+
+async def delete_device(session: AsyncSession, device: Device) -> None:
+    interfaces = await session.execute(
+        select(NetworkInterface).where(NetworkInterface.device_id == device.id)
+    )
+    for interface in interfaces.scalars():
+        ip_addresses = await session.execute(
+            select(IpAddress).where(IpAddress.interface_id == interface.id)
+        )
+        for ip_address in ip_addresses.scalars():
+            ip_address.interface_id = None
+        await session.delete(interface)
+
+    services = await session.execute(select(Service).where(Service.device_id == device.id))
+    for service in services.scalars():
+        await session.delete(service)
+
+    await session.delete(device)
+    await session.flush()
 
 
 async def add_device_interface(
@@ -347,17 +396,33 @@ async def device_to_detail_response(session: AsyncSession, device: Device) -> De
     )
 
 
-async def list_vlans(session: AsyncSession) -> list[VlanResponse]:
+async def list_vlans(session: AsyncSession) -> list[VlanSummaryResponse]:
     result = await session.execute(select(Vlan).order_by(Vlan.vlan_id))
-    return [
-        VlanResponse(
-            id=vlan.id,
-            vlan_id=vlan.vlan_id,
-            name=vlan.name,
-            description=vlan.description,
-        )
-        for vlan in result.scalars()
-    ]
+    return [await vlan_to_summary_response(session, vlan) for vlan in result.scalars()]
+
+
+async def vlan_to_summary_response(session: AsyncSession, vlan: Vlan) -> VlanSummaryResponse:
+    network_rows = await session.execute(select(Network).where(Network.vlan_id == vlan.id))
+    networks = list(network_rows.scalars())
+    ip_count = 0
+    usable_hosts = 0
+    for network in networks:
+        ip_count += await session.scalar(
+            select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
+        ) or 0
+        usable_hosts += network_usable_hosts(network.cidr)
+
+    utilization_percent = round((ip_count / usable_hosts) * 100, 1) if usable_hosts else 0
+    return VlanSummaryResponse(
+        id=vlan.id,
+        vlan_id=vlan.vlan_id,
+        name=vlan.name,
+        description=vlan.description,
+        network_count=len(networks),
+        ip_count=ip_count,
+        usable_hosts=usable_hosts,
+        utilization_percent=utilization_percent,
+    )
 
 
 async def list_networks(session: AsyncSession) -> list[NetworkResponse]:
