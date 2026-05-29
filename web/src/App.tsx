@@ -92,15 +92,40 @@ type NetworkRecord = {
   cidr: string;
   name: string;
 };
-type ViewName = "dashboard" | "devices";
+type InterfaceRecord = {
+  id: number;
+  name: string;
+  mac_address: string | null;
+  device_id: number;
+  device_name: string;
+};
+type IpMacRecord = {
+  id: number;
+  address: string;
+  assignment_type: string;
+  network_id: number | null;
+  interface_id: number | null;
+  interface_name: string | null;
+  mac_address: string | null;
+  device_id: number | null;
+  device_name: string | null;
+  network_cidr: string | null;
+  vlan_id: number | null;
+  vlan_name: string | null;
+  state: string;
+};
+type ViewName = "dashboard" | "devices" | "ipMacs";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 async function fetchInventoryData() {
-  const [dashboardResponse, devicesResponse, networksResponse] = await Promise.all([
+  const [dashboardResponse, devicesResponse, networksResponse, ipMacsResponse, interfacesResponse] =
+    await Promise.all([
     fetch(`${API_BASE_URL}/inventory/dashboard`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/devices`, { credentials: "include" }),
     fetch(`${API_BASE_URL}/inventory/networks`, { credentials: "include" }),
+    fetch(`${API_BASE_URL}/inventory/ip-addresses`, { credentials: "include" }),
+    fetch(`${API_BASE_URL}/inventory/interfaces`, { credentials: "include" }),
   ]);
 
   if (dashboardResponse.status === 401 || devicesResponse.status === 401) {
@@ -113,6 +138,10 @@ async function fetchInventoryData() {
       : null,
     devices: devicesResponse.ok ? ((await devicesResponse.json()) as DeviceRecord[]) : [],
     networks: networksResponse.ok ? ((await networksResponse.json()) as NetworkRecord[]) : [],
+    ipMacs: ipMacsResponse.ok ? ((await ipMacsResponse.json()) as IpMacRecord[]) : [],
+    interfaces: interfacesResponse.ok
+      ? ((await interfacesResponse.json()) as InterfaceRecord[])
+      : [],
   };
 }
 
@@ -197,6 +226,8 @@ function App() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [networks, setNetworks] = useState<NetworkRecord[]>([]);
+  const [ipMacs, setIpMacs] = useState<IpMacRecord[]>([]);
+  const [interfaces, setInterfaces] = useState<InterfaceRecord[]>([]);
   const [view, setView] = useState<ViewName>("dashboard");
   const [csrfToken, setCsrfToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -227,6 +258,8 @@ function App() {
           setDashboard(inventoryData.dashboard);
           setDevices(inventoryData.devices);
           setNetworks(inventoryData.networks);
+          setIpMacs(inventoryData.ipMacs);
+          setInterfaces(inventoryData.interfaces);
         }
       })
       .catch((error) => {
@@ -254,6 +287,8 @@ function App() {
       setDashboard(inventoryData.dashboard);
       setDevices(inventoryData.devices);
       setNetworks(inventoryData.networks);
+      setIpMacs(inventoryData.ipMacs);
+      setInterfaces(inventoryData.interfaces);
     } catch (error) {
       if (error instanceof Error && error.message === "unauthorized") {
         setUser(null);
@@ -326,6 +361,9 @@ function App() {
                     }
                     if (item.label === "Dispositivos") {
                       setView("devices");
+                    }
+                    if (item.label === "IPs y MACs") {
+                      setView("ipMacs");
                     }
                   }}
                 >
@@ -544,12 +582,20 @@ function App() {
             </Card>
               </section>
             </>
-          ) : (
+          ) : view === "devices" ? (
             <DevicesView
               csrfToken={csrfToken}
               devices={devices}
               networks={networks}
               onCreated={refreshInventory}
+            />
+          ) : (
+            <IpMacsView
+              csrfToken={csrfToken}
+              interfaces={interfaces}
+              ipMacs={ipMacs}
+              networks={networks}
+              onChanged={refreshInventory}
             />
           )}
         </section>
@@ -1438,7 +1484,8 @@ function titleCase(value: string) {
 function isActiveNav(label: string, view: ViewName) {
   return (
     (label === "Dashboard" && view === "dashboard") ||
-    (label === "Dispositivos" && view === "devices")
+    (label === "Dispositivos" && view === "devices") ||
+    (label === "IPs y MACs" && view === "ipMacs")
   );
 }
 
