@@ -1,8 +1,10 @@
+import ipaddress
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
-from app.models.inventory import Network, NetworkInterface
+from app.models.inventory import Network, NetworkInterface, Vlan
 from app.schemas.inventory import (
     DashboardSummary,
     DeviceDetailResponse,
@@ -17,6 +19,7 @@ from app.schemas.inventory import (
     IpAddressUpdate,
     NetworkCreate,
     NetworkResponse,
+    NetworkUpdate,
     VlanCreate,
     VlanResponse,
 )
@@ -29,10 +32,13 @@ from app.services.inventory import (
     create_vlan,
     dashboard_summary,
     deactivate_device,
+    delete_ip_address,
     device_to_detail_response,
     device_to_response,
     get_device,
     get_ip_address,
+    get_network,
+    ip_belongs_to_network,
     ip_address_to_response,
     list_devices,
     list_interfaces,
@@ -42,6 +48,7 @@ from app.services.inventory import (
     network_to_response,
     update_device,
     update_ip_address,
+    update_network,
 )
 
 router = APIRouter(prefix="/inventory")
@@ -196,6 +203,15 @@ async def create_ip_address_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
     if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
+    if payload.network_id and not await ip_belongs_to_network(
+        session,
+        payload.address,
+        payload.network_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="IP address does not belong to the selected network.",
+        )
 
     try:
         ip_address = await create_ip_address(session, payload)
@@ -234,6 +250,13 @@ async def update_ip_address_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
     if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
+    next_address = payload.address if payload.address is not None else ip_address.address
+    next_network_id = payload.network_id if payload.network_id is not None else ip_address.network_id
+    if next_network_id and not await ip_belongs_to_network(session, next_address, next_network_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="IP address does not belong to the selected network.",
+        )
 
     try:
         ip_address = await update_ip_address(session, ip_address, payload)
@@ -252,6 +275,31 @@ async def update_ip_address_endpoint(
     )
     await session.commit()
     return await ip_address_to_response(session, ip_address)
+
+
+@router.delete(
+    "/ip-addresses/{ip_address_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def delete_ip_address_endpoint(
+    ip_address_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    ip_address = await get_ip_address(session, ip_address_id)
+    if ip_address is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IP address not found.")
+
+    address = ip_address.address
+    await delete_ip_address(session, ip_address)
+    await write_audit_event(
+        session,
+        "inventory.ip_deleted",
+        f"IP address deleted: {address}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
 
 
 @router.post(
@@ -295,11 +343,66 @@ async def create_network_endpoint(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> NetworkResponse:
-    network = await create_network(session, payload)
+    if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
+    try:
+        network = await create_network(session, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Network CIDR already exists.",
+        ) from exc
     await write_audit_event(
         session,
         "inventory.network_created",
         f"Network created: {network.cidr}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await network_to_response(session, network)
+
+
+@router.patch(
+    "/networks/{network_id}",
+    response_model=NetworkResponse,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def update_network_endpoint(
+    network_id: int,
+    payload: NetworkUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> NetworkResponse:
+    network = await get_network(session, network_id)
+    if network is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
+    next_cidr = payload.cidr if payload.cidr is not None else network.cidr
+    next_gateway = payload.gateway if payload.gateway is not None else network.gateway
+    if next_gateway and ipaddress.ip_address(next_gateway) not in ipaddress.ip_network(
+        next_cidr,
+        strict=False,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Gateway must belong to the network CIDR.",
+        )
+
+    try:
+        network = await update_network(session, network, payload)
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Network CIDR already exists.",
+        ) from exc
+
+    await write_audit_event(
+        session,
+        "inventory.network_updated",
+        f"Network updated: {network.cidr}",
         actor_user_id=current_user.id,
     )
     await session.commit()
