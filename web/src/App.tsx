@@ -1,0 +1,798 @@
+import {
+  Bell,
+  Box,
+  Cable,
+  ChevronDown,
+  CircleHelp,
+  Clock3,
+  DatabaseBackup,
+  FileText,
+  HardDrive,
+  Home,
+  Import,
+  Layers3,
+  LogOut,
+  Menu,
+  Monitor,
+  Network,
+  RefreshCcw,
+  Route,
+  Search,
+  Server,
+  Settings,
+  ShieldCheck,
+  Tag,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import "./App.css";
+
+type NavItem = { label: string; icon: LucideIcon; active?: boolean };
+type User = {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  permissions: string[];
+  must_change_password: boolean;
+};
+type DashboardSummary = {
+  stats: {
+    devices: number;
+    ip_addresses: number;
+    networks: number;
+    vlans: number;
+    services: number;
+    notes: number;
+  };
+  recent_devices: Array<{
+    id: number;
+    name: string;
+    device_type: string;
+    primary_ip: string | null;
+    primary_mac: string | null;
+    status: string;
+    last_change: string;
+  }>;
+  services: Array<{ name: string; device_count: number; status: string }>;
+  networks: Array<{ cidr: string; device_count: number }>;
+};
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
+
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "",
+    items: [{ label: "Dashboard", icon: Home, active: true }],
+  },
+  {
+    label: "Inventario",
+    items: [
+      { label: "Dispositivos", icon: Monitor },
+      { label: "IPs y MACs", icon: Network },
+      { label: "Subredes", icon: Route },
+      { label: "VLANs", icon: Cable },
+      { label: "Servicios", icon: ShieldCheck },
+      { label: "Hardware", icon: HardDrive },
+      { label: "Notas técnicas", icon: FileText },
+    ],
+  },
+  {
+    label: "Historial",
+    items: [{ label: "Cambios", icon: Clock3 }],
+  },
+  {
+    label: "Herramientas",
+    items: [
+      { label: "Importar / Exportar", icon: Import },
+      { label: "Respaldos", icon: DatabaseBackup },
+    ],
+  },
+  {
+    label: "Configuración",
+    items: [
+      { label: "Usuarios", icon: UsersRound },
+      { label: "Roles y permisos", icon: ShieldCheck },
+      { label: "Ajustes", icon: Settings },
+    ],
+  },
+];
+
+const changes = [
+  {
+    title: "Dispositivo agregado: SRV-APP-02",
+    subtitle: "Por admin",
+    time: "Hace 1 hora",
+    icon: PlusIcon,
+    tone: "green",
+  },
+  {
+    title: "IP actualizada: 10.0.1.25",
+    subtitle: "En SW-Core-01",
+    time: "Hace 2 horas",
+    icon: EditIcon,
+    tone: "blue",
+  },
+  {
+    title: "VLAN creada: VLAN 30 - Invitados",
+    subtitle: "Por admin",
+    time: "Hace 5 horas",
+    icon: Tag,
+    tone: "orange",
+  },
+  {
+    title: "Nota técnica actualizada: Configuración OSPF",
+    subtitle: "Por admin",
+    time: "Ayer 21:30",
+    icon: FileText,
+    tone: "violet",
+  },
+  {
+    title: "Dispositivo eliminado: PC-OLD-03",
+    subtitle: "Por admin",
+    time: "Ayer 19:10",
+    icon: Trash2,
+    tone: "red",
+  },
+];
+
+function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [csrfToken, setCsrfToken] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [sessionMessage, setSessionMessage] = useState("");
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) {
+          setUser(null);
+          if (response.status === 401) {
+            setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+          }
+          return;
+        }
+
+        const data = (await response.json()) as { user: User };
+        setUser(data.user);
+        const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, {
+          credentials: "include",
+        });
+        if (csrfResponse.ok) {
+          const csrfData = (await csrfResponse.json()) as { csrf_token: string };
+          setCsrfToken(csrfData.csrf_token);
+        }
+      })
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  async function handleLogout() {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
+    setUser(null);
+    setCsrfToken("");
+  }
+
+  useEffect(() => {
+    if (!user || user.must_change_password) {
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/inventory/dashboard`, { credentials: "include" })
+      .then(async (response) => {
+        if (response.status === 401) {
+          setUser(null);
+          setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+          return;
+        }
+        if (!response.ok) {
+          return;
+        }
+        setDashboard((await response.json()) as DashboardSummary);
+      })
+      .catch(() => undefined);
+  }, [user]);
+
+  if (isLoading) {
+    return <div className="auth-loading">AE NetScope</div>;
+  }
+
+  if (!user) {
+    return (
+      <LoginScreen
+        message={sessionMessage}
+        onLogin={(nextUser, nextCsrfToken) => {
+          setUser(nextUser);
+          setCsrfToken(nextCsrfToken);
+          setSessionMessage("");
+        }}
+      />
+    );
+  }
+
+  if (user.must_change_password) {
+    return (
+      <ChangePasswordScreen
+        csrfToken={csrfToken}
+        onPasswordChanged={(nextUser) => setUser(nextUser)}
+      />
+    );
+  }
+
+  const stats = buildStats(dashboard);
+  const chartData = buildChartData(dashboard);
+  const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#" aria-label="AE NetScope">
+          <span className="brand-mark">
+            <Network size={29} strokeWidth={1.8} />
+          </span>
+          <span>AE NetScope</span>
+        </a>
+
+        <nav className="nav">
+          {navGroups.map((group) => (
+            <div className="nav-group" key={group.label || "main"}>
+              {group.label && <p className="nav-label">{group.label}</p>}
+              {group.items.map((item) => (
+                <a
+                  className={item.active ? "nav-item active" : "nav-item"}
+                  href="#"
+                  key={item.label}
+                >
+                  <item.icon size={19} strokeWidth={1.8} />
+                  <span>{item.label}</span>
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="nav-item logout button-reset" onClick={handleLogout}>
+            <LogOut size={18} strokeWidth={1.8} />
+            <span>Cerrar sesión</span>
+          </button>
+          <a className="help-card" href="#">
+            <CircleHelp size={20} strokeWidth={1.8} />
+            <span>
+              ¿Necesitas ayuda?
+              <strong>Contáctanos</strong>
+            </span>
+          </a>
+        </div>
+      </aside>
+
+      <main className="workspace">
+        <header className="topbar">
+          <button className="icon-button" aria-label="Abrir menú">
+            <Menu size={24} strokeWidth={1.7} />
+          </button>
+          <label className="search-box">
+            <Search size={20} strokeWidth={1.8} />
+            <input placeholder="Buscar en AE NetScope..." />
+            <kbd>⌘ K</kbd>
+          </label>
+          <div className="top-actions">
+            <button className="icon-button" aria-label="Notificaciones">
+              <Bell size={22} strokeWidth={1.7} />
+            </button>
+            <button className="icon-button" aria-label="Ayuda">
+              <CircleHelp size={22} strokeWidth={1.7} />
+            </button>
+            <button className="avatar" aria-label={`Perfil de ${user.username}`}>
+              {user.username.slice(0, 2).toUpperCase()}
+            </button>
+            <button className="user-menu">
+              {user.username} <ChevronDown size={17} />
+            </button>
+          </div>
+        </header>
+
+        <section className="content">
+          <div className="page-title">
+            <h1>Bienvenido, {user.username}</h1>
+            <p>Resumen general de tu red</p>
+          </div>
+
+          <section className="stats-grid" aria-label="Resumen del inventario">
+            {stats.map((stat) => (
+              <article className="stat-card" key={stat.label}>
+                <div className={`stat-icon ${stat.tone}`}>
+                  <stat.icon size={25} strokeWidth={1.8} />
+                </div>
+                <div>
+                  <p>{stat.label}</p>
+                  <strong>{stat.value}</strong>
+                  <a href="#">Ver todos</a>
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <section className="dashboard-grid">
+            <Card className="recent-devices span-7" title="Dispositivos recientes">
+              <a className="card-link top-link" href="#">
+                Ver todos
+              </a>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Tipo</th>
+                      <th>IP principal</th>
+                      <th>MAC</th>
+                      <th>Estado</th>
+                      <th>Último cambio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dashboard?.recent_devices ?? []).map((device) => (
+                      <tr key={device.id}>
+                        <td>
+                          <a className="device-name" href="#">
+                            {device.name}
+                          </a>
+                        </td>
+                        <td>
+                          <span className={`pill ${typeTone(device.device_type)}`}>
+                            {device.device_type}
+                          </span>
+                        </td>
+                        <td>{device.primary_ip ?? "-"}</td>
+                        <td>{device.primary_mac ?? "-"}</td>
+                        <td>
+                          <span className="status-dot" /> {titleCase(device.status)}
+                        </td>
+                        <td>{device.last_change}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card className="network-summary span-5" title="Resumen de la red">
+              <div className="summary-layout">
+                <div className="donut">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        dataKey="value"
+                        innerRadius={72}
+                        outerRadius={102}
+                        paddingAngle={1}
+                        startAngle={90}
+                        endAngle={450}
+                      >
+                        {chartData.map((entry) => (
+                          <Cell fill={entry.color} key={entry.name} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="donut-center">
+                    <strong>{totalElements}</strong>
+                    <span>Elementos</span>
+                  </div>
+                </div>
+                <div className="legend">
+                  {chartData.map((entry) => (
+                    <div className="legend-row" key={entry.name}>
+                      <span style={{ background: entry.color }} />
+                      <p>{entry.name}</p>
+                      <strong>
+                        {entry.value} ({totalElements ? ((entry.value / totalElements) * 100).toFixed(1) : "0.0"}%)
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="updated">
+                <RefreshCcw size={18} strokeWidth={1.7} />
+                Última actualización: Hace 5 minutos
+              </div>
+            </Card>
+
+            <Card className="span-4" title="Mapa de subredes">
+              <div className="subnet-map">
+                <div className="root-node">Inventario</div>
+                <div className="connector" />
+                <div className="branch">
+                  {(dashboard?.networks ?? []).map((network) => (
+                    <div className="subnet-node" key={network.cidr}>
+                      <strong>{network.cidr}</strong>
+                      <span>{network.device_count} dispositivos</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <a className="card-link lower-link" href="#">
+                Ver todas las subredes
+              </a>
+            </Card>
+
+            <Card className="span-3" title="Servicios activos">
+              <div className="service-list">
+                {(dashboard?.services ?? []).map((service) => (
+                  <div className="service-row" key={service.name}>
+                    <Server size={18} strokeWidth={1.7} />
+                    <strong>{service.name}</strong>
+                    <span>{service.device_count} dispositivos</span>
+                    <em className={`mini-pill ${service.status === "active" ? "green" : "gray"}`}>
+                      {titleCase(service.status)}
+                    </em>
+                  </div>
+                ))}
+              </div>
+              <a className="card-link lower-link" href="#">
+                Ver todos los servicios
+              </a>
+            </Card>
+
+            <Card className="span-5" title="Últimos cambios">
+              <div className="change-list">
+                {changes.map((change) => (
+                  <div className="change-row" key={change.title}>
+                    <span className={`change-icon ${change.tone}`}>
+                      <change.icon size={17} strokeWidth={2} />
+                    </span>
+                    <p>
+                      <a href="#">{change.title}</a>
+                      <small>{change.subtitle}</small>
+                    </p>
+                    <time>{change.time}</time>
+                  </div>
+                ))}
+              </div>
+              <a className="card-link lower-link" href="#">
+                Ver todo el historial de cambios
+              </a>
+            </Card>
+          </section>
+        </section>
+
+        <footer className="footer">
+          <span>AE NetScope v1.0.0</span>
+          <div>
+            <a href="#">
+              <FileText size={17} /> Documentación
+            </a>
+            <a href="#">
+              <CircleHelp size={17} /> Soporte
+            </a>
+          </div>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function LoginScreen({
+  message,
+  onLogin,
+}: {
+  message?: string;
+  onLogin: (user: User, csrfToken: string) => void;
+}) {
+  const [email, setEmail] = useState("admin@example.com");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        setError(
+          response.status === 423
+            ? "La cuenta esta bloqueada temporalmente."
+            : "Correo o contrasena invalidos.",
+        );
+        return;
+      }
+
+      const data = (await response.json()) as { user: User; csrf_token: string };
+      onLogin(data.user, data.csrf_token);
+    } catch {
+      setError("No se pudo conectar con la API.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="login-page">
+      <section className="login-panel">
+        <div className="login-brand">
+          <span className="brand-mark">
+            <Network size={31} strokeWidth={1.8} />
+          </span>
+          <strong>AE NetScope</strong>
+        </div>
+        <div className="login-copy">
+          <h1>Acceso seguro</h1>
+          <p>Inicia sesion para administrar el inventario de red.</p>
+        </div>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label>
+            Correo
+            <input
+              autoComplete="username"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </label>
+          <label>
+            Contrasena
+            <input
+              autoComplete="current-password"
+              autoFocus
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </label>
+          {message && <p className="login-notice">{message}</p>}
+          {error && <p className="login-error">{error}</p>}
+          <button className="login-button" disabled={isSubmitting} type="submit">
+            {isSubmitting ? "Verificando..." : "Entrar"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function ChangePasswordScreen({
+  csrfToken,
+  onPasswordChanged,
+}: {
+  csrfToken: string;
+  onPasswordChanged: (user: User) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (newPassword !== confirmPassword) {
+      setError("Las contrasenas no coinciden.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/password`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        setError(
+          response.status === 403
+            ? "La sesion expiro. Inicia sesion nuevamente."
+            : "No se pudo cambiar la contrasena.",
+        );
+        return;
+      }
+
+      const data = (await response.json()) as { user: User };
+      onPasswordChanged(data.user);
+    } catch {
+      setError("No se pudo conectar con la API.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="login-page">
+      <section className="login-panel">
+        <div className="login-brand">
+          <span className="brand-mark">
+            <Network size={31} strokeWidth={1.8} />
+          </span>
+          <strong>AE NetScope</strong>
+        </div>
+        <div className="login-copy">
+          <h1>Cambia tu contrasena</h1>
+          <p>Debes reemplazar la contrasena inicial antes de entrar al panel.</p>
+        </div>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label>
+            Contrasena actual
+            <input
+              autoComplete="current-password"
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+              type="password"
+              value={currentPassword}
+            />
+          </label>
+          <label>
+            Nueva contrasena
+            <input
+              autoComplete="new-password"
+              minLength={12}
+              onChange={(event) => setNewPassword(event.target.value)}
+              required
+              type="password"
+              value={newPassword}
+            />
+          </label>
+          <label>
+            Confirmar contrasena
+            <input
+              autoComplete="new-password"
+              minLength={12}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+              type="password"
+              value={confirmPassword}
+            />
+          </label>
+          {error && <p className="login-error">{error}</p>}
+          <button className="login-button" disabled={isSubmitting} type="submit">
+            {isSubmitting ? "Guardando..." : "Actualizar contrasena"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function Card({
+  title,
+  className,
+  children,
+}: {
+  title: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <article className={`panel ${className ?? ""}`}>
+      <h2>{title}</h2>
+      {children}
+    </article>
+  );
+}
+
+function buildStats(dashboard: DashboardSummary | null) {
+  return [
+    {
+      label: "Dispositivos",
+      value: String(dashboard?.stats.devices ?? 0),
+      icon: Monitor,
+      tone: "blue" as const,
+    },
+    {
+      label: "IPs registradas",
+      value: String(dashboard?.stats.ip_addresses ?? 0),
+      icon: Box,
+      tone: "green" as const,
+    },
+    {
+      label: "Subredes",
+      value: String(dashboard?.stats.networks ?? 0),
+      icon: Route,
+      tone: "violet" as const,
+    },
+    {
+      label: "VLANs",
+      value: String(dashboard?.stats.vlans ?? 0),
+      icon: Tag,
+      tone: "orange" as const,
+    },
+    {
+      label: "Servicios",
+      value: String(dashboard?.stats.services ?? 0),
+      icon: Layers3,
+      tone: "cyan" as const,
+    },
+    {
+      label: "Notas tecnicas",
+      value: String(dashboard?.stats.notes ?? 0),
+      icon: FileText,
+      tone: "gray" as const,
+    },
+  ];
+}
+
+function buildChartData(dashboard: DashboardSummary | null) {
+  return [
+    { name: "Dispositivos", value: dashboard?.stats.devices ?? 0, color: "#3857f6" },
+    { name: "IPs y MACs", value: dashboard?.stats.ip_addresses ?? 0, color: "#30b866" },
+    { name: "Subredes", value: dashboard?.stats.networks ?? 0, color: "#7446dc" },
+    { name: "VLANs", value: dashboard?.stats.vlans ?? 0, color: "#f39a16" },
+    { name: "Servicios", value: dashboard?.stats.services ?? 0, color: "#12a7ad" },
+  ];
+}
+
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function typeTone(type: string) {
+  if (type === "Servidor") return "server";
+  if (type === "Access Point") return "access";
+  if (type === "Equipo") return "workstation";
+  return "network";
+}
+
+function PlusIcon({ size = 17, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth={strokeWidth}
+      />
+    </svg>
+  );
+}
+
+function EditIcon({ size = 17, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="m4 16.5-.7 4.2 4.2-.7L18.2 9.3l-3.5-3.5L4 16.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={strokeWidth}
+      />
+      <path
+        d="m13.7 6.8 3.5 3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth={strokeWidth}
+      />
+    </svg>
+  );
+}
+
+export default App;

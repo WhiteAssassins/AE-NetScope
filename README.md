@@ -13,6 +13,8 @@ AE NetScope is a self-hosted web app for organizing LAN inventory data such as d
 - Mandatory first-password change for the generated local admin.
 - Initial roles and permissions: `admin`, `operator`, `viewer`.
 - Initial Alembic migration for auth, sessions, and audit events.
+- Core inventory schema for VLANs, networks, devices, interfaces, IP addresses, and services.
+- Dashboard data loaded from the API instead of static frontend mocks.
 
 ## Local Development
 
@@ -41,6 +43,8 @@ api/.local-admin.txt
 ```
 
 That file is local only and must not be committed.
+
+Local development also seeds fictional inventory data so the dashboard has safe sample content.
 
 ## Local Checks
 

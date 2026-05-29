@@ -1,0 +1,13 @@
+{
+  "name": "ae-netscope",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npm --prefix web run dev -- --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:api": "api\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir api --host 127.0.0.1 --port 8000 --reload",
+    "api:lint": "api\\.venv\\Scripts\\python.exe -m ruff check api",
+    "api:test": "api\\.venv\\Scripts\\python.exe -m pytest api",
+    "build": "npm --prefix web run build",
+    "lint": "npm --prefix web run lint"
+  }
+}
