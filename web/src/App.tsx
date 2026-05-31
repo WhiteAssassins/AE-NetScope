@@ -479,6 +479,14 @@ function App() {
                 <p>Resumen general de tu red</p>
               </div>
 
+              <div className="preview-notice" role="status">
+                <strong>Early Public Preview</strong>
+                <span>
+                  No uses AE NetScope todavia con datos sensibles de redes en produccion.
+                  La API, el esquema y los controles de seguridad pueden cambiar antes de v1.0.
+                </span>
+              </div>
+
               <section className="stats-grid" aria-label="Resumen del inventario">
             {stats.map((stat) => (
               <article className="stat-card" key={stat.label}>
