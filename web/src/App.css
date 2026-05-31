@@ -398,6 +398,31 @@ textarea {
   font-size: 16px;
 }
 
+.preview-notice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -8px 0 22px 6px;
+  border: 1px solid #ffe1b8;
+  border-radius: 10px;
+  background: #fff8ed;
+  color: #5f3900;
+  padding: 13px 16px;
+}
+
+.preview-notice strong {
+  flex: 0 0 auto;
+  color: #ad6500;
+  font-size: 13px;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.preview-notice span {
+  color: #5f3900;
+  font-size: 14px;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1238,6 +1263,12 @@ th {
   .device-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .preview-notice {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-left: 0;
   }
 
   .filter-select {
