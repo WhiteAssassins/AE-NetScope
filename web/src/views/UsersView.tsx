@@ -234,6 +234,7 @@ export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
                     <td>{user.username}</td>
                     <td>
                       <select
+                        className="role-select"
                         disabled={!canManageUsers}
                         onChange={(event) =>
                           patchUser(user, { role: event.target.value as UserRole })
@@ -255,7 +256,7 @@ export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
                     <td>
                       <div className="row-actions">
                         <button
-                          className="text-button"
+                          className="user-action"
                           onClick={() =>
                             patchUser(user, {
                               is_active: !user.is_active,
@@ -265,15 +266,15 @@ export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
                           {user.is_active ? "Bloquear" : "Activar"}
                         </button>
                         <button
-                          className="text-button"
+                          className="user-action"
                           onClick={() => patchUser(user, { must_change_password: true })}
                         >
                           Forzar cambio
                         </button>
-                        <button className="text-button" onClick={() => resetPassword(user)}>
+                        <button className="user-action" onClick={() => resetPassword(user)}>
                           Reset password
                         </button>
-                        <button className="danger-action" onClick={() => deactivateUser(user)}>
+                        <button className="user-action user-danger" onClick={() => deactivateUser(user)}>
                           Desactivar
                         </button>
                       </div>
