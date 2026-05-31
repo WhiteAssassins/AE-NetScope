@@ -82,7 +82,7 @@ If a check fails and you cannot fix it, mention it in the pull request.
 
 ## Contribution license
 
-By submitting a pull request, patch, issue comment with code, design asset, documentation change, or other contribution, you grant the AE NetScope owner a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, copy, modify, publish, distribute, sublicense, and commercialize your contribution as part of AE NetScope.
+By submitting a pull request, patch, issue comment with code, design asset, documentation change, or other contribution, you grant Christopher David Alberto Roque and AE White Devs LLC a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, copy, modify, publish, distribute, sublicense, and commercialize your contribution as part of AE NetScope.
 
 You confirm that you have the right to submit the contribution and that it does not include secrets, private infrastructure data, third-party code without permission, or content that violates another license.
 
