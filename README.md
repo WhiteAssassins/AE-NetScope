@@ -1,5 +1,9 @@
 # AE NetScope
 
+[![CI](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml/badge.svg)](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml)
+![License](https://img.shields.io/badge/license-source--available-orange)
+![Status](https://img.shields.io/badge/status-early%20public%20preview-yellow)
+
 AE NetScope is a self-hosted web app for organizing LAN inventory data such as devices, IP addresses, MAC addresses, subnets, VLANs, services, hardware details, and technical notes.
 
 ## Early Public Preview
