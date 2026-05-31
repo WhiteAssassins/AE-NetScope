@@ -426,4 +426,6 @@ For support boundaries, see `SUPPORT.md`.
 
 AE NetScope is public source-available software under a proprietary license. You may use it for personal, educational, homelab, and internal business purposes, including inside a company.
 
-You may not sell, resell, sublicense, repackage, host as a commercial service, publish to marketplaces, or present AE NetScope as your own product without written permission from the owner. See `LICENSE`.
+Copyright is held by Christopher David Alberto Roque, also known as [WhiteAssassins](https://github.com/WhiteAssassins), CEO of AE White Devs LLC.
+
+You may not sell, resell, sublicense, repackage, host as a commercial service, publish to marketplaces, or present AE NetScope as your own product without written permission from Christopher David Alberto Roque or AE White Devs LLC. See `LICENSE`.
