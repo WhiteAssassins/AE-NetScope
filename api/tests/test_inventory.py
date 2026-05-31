@@ -270,3 +270,50 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
         headers={"X-CSRF-Token": csrf_token},
     )
     assert deleted_vlan.status_code == 204
+
+
+async def test_viewer_can_read_inventory_but_cannot_write() -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async with session_factory() as session:
+        session.add(
+            User(
+                email="viewer@example.com",
+                username="viewer",
+                password_hash=hash_password("correct-password"),
+                role="viewer",
+                must_change_password=False,
+            )
+        )
+        await session.commit()
+
+    async def override_session():
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        login = await client.post(
+            "/api/auth/login",
+            json={"email": "viewer@example.com", "password": "correct-password"},
+        )
+        assert login.status_code == 200
+        assert login.json()["user"]["permissions"] == ["inventory:read"]
+
+        dashboard = await client.get("/api/inventory/dashboard")
+        assert dashboard.status_code == 200
+
+        forbidden_create = await client.post(
+            "/api/inventory/vlans",
+            headers={"X-CSRF-Token": login.json()["csrf_token"]},
+            json={"vlan_id": 10, "name": "Core"},
+        )
+        assert forbidden_create.status_code == 403
+
+    app.dependency_overrides.clear()
+    await engine.dispose()

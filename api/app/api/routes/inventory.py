@@ -67,7 +67,10 @@ from app.services.inventory import (
     vlan_to_summary_response,
 )
 
-router = APIRouter(prefix="/inventory")
+router = APIRouter(
+    prefix="/inventory",
+    dependencies=[Depends(require_permission("inventory:read"))],
+)
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
@@ -87,7 +90,7 @@ async def devices(session: SessionDep, _: CurrentUser) -> list[DeviceResponse]:
     "/devices",
     response_model=DeviceResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("devices:create"))],
 )
 async def create_device_endpoint(
     payload: DeviceWithInterfaceCreate,
@@ -127,7 +130,7 @@ async def device_detail(
 @router.patch(
     "/devices/{device_id}",
     response_model=DeviceDetailResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("devices:update"))],
 )
 async def update_device_endpoint(
     device_id: int,
@@ -162,7 +165,7 @@ async def update_device_endpoint(
     "/devices/{device_id}/interfaces",
     response_model=InterfaceResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("devices:update"))],
 )
 async def add_device_interface_endpoint(
     device_id: int,
@@ -208,7 +211,7 @@ async def interfaces(session: SessionDep, _: CurrentUser) -> list[InterfaceRecor
     "/ip-addresses",
     response_model=IpAddressRecordResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("ip_addresses:create"))],
 )
 async def create_ip_address_endpoint(
     payload: IpAddressCreate,
@@ -251,7 +254,7 @@ async def create_ip_address_endpoint(
 @router.patch(
     "/ip-addresses/{ip_address_id}",
     response_model=IpAddressRecordResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("ip_addresses:update"))],
 )
 async def update_ip_address_endpoint(
     ip_address_id: int,
@@ -298,7 +301,7 @@ async def update_ip_address_endpoint(
 @router.delete(
     "/ip-addresses/{ip_address_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("ip_addresses:delete"))],
 )
 async def delete_ip_address_endpoint(
     ip_address_id: int,
@@ -323,7 +326,7 @@ async def delete_ip_address_endpoint(
 @router.post(
     "/devices/{device_id}/deactivate",
     response_model=DeviceDetailResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("devices:update"))],
 )
 async def deactivate_device_endpoint(
     device_id: int,
@@ -348,7 +351,7 @@ async def deactivate_device_endpoint(
 @router.delete(
     "/devices/{device_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("devices:delete"))],
 )
 async def delete_device_endpoint(
     device_id: int,
@@ -379,7 +382,7 @@ async def networks(session: SessionDep, _: CurrentUser) -> list[NetworkResponse]
     "/networks",
     response_model=NetworkResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("networks:create"))],
 )
 async def create_network_endpoint(
     payload: NetworkCreate,
@@ -409,7 +412,7 @@ async def create_network_endpoint(
 @router.patch(
     "/networks/{network_id}",
     response_model=NetworkResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("networks:update"))],
 )
 async def update_network_endpoint(
     network_id: int,
@@ -455,7 +458,7 @@ async def update_network_endpoint(
 @router.delete(
     "/networks/{network_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("networks:delete"))],
 )
 async def delete_network_endpoint(
     network_id: int,
@@ -486,7 +489,7 @@ async def services(session: SessionDep, _: CurrentUser) -> list[ServiceRecordRes
     "/services",
     response_model=ServiceRecordResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("services:create"))],
 )
 async def create_service_endpoint(
     payload: ServiceCreate,
@@ -510,7 +513,7 @@ async def create_service_endpoint(
 @router.patch(
     "/services/{service_id}",
     response_model=ServiceRecordResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("services:update"))],
 )
 async def update_service_endpoint(
     service_id: int,
@@ -538,7 +541,7 @@ async def update_service_endpoint(
 @router.delete(
     "/services/{service_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("services:delete"))],
 )
 async def delete_service_endpoint(
     service_id: int,
@@ -569,7 +572,7 @@ async def vlans(session: SessionDep, _: CurrentUser) -> list[VlanSummaryResponse
     "/vlans",
     response_model=VlanSummaryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("vlans:create"))],
 )
 async def create_vlan_endpoint(
     payload: VlanCreate,
@@ -597,7 +600,7 @@ async def create_vlan_endpoint(
 @router.patch(
     "/vlans/{vlan_pk}",
     response_model=VlanSummaryResponse,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("vlans:update"))],
 )
 async def update_vlan_endpoint(
     vlan_pk: int,
@@ -631,7 +634,7 @@ async def update_vlan_endpoint(
 @router.delete(
     "/vlans/{vlan_pk}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+    dependencies=[Depends(require_csrf), Depends(require_permission("vlans:delete"))],
 )
 async def delete_vlan_endpoint(
     vlan_pk: int,

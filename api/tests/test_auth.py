@@ -56,10 +56,24 @@ async def test_login_me_and_logout(auth_client: AsyncClient) -> None:
     assert login_response.json()["user"]["email"] == "admin@example.com"
     assert login_response.json()["user"]["permissions"] == [
         "audit:read",
+        "devices:create",
+        "devices:delete",
+        "devices:update",
         "inventory:read",
-        "inventory:write",
+        "ip_addresses:create",
+        "ip_addresses:delete",
+        "ip_addresses:update",
+        "networks:create",
+        "networks:delete",
+        "networks:update",
+        "services:create",
+        "services:delete",
+        "services:update",
         "settings:manage",
         "users:manage",
+        "vlans:create",
+        "vlans:delete",
+        "vlans:update",
     ]
     csrf_token = login_response.json()["csrf_token"]
     assert "ae_netscope_session" in login_response.cookies
