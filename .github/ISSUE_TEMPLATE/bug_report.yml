@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible problem in AE NetScope.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Do not include secrets, credentials, real LAN diagrams, real IP inventories, MAC inventories, hostnames, screenshots of private infrastructure, or sensitive logs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use sanitized example data only.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0 or commit hash
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web UI
+        - API
+        - Authentication
+        - Inventory
+        - Deployment
+        - Documentation
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or error output
+      description: Remove secrets, tokens, cookies, IPs, MACs, hostnames, and customer data.
+      render: text
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets and sensitive infrastructure details from this report.
+          required: true
