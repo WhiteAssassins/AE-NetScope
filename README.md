@@ -2,6 +2,12 @@
 
 AE NetScope is a self-hosted web app for organizing LAN inventory data such as devices, IP addresses, MAC addresses, subnets, VLANs, services, hardware details, and technical notes.
 
+## Early Public Preview
+
+AE NetScope is in early public preview and is not production ready yet.
+
+Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
+
 ## Current Status
 
 - Web dashboard foundation.
