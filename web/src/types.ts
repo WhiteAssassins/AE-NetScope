@@ -32,6 +32,17 @@ export type ManagedUserSession = {
   is_current: boolean;
 };
 
+export type AuditEvent = {
+  id: number;
+  actor_user_id: number | null;
+  actor_username: string | null;
+  actor_email: string | null;
+  event_type: string;
+  message: string;
+  ip_address: string | null;
+  created_at: string;
+};
+
 export type DashboardSummary = {
   stats: {
     devices: number;
@@ -150,4 +161,5 @@ export type ViewName =
   | "networks"
   | "vlans"
   | "services"
+  | "audit"
   | "users";

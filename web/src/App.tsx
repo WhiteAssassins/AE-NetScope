@@ -76,6 +76,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 ];
 
 const DashboardView = lazy(() => import("./views/DashboardView"));
+const AuditView = lazy(() => import("./views/AuditView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
 const IpMacsView = lazy(() => import("./views/IpMacsView"));
@@ -105,7 +106,7 @@ function App() {
         if (!response.ok) {
           setUser(null);
           if (response.status === 401) {
-            setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+            setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
           }
           return;
         }
@@ -133,7 +134,7 @@ function App() {
       .catch((error) => {
         setUser(null);
         if (error instanceof Error && error.message === "unauthorized") {
-          setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+          setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
         }
       })
       .finally(() => setIsLoading(false));
@@ -162,7 +163,7 @@ function App() {
     } catch (error) {
       if (error instanceof Error && error.message === "unauthorized") {
         setUser(null);
-        setSessionMessage("La sesion expiro. Inicia sesion nuevamente.");
+        setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
       }
     }
   }
@@ -244,6 +245,9 @@ function App() {
                     }
                     if (item.label === "Servicios") {
                       setView("services");
+                    }
+                    if (item.label === "Cambios") {
+                      setView("audit");
                     }
                     if (item.label === "Usuarios") {
                       setView("users");
@@ -358,6 +362,10 @@ function App() {
                 services={services}
               />
             </Suspense>
+          ) : view === "audit" ? (
+            <Suspense fallback={<div className="auth-loading">Cargando cambios...</div>}>
+              <AuditView permissions={user.permissions} />
+            </Suspense>
           ) : (
             <Suspense fallback={<div className="auth-loading">Cargando usuarios...</div>}>
               <UsersView csrfToken={csrfToken} currentUser={user} />
@@ -389,6 +397,7 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Subredes" && view === "networks") ||
     (label === "VLANs" && view === "vlans") ||
     (label === "Servicios" && view === "services") ||
+    (label === "Cambios" && view === "audit") ||
     (label === "Usuarios" && view === "users")
   );
 }
