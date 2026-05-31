@@ -829,6 +829,13 @@ textarea {
   background: #f7f9ff;
 }
 
+.user-action:disabled {
+  border-color: #e5eaf2;
+  background: #f4f6fa;
+  color: #9aa5b7;
+  cursor: not-allowed;
+}
+
 .user-danger {
   border-color: #ffd2d6;
   background: #fff7f8;
@@ -850,6 +857,34 @@ textarea {
   font-size: 13px;
   outline: 0;
   padding: 0 10px;
+}
+
+.session-list {
+  display: grid;
+  gap: 10px;
+}
+
+.session-row {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e7ebf2;
+  border-radius: 8px;
+  background: #fbfcff;
+  padding: 12px;
+}
+
+.session-row strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.session-row span,
+.session-row small {
+  overflow: hidden;
+  color: #66728a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .usage-cell {

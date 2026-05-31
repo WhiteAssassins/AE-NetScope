@@ -21,6 +21,17 @@ export type ManagedUser = {
 
 export type UserRole = ManagedUser["role"];
 
+export type ManagedUserSession = {
+  id: number;
+  user_id: number;
+  user_agent: string | null;
+  ip_address: string | null;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  is_current: boolean;
+};
+
 export type DashboardSummary = {
   stats: {
     devices: number;

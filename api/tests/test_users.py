@@ -90,6 +90,39 @@ async def test_admin_manages_users_by_role(users_client) -> None:
     assert len(users.json()) == 2
 
 
+async def test_admin_can_revoke_user_sessions(users_client) -> None:
+    client, csrf_token = users_client
+
+    created = await client.post(
+        "/api/users",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "operator@example.com", "username": "operator", "role": "operator"},
+    )
+    temporary_password = created.json()["temporary_password"]
+    user_id = created.json()["user"]["id"]
+
+    operator_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    login = await operator_client.post(
+        "/api/auth/login",
+        json={"email": "operator@example.com", "password": temporary_password},
+    )
+    assert login.status_code == 200
+
+    sessions = await client.get(f"/api/users/{user_id}/sessions")
+    assert sessions.status_code == 200
+    assert any(item["revoked_at"] is None for item in sessions.json())
+
+    revoked = await client.delete(
+        f"/api/users/{user_id}/sessions",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert revoked.status_code == 204
+
+    blocked = await operator_client.get("/api/auth/me")
+    assert blocked.status_code == 401
+    await operator_client.aclose()
+
+
 async def test_admin_cannot_remove_last_active_admin(users_client) -> None:
     client, csrf_token = users_client
 

@@ -1,11 +1,15 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Cookie, Depends, Header, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.permissions import role_has_permission
+from app.core.security import hash_session_token
 from app.db.session import get_session
+from app.models.session import UserSession
 from app.models.user import User
 from app.services.auth import get_user_by_session_token, verify_csrf_token
 
@@ -28,6 +32,34 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_session(
+    session: SessionDep,
+    session_token: SessionCookie = None,
+) -> UserSession:
+    if not session_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    result = await session.execute(
+        select(UserSession).where(
+            UserSession.token_hash == hash_session_token(session_token),
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > datetime.now(UTC),
+        )
+    )
+    user_session = result.scalar_one_or_none()
+    if user_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    return user_session
+
+
+CurrentSession = Annotated[UserSession, Depends(get_current_session)]
 
 
 async def require_csrf(

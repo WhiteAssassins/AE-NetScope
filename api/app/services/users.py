@@ -1,13 +1,26 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import generate_password, hash_password
+from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import ManagedUserCreate, ManagedUserUpdate
 
 
 class LastAdminError(Exception):
     pass
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _as_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 async def list_users(session: AsyncSession) -> list[User]:
@@ -106,3 +119,33 @@ async def deactivate_managed_user(session: AsyncSession, user: User) -> User:
     user.is_active = False
     await session.flush()
     return user
+
+
+async def list_user_sessions(session: AsyncSession, user: User) -> list[UserSession]:
+    result = await session.execute(
+        select(UserSession)
+        .where(UserSession.user_id == user.id)
+        .order_by(UserSession.created_at.desc(), UserSession.id.desc())
+    )
+    return list(result.scalars())
+
+
+async def revoke_user_sessions(
+    session: AsyncSession,
+    user: User,
+    *,
+    except_session_id: int | None = None,
+) -> int:
+    revoked_count = 0
+    now = _now()
+    for user_session in await list_user_sessions(session, user):
+        if user_session.revoked_at is not None:
+            continue
+        if _as_aware(user_session.expires_at) <= now:
+            continue
+        if except_session_id is not None and user_session.id == except_session_id:
+            continue
+        user_session.revoked_at = now
+        revoked_count += 1
+    await session.flush()
+    return revoked_count

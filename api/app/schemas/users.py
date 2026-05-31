@@ -40,3 +40,14 @@ class ManagedUserUpdate(BaseModel):
 class ManagedUserResetPasswordResponse(BaseModel):
     user: ManagedUserResponse
     temporary_password: str
+
+
+class ManagedUserSessionResponse(BaseModel):
+    id: int
+    user_id: int
+    user_agent: str | None
+    ip_address: str | None
+    created_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+    is_current: bool = False
