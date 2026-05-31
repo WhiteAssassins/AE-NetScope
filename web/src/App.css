@@ -799,6 +799,59 @@ textarea {
   margin-top: 16px;
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 390px;
+}
+
+.user-action {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbe3f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1747ff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  padding: 0 11px;
+  white-space: nowrap;
+}
+
+.user-action:hover {
+  border-color: #b9c7e0;
+  background: #f7f9ff;
+}
+
+.user-danger {
+  border-color: #ffd2d6;
+  background: #fff7f8;
+  color: #c02633;
+}
+
+.user-danger:hover {
+  border-color: #ffb9c0;
+  background: #fff0f2;
+}
+
+.role-select {
+  min-width: 118px;
+  height: 34px;
+  border: 1px solid #dbe3f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font-size: 13px;
+  outline: 0;
+  padding: 0 10px;
+}
+
 .usage-cell {
   display: grid;
   grid-template-columns: minmax(74px, auto) 120px auto;
