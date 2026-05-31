@@ -413,3 +413,17 @@ sudo systemctl reload nginx
 ## Security
 
 See `SECURITY.md` for the authentication, session, and post-quantum readiness model.
+
+## Contributing
+
+Contributions are welcome. Please read `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` before opening issues or pull requests.
+
+Do not post secrets, credentials, real network inventories, private IP plans, MAC address inventories, hostnames, screenshots of private infrastructure, or sensitive logs in public issues or pull requests.
+
+For support boundaries, see `SUPPORT.md`.
+
+## License
+
+AE NetScope is public source-available software under a proprietary license. You may use it for personal, educational, homelab, and internal business purposes, including inside a company.
+
+You may not sell, resell, sublicense, repackage, host as a commercial service, publish to marketplaces, or present AE NetScope as your own product without written permission from the owner. See `LICENSE`.
