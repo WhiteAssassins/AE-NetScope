@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install API dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "api[dev]"
+
+      - name: Lint API
+        run: python -m ruff check api
+
+      - name: Test API
+        run: python -m pytest api
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm --prefix web ci
+
+      - name: Lint web
+        run: npm run lint
+
+      - name: Build web
+        run: npm run build
