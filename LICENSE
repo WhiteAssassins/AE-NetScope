@@ -1,0 +1,75 @@
+AE NetScope Source-Available License
+Version 1.0
+
+Copyright (c) 2026 AE NetScope owner. All rights reserved.
+
+This license applies to AE NetScope and all source code, documentation, assets,
+and related files in this repository, unless a file states otherwise.
+
+## 1. Permission to use
+
+You may use AE NetScope for personal, educational, homelab, internal business,
+and internal organizational purposes.
+
+This includes using AE NetScope inside a company, school, lab, nonprofit,
+government organization, or managed internal environment, as long as you do not
+sell, resell, sublicense, distribute, or commercially offer AE NetScope itself.
+
+## 2. Permission to copy and modify
+
+You may copy and modify the software for your own personal or internal
+organizational use.
+
+You may not use modified versions to avoid the restrictions in this license.
+
+## 3. Restrictions
+
+Without prior written permission from the copyright owner, you may not:
+
+- Sell, resell, license, sublicense, rent, lease, or otherwise commercialize AE NetScope.
+- Sell access to AE NetScope as a hosted, managed, SaaS, appliance, marketplace, or bundled service.
+- Distribute AE NetScope or modified versions of AE NetScope as a competing product.
+- Remove or alter copyright, license, trademark, or attribution notices.
+- Claim ownership of AE NetScope or present it as your own product.
+- Use the project name, branding, or visual identity to promote an unauthorized commercial offering.
+
+## 4. Contributions
+
+By submitting a contribution to this repository, you grant the AE NetScope owner
+a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use,
+copy, modify, publish, distribute, sublicense, and commercialize your
+contribution as part of AE NetScope.
+
+You confirm that you have the right to submit the contribution and that it does
+not include secrets, private data, third-party code without permission, or
+content that violates another license.
+
+## 5. Third-party software
+
+Third-party dependencies remain licensed under their own licenses.
+
+This license does not change the license terms of third-party packages,
+frameworks, libraries, tools, or assets used by AE NetScope.
+
+## 6. No warranty
+
+AE NetScope is provided "as is", without warranty of any kind, express or
+implied, including but not limited to warranties of merchantability, fitness for
+a particular purpose, security, availability, or non-infringement.
+
+Use of AE NetScope is at your own risk.
+
+## 7. Limitation of liability
+
+To the maximum extent permitted by law, the copyright owner and contributors
+will not be liable for any claim, damage, data loss, security incident, business
+interruption, loss of profits, or other liability arising from the use of AE
+NetScope.
+
+## 8. Commercial permission
+
+Commercial distribution, resale, SaaS hosting, marketplace publication,
+bundling, white-labeling, or other commercial use of AE NetScope itself requires
+prior written permission from the AE NetScope owner.
+
+Internal business use does not require additional permission.
