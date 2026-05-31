@@ -1,6 +1,6 @@
 # Support
 
-AE NetScope is an open-source project. Support is provided through public project channels when maintainers and contributors have time.
+AE NetScope is a public source-available project. Support is provided through public project channels when maintainers and contributors have time.
 
 ## Before asking for help
 
