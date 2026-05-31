@@ -1,7 +1,8 @@
 AE NetScope Source-Available License
 Version 1.0
 
-Copyright (c) 2026 AE NetScope owner. All rights reserved.
+Copyright (c) 2026 Christopher David Alberto Roque, also known as
+WhiteAssassins, CEO of AE White Devs LLC. All rights reserved.
 
 This license applies to AE NetScope and all source code, documentation, assets,
 and related files in this repository, unless a file states otherwise.
@@ -24,7 +25,8 @@ You may not use modified versions to avoid the restrictions in this license.
 
 ## 3. Restrictions
 
-Without prior written permission from the copyright owner, you may not:
+Without prior written permission from Christopher David Alberto Roque or AE
+White Devs LLC, you may not:
 
 - Sell, resell, license, sublicense, rent, lease, or otherwise commercialize AE NetScope.
 - Sell access to AE NetScope as a hosted, managed, SaaS, appliance, marketplace, or bundled service.
@@ -35,10 +37,10 @@ Without prior written permission from the copyright owner, you may not:
 
 ## 4. Contributions
 
-By submitting a contribution to this repository, you grant the AE NetScope owner
-a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use,
-copy, modify, publish, distribute, sublicense, and commercialize your
-contribution as part of AE NetScope.
+By submitting a contribution to this repository, you grant Christopher David
+Alberto Roque and AE White Devs LLC a perpetual, worldwide, non-exclusive,
+royalty-free, irrevocable license to use, copy, modify, publish, distribute,
+sublicense, and commercialize your contribution as part of AE NetScope.
 
 You confirm that you have the right to submit the contribution and that it does
 not include secrets, private data, third-party code without permission, or
@@ -70,6 +72,7 @@ NetScope.
 
 Commercial distribution, resale, SaaS hosting, marketplace publication,
 bundling, white-labeling, or other commercial use of AE NetScope itself requires
-prior written permission from the AE NetScope owner.
+prior written permission from Christopher David Alberto Roque or AE White Devs
+LLC.
 
 Internal business use does not require additional permission.
