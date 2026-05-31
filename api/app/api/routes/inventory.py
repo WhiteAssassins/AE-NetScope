@@ -20,6 +20,9 @@ from app.schemas.inventory import (
     NetworkCreate,
     NetworkResponse,
     NetworkUpdate,
+    ServiceCreate,
+    ServiceRecordResponse,
+    ServiceUpdate,
     VlanCreate,
     VlanSummaryResponse,
     VlanUpdate,
@@ -30,18 +33,21 @@ from app.services.inventory import (
     create_device,
     create_ip_address,
     create_network,
+    create_service,
     create_vlan,
     dashboard_summary,
     deactivate_device,
     delete_device,
     delete_ip_address,
     delete_network,
+    delete_service,
     delete_vlan,
     device_to_detail_response,
     device_to_response,
     get_device,
     get_ip_address,
     get_network,
+    get_service,
     get_vlan,
     ip_address_to_response,
     ip_belongs_to_network,
@@ -49,11 +55,14 @@ from app.services.inventory import (
     list_interfaces,
     list_ip_addresses,
     list_networks,
+    list_services,
     list_vlans,
     network_to_response,
+    service_to_response,
     update_device,
     update_ip_address,
     update_network,
+    update_service,
     update_vlan,
     vlan_to_summary_response,
 )
@@ -463,6 +472,89 @@ async def delete_network_endpoint(
         session,
         "inventory.network_deleted",
         f"Network deleted: {cidr}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
+@router.get("/services", response_model=list[ServiceRecordResponse])
+async def services(session: SessionDep, _: CurrentUser) -> list[ServiceRecordResponse]:
+    return await list_services(session)
+
+
+@router.post(
+    "/services",
+    response_model=ServiceRecordResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def create_service_endpoint(
+    payload: ServiceCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> ServiceRecordResponse:
+    if await get_device(session, payload.device_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+
+    service = await create_service(session, payload)
+    await write_audit_event(
+        session,
+        "inventory.service_created",
+        f"Service created: {service.name}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await service_to_response(session, service)
+
+
+@router.patch(
+    "/services/{service_id}",
+    response_model=ServiceRecordResponse,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def update_service_endpoint(
+    service_id: int,
+    payload: ServiceUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> ServiceRecordResponse:
+    service = await get_service(session, service_id)
+    if service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found.")
+    if payload.device_id and await get_device(session, payload.device_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+
+    service = await update_service(session, service, payload)
+    await write_audit_event(
+        session,
+        "inventory.service_updated",
+        f"Service updated: {service.name}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await service_to_response(session, service)
+
+
+@router.delete(
+    "/services/{service_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf), Depends(require_permission("inventory:write"))],
+)
+async def delete_service_endpoint(
+    service_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    service = await get_service(session, service_id)
+    if service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found.")
+
+    name = service.name
+    await delete_service(session, service)
+    await write_audit_event(
+        session,
+        "inventory.service_deleted",
+        f"Service deleted: {name}",
         actor_user_id=current_user.id,
     )
     await session.commit()

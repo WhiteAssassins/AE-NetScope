@@ -15,6 +15,12 @@ AE NetScope is a self-hosted web app for organizing LAN inventory data such as d
 - Initial Alembic migration for auth, sessions, and audit events.
 - Core inventory schema for VLANs, networks, devices, interfaces, IP addresses, and services.
 - Dashboard data loaded from the API instead of static frontend mocks.
+- Device list, device detail, edit, interface creation, and deactivate flow.
+- IP and MAC table with search, state filters, manual IP registration, assignment to interfaces, and duplicate protection.
+- IP deletion, subnet management, VLAN association, gateway validation, and subnet utilization metrics.
+- VLAN management with utilization summaries, duplicate protection, editing, and deletion.
+- Deletion flows for devices and subnets with reference cleanup for related IP records.
+- Service management with device association, ports, protocols, status filters, editing, and deletion.
 
 ## Local Development
 

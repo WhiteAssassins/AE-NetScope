@@ -206,6 +206,34 @@ class InterfaceRecordResponse(BaseModel):
     device_name: str
 
 
+class ServiceCreate(BaseModel):
+    device_id: int
+    name: str = Field(min_length=1, max_length=80)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    protocol: str = Field(default="tcp", max_length=20)
+    status: str = Field(default="active", max_length=32)
+
+
+class ServiceUpdate(BaseModel):
+    device_id: int | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    protocol: str | None = Field(default=None, max_length=20)
+    status: str | None = Field(default=None, max_length=32)
+
+
+class ServiceRecordResponse(BaseModel):
+    id: int
+    device_id: int
+    device_name: str
+    device_type: str
+    name: str
+    port: int | None
+    protocol: str
+    status: str
+    primary_ip: str | None = None
+
+
 class DeviceDetailResponse(DeviceResponse):
     interfaces: list[InterfaceResponse]
 

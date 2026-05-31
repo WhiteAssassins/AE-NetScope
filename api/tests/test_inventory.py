@@ -198,6 +198,40 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     )
     assert outside_ip.status_code == 422
 
+    service = await client.post(
+        "/api/inventory/services",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "device_id": device.json()["id"],
+            "name": "SSH",
+            "port": 22,
+            "protocol": "tcp",
+            "status": "active",
+        },
+    )
+    assert service.status_code == 201
+    assert service.json()["device_name"] == "SW-Core-01"
+    assert service.json()["primary_ip"] == "10.0.0.2"
+
+    services = await client.get("/api/inventory/services")
+    assert services.status_code == 200
+    assert services.json()[0]["name"] == "SSH"
+
+    updated_service = await client.patch(
+        f"/api/inventory/services/{service.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"status": "warning", "port": 2222},
+    )
+    assert updated_service.status_code == 200
+    assert updated_service.json()["status"] == "warning"
+    assert updated_service.json()["port"] == 2222
+
+    deleted_service = await client.delete(
+        f"/api/inventory/services/{service.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert deleted_service.status_code == 204
+
     deleted_ip = await client.delete(
         f"/api/inventory/ip-addresses/{reserved_ip.json()['id']}",
         headers={"X-CSRF-Token": csrf_token},

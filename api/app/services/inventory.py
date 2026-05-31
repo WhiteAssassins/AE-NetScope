@@ -23,7 +23,10 @@ from app.schemas.inventory import (
     NetworkResponse,
     NetworkUpdate,
     RecentDevice,
+    ServiceCreate,
+    ServiceRecordResponse,
     ServiceSummary,
+    ServiceUpdate,
     VlanCreate,
     VlanResponse,
     VlanSummaryResponse,
@@ -153,6 +156,85 @@ async def delete_device(session: AsyncSession, device: Device) -> None:
 
     await session.delete(device)
     await session.flush()
+
+
+async def list_services(session: AsyncSession) -> list[ServiceRecordResponse]:
+    result = await session.execute(
+        select(Service, Device, IpAddress.address)
+        .join(Device, Service.device_id == Device.id)
+        .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
+        .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
+        .order_by(Service.name, Device.name)
+    )
+    seen: set[int] = set()
+    responses: list[ServiceRecordResponse] = []
+    for service, device, primary_ip in result.all():
+        if service.id in seen:
+            continue
+        seen.add(service.id)
+        responses.append(service_to_record(service, device, primary_ip))
+    return responses
+
+
+async def get_service(session: AsyncSession, service_id: int) -> Service | None:
+    return await session.get(Service, service_id)
+
+
+async def create_service(session: AsyncSession, payload: ServiceCreate) -> Service:
+    service = Service(**payload.model_dump())
+    session.add(service)
+    await session.flush()
+    return service
+
+
+async def update_service(
+    session: AsyncSession,
+    service: Service,
+    payload: ServiceUpdate,
+) -> Service:
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(service, key, value)
+    await session.flush()
+    return service
+
+
+async def delete_service(session: AsyncSession, service: Service) -> None:
+    await session.delete(service)
+    await session.flush()
+
+
+async def service_to_response(
+    session: AsyncSession,
+    service: Service,
+) -> ServiceRecordResponse:
+    result = await session.execute(
+        select(Service, Device, IpAddress.address)
+        .join(Device, Service.device_id == Device.id)
+        .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
+        .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
+        .where(Service.id == service.id)
+        .limit(1)
+    )
+    row = result.one()
+    return service_to_record(*row)
+
+
+def service_to_record(
+    service: Service,
+    device: Device,
+    primary_ip: str | None,
+) -> ServiceRecordResponse:
+    return ServiceRecordResponse(
+        id=service.id,
+        device_id=device.id,
+        device_name=device.name,
+        device_type=device.device_type,
+        name=service.name,
+        port=service.port,
+        protocol=service.protocol,
+        status=service.status,
+        primary_ip=primary_ip,
+    )
 
 
 async def add_device_interface(
