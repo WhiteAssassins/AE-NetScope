@@ -50,11 +50,11 @@ export default function SupportView() {
           </div>
           <a
             className="user-action support-link"
-            href="https://github.com/WhiteAssassins"
+            href="https://github.com/WhiteAssassins/AE-NetScope"
             target="_blank"
             rel="noreferrer"
           >
-            github.com/WhiteAssassins
+            github.com/WhiteAssassins/AE-NetScope
           </a>
         </article>
       </section>
