@@ -11,3 +11,13 @@ async def test_health_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+async def test_live_health_endpoint() -> None:
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/health/live")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"

@@ -1,16 +1,18 @@
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { VlanRecord } from "../types";
 import { hasPermission } from "../utils";
 export default function VlansView({
   csrfToken,
+  focusVlanId,
   vlans,
   onChanged,
   permissions,
 }: {
   csrfToken: string;
+  focusVlanId?: number;
   vlans: VlanRecord[];
   onChanged: () => Promise<void>;
   permissions: string[];
@@ -29,6 +31,19 @@ export default function VlansView({
   const canCreate = hasPermission(permissions, "vlans:create");
   const canUpdate = hasPermission(permissions, "vlans:update");
   const canDelete = hasPermission(permissions, "vlans:delete");
+
+  useEffect(() => {
+    if (!focusVlanId) {
+      return;
+    }
+    const vlan = vlans.find((item) => item.id === focusVlanId);
+    if (vlan) {
+      queueMicrotask(() => {
+        selectVlan(vlan);
+        setQuery(String(vlan.vlan_id));
+      });
+    }
+  }, [focusVlanId, vlans]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredVlans = vlans.filter((vlan) => {

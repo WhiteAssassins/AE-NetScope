@@ -10,7 +10,7 @@ export default function LoginScreen({
   message?: string;
   onLogin: (user: User, csrfToken: string) => void;
 }) {
-  const [email, setEmail] = useState("admin@example.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,8 +31,8 @@ export default function LoginScreen({
       if (!response.ok) {
         setError(
           response.status === 423
-            ? "La cuenta esta bloqueada temporalmente."
-            : "Correo o contrasena inválidos.",
+            ? "La cuenta está bloqueada temporalmente."
+            : "Correo o contraseña inválidos.",
         );
         return;
       }
@@ -57,7 +57,7 @@ export default function LoginScreen({
         </div>
         <div className="login-copy">
           <h1>Acceso seguro</h1>
-          <p>Inicia sesion para administrar el inventario de red.</p>
+          <p>Inicia sesión para administrar el inventario de red.</p>
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
           <label>

@@ -96,7 +96,16 @@ class DeviceCreate(BaseModel):
     status: str = Field(default="active", max_length=32)
     vendor: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=120)
+    serial_number: str | None = Field(default=None, max_length=120)
+    asset_tag: str | None = Field(default=None, max_length=120)
     operating_system: str | None = Field(default=None, max_length=120)
+    firmware_version: str | None = Field(default=None, max_length=120)
+    cpu: str | None = Field(default=None, max_length=160)
+    memory: str | None = Field(default=None, max_length=120)
+    storage: str | None = Field(default=None, max_length=160)
+    warranty_expires: str | None = Field(default=None, max_length=60)
+    owner: str | None = Field(default=None, max_length=120)
+    rack_position: str | None = Field(default=None, max_length=120)
     location: str | None = Field(default=None, max_length=120)
     notes: str | None = None
 
@@ -107,7 +116,16 @@ class DeviceUpdate(BaseModel):
     status: str | None = Field(default=None, max_length=32)
     vendor: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=120)
+    serial_number: str | None = Field(default=None, max_length=120)
+    asset_tag: str | None = Field(default=None, max_length=120)
     operating_system: str | None = Field(default=None, max_length=120)
+    firmware_version: str | None = Field(default=None, max_length=120)
+    cpu: str | None = Field(default=None, max_length=160)
+    memory: str | None = Field(default=None, max_length=120)
+    storage: str | None = Field(default=None, max_length=160)
+    warranty_expires: str | None = Field(default=None, max_length=60)
+    owner: str | None = Field(default=None, max_length=120)
+    rack_position: str | None = Field(default=None, max_length=120)
     location: str | None = Field(default=None, max_length=120)
     notes: str | None = None
 

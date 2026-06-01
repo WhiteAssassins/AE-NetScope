@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     redis_db: int = 0
+    redis_rate_limit_fail_open: bool = True
 
     session_secret: str = Field(default="change-me", repr=False)
     session_cookie_name: str = "ae_netscope_session"
@@ -36,6 +37,7 @@ class Settings(BaseSettings):
 
     password_hash_algorithm: str = "argon2id"
     auth_rate_limit_per_minute: int = 5
+    auth_failed_login_limit: int = 10
     auth_lockout_minutes: int = 15
 
     crypto_policy_version: int = 1

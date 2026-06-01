@@ -72,7 +72,16 @@ export type DeviceRecord = {
   status: string;
   vendor: string | null;
   model: string | null;
+  serial_number: string | null;
+  asset_tag: string | null;
   operating_system: string | null;
+  firmware_version: string | null;
+  cpu: string | null;
+  memory: string | null;
+  storage: string | null;
+  warranty_expires: string | null;
+  owner: string | null;
+  rack_position: string | null;
   location: string | null;
   notes: string | null;
   primary_ip: string | null;
@@ -162,4 +171,7 @@ export type ViewName =
   | "vlans"
   | "services"
   | "audit"
-  | "users";
+  | "importExport"
+  | "users"
+  | "settings"
+  | "support";

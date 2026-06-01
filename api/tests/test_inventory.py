@@ -107,6 +107,15 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
         json={
             "name": "SW-Core-01",
             "device_type": "Switch",
+            "serial_number": "SN-SW-001",
+            "asset_tag": "AE-SW-001",
+            "firmware_version": "17.9.5",
+            "cpu": "Network ASIC",
+            "memory": "4 GB",
+            "storage": "16 GB flash",
+            "warranty_expires": "2028-12-31",
+            "owner": "Network Team",
+            "rack_position": "Rack A / U12",
             "interface": {
                 "name": "eth0",
                 "mac_address": "00:11:22:33:44:55",
@@ -117,11 +126,23 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     )
     assert device.status_code == 201
     assert device.json()["primary_ip"] == "10.0.0.2"
+    assert device.json()["serial_number"] == "SN-SW-001"
+    assert device.json()["rack_position"] == "Rack A / U12"
 
     dashboard = await client.get("/api/inventory/dashboard")
     assert dashboard.status_code == 200
     assert dashboard.json()["stats"]["devices"] == 1
     assert dashboard.json()["stats"]["ip_addresses"] == 1
+
+    export_json = await client.get("/api/inventory/export.json")
+    assert export_json.status_code == 200
+    assert export_json.json()["format"] == "ae-netscope.inventory.v1"
+    assert len(export_json.json()["devices"]) == 1
+
+    export_csv = await client.get("/api/inventory/export/devices.csv")
+    assert export_csv.status_code == 200
+    assert "text/csv" in export_csv.headers["content-type"]
+    assert "SW-Core-01" in export_csv.text
 
     detail = await client.get(f"/api/inventory/devices/{device.json()['id']}")
     assert detail.status_code == 200
@@ -131,11 +152,12 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     updated = await client.patch(
         f"/api/inventory/devices/{device.json()['id']}",
         headers={"X-CSRF-Token": csrf_token},
-        json={"location": "Rack A1", "model": "AE-48P"},
+        json={"location": "Rack A1", "model": "AE-48P", "owner": "Infra Team"},
     )
     assert updated.status_code == 200
     assert updated.json()["location"] == "Rack A1"
     assert updated.json()["model"] == "AE-48P"
+    assert updated.json()["owner"] == "Infra Team"
 
     interface = await client.post(
         f"/api/inventory/devices/{device.json()['id']}/interfaces",
@@ -317,3 +339,79 @@ async def test_viewer_can_read_inventory_but_cannot_write() -> None:
 
     app.dependency_overrides.clear()
     await engine.dispose()
+
+
+async def test_admin_can_restore_inventory_backup(inventory_client) -> None:
+    client, csrf_token = inventory_client
+
+    vlan = await client.post(
+        "/api/inventory/vlans",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"vlan_id": 30, "name": "Servers"},
+    )
+    network = await client.post(
+        "/api/inventory/networks",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "cidr": "10.30.0.0/24",
+            "name": "Server LAN",
+            "gateway": "10.30.0.1",
+            "vlan_id": vlan.json()["id"],
+        },
+    )
+    device = await client.post(
+        "/api/inventory/devices",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "name": "SRV-APP-01",
+            "device_type": "Servidor",
+            "vendor": "AE",
+            "model": "Node",
+            "serial_number": "SRV-SERIAL-01",
+            "asset_tag": "AE-SRV-01",
+            "cpu": "8 cores",
+            "memory": "32 GB",
+            "storage": "2 TB NVMe",
+            "owner": "Systems",
+            "interface": {
+                "name": "eth0",
+                "mac_address": "00:aa:bb:cc:dd:01",
+                "ip_address": "10.30.0.20",
+                "network_id": network.json()["id"],
+            },
+        },
+    )
+    service = await client.post(
+        "/api/inventory/services",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"device_id": device.json()["id"], "name": "HTTPS", "port": 443},
+    )
+    assert service.status_code == 201
+
+    backup_response = await client.get("/api/inventory/export.json")
+    assert backup_response.status_code == 200
+    backup = backup_response.json()
+
+    await client.delete(
+        f"/api/inventory/devices/{device.json()['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert (await client.get("/api/inventory/devices")).json() == []
+
+    import_response = await client.post(
+        "/api/inventory/import.json",
+        headers={"X-CSRF-Token": csrf_token},
+        json=backup,
+    )
+    assert import_response.status_code == 200
+    assert import_response.json()["counts"]["devices"] == 1
+    assert import_response.json()["counts"]["services"] == 1
+
+    restored_devices = await client.get("/api/inventory/devices")
+    assert restored_devices.json()[0]["name"] == "SRV-APP-01"
+    assert restored_devices.json()[0]["primary_ip"] == "10.30.0.20"
+    assert restored_devices.json()[0]["serial_number"] == "SRV-SERIAL-01"
+    assert restored_devices.json()[0]["memory"] == "32 GB"
+
+    restored_services = await client.get("/api/inventory/services")
+    assert restored_services.json()[0]["name"] == "HTTPS"

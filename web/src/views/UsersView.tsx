@@ -8,6 +8,7 @@ import { hasPermission } from "../utils";
 type UsersViewProps = {
   csrfToken: string;
   currentUser: User;
+  focusUserId?: number;
 };
 
 const roleLabels: Record<UserRole, string> = {
@@ -16,7 +17,7 @@ const roleLabels: Record<UserRole, string> = {
   viewer: "Solo lectura",
 };
 
-export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
+export default function UsersView({ csrfToken, currentUser, focusUserId }: UsersViewProps) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -33,6 +34,19 @@ export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
   useEffect(() => {
     loadUsers().catch(() => setError("No se pudo cargar la lista de usuarios."));
   }, []);
+
+  useEffect(() => {
+    if (!focusUserId || !users.length) {
+      return;
+    }
+    const focusedUser = users.find((item) => item.id === focusUserId);
+    if (focusedUser) {
+      queueMicrotask(() => {
+        setQuery(focusedUser.email);
+        loadSessions(focusedUser).catch(() => undefined);
+      });
+    }
+  }, [focusUserId, users]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredUsers = users.filter((user) => {
@@ -343,6 +357,14 @@ export default function UsersView({ csrfToken, currentUser }: UsersViewProps) {
                         >
                           Forzar cambio
                         </button>
+                        {user.locked_until && (
+                          <button
+                            className="user-action"
+                            onClick={() => patchUser(user, { clear_lock: true })}
+                          >
+                            Desbloquear
+                          </button>
+                        )}
                         <button className="user-action" onClick={() => resetPassword(user)}>
                           Reset password
                         </button>

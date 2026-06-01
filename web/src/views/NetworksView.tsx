@@ -1,17 +1,19 @@
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { NetworkRecord, VlanRecord } from "../types";
 import { hasPermission, stateLabel, stateTone } from "../utils";
 export default function NetworksView({
   csrfToken,
+  focusNetworkId,
   networks,
   vlans,
   onChanged,
   permissions,
 }: {
   csrfToken: string;
+  focusNetworkId?: number;
   networks: NetworkRecord[];
   vlans: VlanRecord[];
   onChanged: () => Promise<void>;
@@ -35,6 +37,19 @@ export default function NetworksView({
   const canCreate = hasPermission(permissions, "networks:create");
   const canUpdate = hasPermission(permissions, "networks:update");
   const canDelete = hasPermission(permissions, "networks:delete");
+
+  useEffect(() => {
+    if (!focusNetworkId) {
+      return;
+    }
+    const network = networks.find((item) => item.id === focusNetworkId);
+    if (network) {
+      queueMicrotask(() => {
+        selectNetwork(network);
+        setQuery(network.cidr);
+      });
+    }
+  }, [focusNetworkId, networks]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredNetworks = networks.filter((network) => {

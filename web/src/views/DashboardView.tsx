@@ -1,65 +1,45 @@
-import {
-  Box,
-  FileText,
-  Layers3,
-  Monitor,
-  RefreshCcw,
-  Route,
-  Server,
-  Tag,
-  Trash2,
-} from "lucide-react";
+import { Box, FileText, Layers3, Monitor, RefreshCcw, Route, Server, Tag } from "lucide-react";
 import type { ReactNode } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
-import type { DashboardSummary, User } from "../types";
+import type { AuditEvent, DashboardSummary, User } from "../types";
 import { titleCase, typeTone } from "../utils";
 
 type DashboardViewProps = {
+  auditEvents: AuditEvent[];
   dashboard: DashboardSummary | null;
-  user: User;
+  lastUpdatedAt: Date | null;
+  onOpenAudit: () => void;
   onOpenDevices: () => void;
+  onOpenIpMacs: () => void;
+  onOpenNetworks: () => void;
+  onOpenServices: () => void;
+  onOpenVlans: () => void;
+  onRefresh: () => void;
+  showPreviewNotice: boolean;
+  user: User;
 };
 
-const changes = [
-  {
-    title: "Dispositivo agregado: SRV-APP-02",
-    subtitle: "Por admin",
-    time: "Hace 1 hora",
-    icon: PlusIcon,
-    tone: "green",
-  },
-  {
-    title: "IP actualizada: 10.0.1.25",
-    subtitle: "En SW-Core-01",
-    time: "Hace 2 horas",
-    icon: EditIcon,
-    tone: "blue",
-  },
-  {
-    title: "VLAN creada: VLAN 30 - Invitados",
-    subtitle: "Por admin",
-    time: "Hace 5 horas",
-    icon: Tag,
-    tone: "orange",
-  },
-  {
-    title: "Nota técnica actualizada: Configuración OSPF",
-    subtitle: "Por admin",
-    time: "Ayer 21:30",
-    icon: FileText,
-    tone: "violet",
-  },
-  {
-    title: "Dispositivo eliminado: PC-OLD-03",
-    subtitle: "Por admin",
-    time: "Ayer 19:10",
-    icon: Trash2,
-    tone: "red",
-  },
-];
-
-export default function DashboardView({ dashboard, user, onOpenDevices }: DashboardViewProps) {
-  const stats = buildStats(dashboard);
+export default function DashboardView({
+  auditEvents,
+  dashboard,
+  lastUpdatedAt,
+  onOpenAudit,
+  onOpenDevices,
+  onOpenIpMacs,
+  onOpenNetworks,
+  onOpenServices,
+  onOpenVlans,
+  onRefresh,
+  showPreviewNotice,
+  user,
+}: DashboardViewProps) {
+  const stats = buildStats(dashboard, {
+    Dispositivos: onOpenDevices,
+    "IPs registradas": onOpenIpMacs,
+    Subredes: onOpenNetworks,
+    VLANs: onOpenVlans,
+    Servicios: onOpenServices,
+  });
   const chartData = buildChartData(dashboard);
   const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
 
@@ -70,13 +50,15 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
         <p>Resumen general de tu red</p>
       </div>
 
-      <div className="preview-notice" role="status">
-        <strong>Early Public Preview</strong>
-        <span>
-          No uses AE NetScope todavía con datos sensibles de redes en producción. La API, el
-          esquema y los controles de seguridad pueden cambiar antes de v1.0.
-        </span>
-      </div>
+      {showPreviewNotice && (
+        <div className="preview-notice" role="status">
+          <strong>Early Public Preview</strong>
+          <span>
+            No uses AE NetScope todavía con datos sensibles de redes en producción. La API, el
+            esquema y los controles de seguridad pueden cambiar antes de v1.0.
+          </span>
+        </div>
+      )}
 
       <section className="stats-grid" aria-label="Resumen del inventario">
         {stats.map((stat) => (
@@ -87,7 +69,13 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
             <div>
               <p>{stat.label}</p>
               <strong>{stat.value}</strong>
-              <a href="#">Ver todos</a>
+              {stat.onOpen ? (
+                <button className="card-link text-button" onClick={stat.onOpen}>
+                  Ver todos
+                </button>
+              ) : (
+                <span className="muted-line">Próximamente</span>
+              )}
             </div>
           </article>
         ))}
@@ -114,9 +102,9 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
                 {(dashboard?.recent_devices ?? []).map((device) => (
                   <tr key={device.id}>
                     <td>
-                      <a className="device-name" href="#">
+                      <button className="device-name row-action" onClick={onOpenDevices}>
                         {device.name}
-                      </a>
+                      </button>
                     </td>
                     <td>
                       <span className={`pill ${typeTone(device.device_type)}`}>
@@ -141,15 +129,7 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
             <div className="donut">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    innerRadius={72}
-                    outerRadius={102}
-                    paddingAngle={1}
-                    startAngle={90}
-                    endAngle={450}
-                  >
+                  <Pie data={chartData} dataKey="value" innerRadius={72} outerRadius={102} paddingAngle={1} startAngle={90} endAngle={450}>
                     {chartData.map((entry) => (
                       <Cell fill={entry.color} key={entry.name} />
                     ))}
@@ -174,10 +154,10 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
               ))}
             </div>
           </div>
-          <div className="updated">
+          <button className="updated text-button" onClick={onRefresh}>
             <RefreshCcw size={18} strokeWidth={1.7} />
-            Última actualización: Hace 5 minutos
-          </div>
+            Última actualización: {lastUpdatedAt ? lastUpdatedAt.toLocaleString() : "Sin datos"}
+          </button>
         </Card>
 
         <Card className="span-4" title="Mapa de subredes">
@@ -193,9 +173,9 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
               ))}
             </div>
           </div>
-          <a className="card-link lower-link" href="#">
+          <button className="card-link lower-link text-button" onClick={onOpenNetworks}>
             Ver todas las subredes
-          </a>
+          </button>
         </Card>
 
         <Card className="span-3" title="Servicios activos">
@@ -211,44 +191,42 @@ export default function DashboardView({ dashboard, user, onOpenDevices }: Dashbo
               </div>
             ))}
           </div>
-          <a className="card-link lower-link" href="#">
+          <button className="card-link lower-link text-button" onClick={onOpenServices}>
             Ver todos los servicios
-          </a>
+          </button>
         </Card>
 
         <Card className="span-5" title="Últimos cambios">
           <div className="change-list">
-            {changes.map((change) => (
-              <div className="change-row" key={change.title}>
-                <span className={`change-icon ${change.tone}`}>
-                  <change.icon size={17} strokeWidth={2} />
-                </span>
-                <p>
-                  <a href="#">{change.title}</a>
-                  <small>{change.subtitle}</small>
-                </p>
-                <time>{change.time}</time>
-              </div>
-            ))}
+            {auditEvents.length ? (
+              auditEvents.slice(0, 5).map((event) => (
+                <div className="change-row" key={event.id}>
+                  <span className={`change-icon ${eventTone(event.event_type)}`}>
+                    <FileText size={17} strokeWidth={2} />
+                  </span>
+                  <p>
+                    <button className="text-button" onClick={onOpenAudit}>
+                      {event.message}
+                    </button>
+                    <small>{event.actor_email ?? "Sistema"}</small>
+                  </p>
+                  <time>{new Date(event.created_at).toLocaleString()}</time>
+                </div>
+              ))
+            ) : (
+              <p className="muted-line">No hay cambios recientes para mostrar.</p>
+            )}
           </div>
-          <a className="card-link lower-link" href="#">
+          <button className="card-link lower-link text-button" onClick={onOpenAudit}>
             Ver todo el historial de cambios
-          </a>
+          </button>
         </Card>
       </section>
     </>
   );
 }
 
-function Card({
-  title,
-  children,
-  className = "",
-}: {
-  title: string;
-  children: ReactNode;
-  className?: string;
-}) {
+function Card({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {
   return (
     <section className={`card ${className}`}>
       <h2>{title}</h2>
@@ -257,44 +235,14 @@ function Card({
   );
 }
 
-function buildStats(dashboard: DashboardSummary | null) {
+function buildStats(dashboard: DashboardSummary | null, handlers: Record<string, () => void>) {
   return [
-    {
-      label: "Dispositivos",
-      value: String(dashboard?.stats.devices ?? 0),
-      icon: Monitor,
-      tone: "blue" as const,
-    },
-    {
-      label: "IPs registradas",
-      value: String(dashboard?.stats.ip_addresses ?? 0),
-      icon: Box,
-      tone: "green" as const,
-    },
-    {
-      label: "Subredes",
-      value: String(dashboard?.stats.networks ?? 0),
-      icon: Route,
-      tone: "violet" as const,
-    },
-    {
-      label: "VLANs",
-      value: String(dashboard?.stats.vlans ?? 0),
-      icon: Tag,
-      tone: "orange" as const,
-    },
-    {
-      label: "Servicios",
-      value: String(dashboard?.stats.services ?? 0),
-      icon: Layers3,
-      tone: "cyan" as const,
-    },
-    {
-      label: "Notas técnicas",
-      value: String(dashboard?.stats.notes ?? 0),
-      icon: FileText,
-      tone: "gray" as const,
-    },
+    { label: "Dispositivos", value: String(dashboard?.stats.devices ?? 0), icon: Monitor, tone: "blue" as const, onOpen: handlers.Dispositivos },
+    { label: "IPs registradas", value: String(dashboard?.stats.ip_addresses ?? 0), icon: Box, tone: "green" as const, onOpen: handlers["IPs registradas"] },
+    { label: "Subredes", value: String(dashboard?.stats.networks ?? 0), icon: Route, tone: "violet" as const, onOpen: handlers.Subredes },
+    { label: "VLANs", value: String(dashboard?.stats.vlans ?? 0), icon: Tag, tone: "orange" as const, onOpen: handlers.VLANs },
+    { label: "Servicios", value: String(dashboard?.stats.services ?? 0), icon: Layers3, tone: "cyan" as const, onOpen: handlers.Servicios },
+    { label: "Notas técnicas", value: String(dashboard?.stats.notes ?? 0), icon: FileText, tone: "gray" as const },
   ];
 }
 
@@ -308,35 +256,10 @@ function buildChartData(dashboard: DashboardSummary | null) {
   ];
 }
 
-function PlusIcon({ size = 17, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 5v14M5 12h14"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth={strokeWidth}
-      />
-    </svg>
-  );
-}
-
-function EditIcon({ size = 17, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="m4 16.5-.7 4.2 4.2-.7L18.2 9.3l-3.5-3.5L4 16.5Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={strokeWidth}
-      />
-      <path
-        d="m13.8 6.7 3.5 3.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth={strokeWidth}
-      />
-    </svg>
-  );
+function eventTone(eventType: string) {
+  if (eventType.startsWith("users.")) return "violet";
+  if (eventType.includes("deleted")) return "red";
+  if (eventType.includes("created")) return "green";
+  if (eventType.includes("updated")) return "blue";
+  return "orange";
 }

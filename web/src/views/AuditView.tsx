@@ -5,6 +5,7 @@ import type { AuditEvent } from "../types";
 import { hasPermission } from "../utils";
 
 type AuditViewProps = {
+  initialQuery?: string;
   permissions: string[];
 };
 
@@ -15,7 +16,7 @@ const eventGroups = [
   { value: "inventory", label: "Inventario" },
 ];
 
-export default function AuditView({ permissions }: AuditViewProps) {
+export default function AuditView({ initialQuery, permissions }: AuditViewProps) {
   const canReadAudit = hasPermission(permissions, "audit:read");
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [query, setQuery] = useState("");
@@ -29,6 +30,12 @@ export default function AuditView({ permissions }: AuditViewProps) {
     }
     loadEvents().catch(() => setError("No se pudo cargar el historial de cambios."));
   }, [canReadAudit]);
+
+  useEffect(() => {
+    if (initialQuery) {
+      queueMicrotask(() => setQuery(initialQuery));
+    }
+  }, [initialQuery]);
 
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();

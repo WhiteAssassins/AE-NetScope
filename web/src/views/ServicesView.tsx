@@ -1,17 +1,19 @@
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord, ServiceRecord } from "../types";
 import { hasPermission, stateLabel, stateTone } from "../utils";
 export default function ServicesView({
   csrfToken,
+  focusServiceId,
   services,
   devices,
   onChanged,
   permissions,
 }: {
   csrfToken: string;
+  focusServiceId?: number;
   services: ServiceRecord[];
   devices: DeviceRecord[];
   onChanged: () => Promise<void>;
@@ -34,6 +36,19 @@ export default function ServicesView({
   const canCreate = hasPermission(permissions, "services:create");
   const canUpdate = hasPermission(permissions, "services:update");
   const canDelete = hasPermission(permissions, "services:delete");
+
+  useEffect(() => {
+    if (!focusServiceId) {
+      return;
+    }
+    const service = services.find((item) => item.id === focusServiceId);
+    if (service) {
+      queueMicrotask(() => {
+        selectService(service);
+        setQuery(service.name);
+      });
+    }
+  }, [focusServiceId, services]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredServices = services.filter((service) => {

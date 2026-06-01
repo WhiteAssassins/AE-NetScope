@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, SessionCookie, SessionDep, require_csrf
 from app.core.config import settings
 from app.core.permissions import permissions_for_role
+from app.core.rate_limit import rate_limit
+from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     CsrfResponse,
+    InitialSetupRequest,
+    InitialSetupStatusResponse,
     LoginRequest,
     SessionResponse,
     UserResponse,
@@ -56,7 +61,60 @@ def clear_session_cookie(response: Response) -> None:
     )
 
 
-@router.post("/login", response_model=SessionResponse)
+async def has_any_user(session: SessionDep) -> bool:
+    count = await session.scalar(select(func.count(User.id)))
+    return bool(count)
+
+
+@router.get("/setup", response_model=InitialSetupStatusResponse)
+async def setup_status(session: SessionDep) -> InitialSetupStatusResponse:
+    return InitialSetupStatusResponse(setup_required=not await has_any_user(session))
+
+
+@router.post(
+    "/setup",
+    response_model=SessionResponse,
+    dependencies=[Depends(rate_limit("auth.setup", limit=3))],
+)
+async def initial_setup(
+    payload: InitialSetupRequest,
+    request: Request,
+    response: Response,
+    session: SessionDep,
+) -> SessionResponse:
+    if await has_any_user(session):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Initial setup has already been completed.",
+        )
+
+    user = User(
+        email=str(payload.email).lower(),
+        username=payload.username,
+        password_hash=hash_password(payload.password),
+        role="admin",
+        is_active=True,
+        must_change_password=False,
+    )
+    session.add(user)
+    await session.flush()
+
+    token, csrf_token = await create_user_session(
+        session,
+        user=user,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+    await session.commit()
+    set_session_cookie(response, token)
+    return SessionResponse(user=serialize_user(user), csrf_token=csrf_token)
+
+
+@router.post(
+    "/login",
+    response_model=SessionResponse,
+    dependencies=[Depends(rate_limit("auth.login"))],
+)
 async def login(
     payload: LoginRequest,
     request: Request,
@@ -109,7 +167,11 @@ async def csrf(session: SessionDep, session_token: SessionCookie = None) -> Csrf
     return CsrfResponse(csrf_token=csrf_token)
 
 
-@router.post("/password", response_model=SessionResponse, dependencies=[Depends(require_csrf)])
+@router.post(
+    "/password",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_csrf), Depends(rate_limit("auth.password", limit=10))],
+)
 async def change_password(
     payload: ChangePasswordRequest,
     request: Request,

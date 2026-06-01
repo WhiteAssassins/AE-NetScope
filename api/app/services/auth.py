@@ -29,6 +29,12 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _as_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 async def authenticate_user(
     session: AsyncSession,
     *,
@@ -58,7 +64,7 @@ async def authenticate_user(
         )
         raise AuthError("Invalid email or password.")
 
-    if user.locked_until and user.locked_until > _now():
+    if user.locked_until and _as_aware(user.locked_until) > _now():
         await write_audit_event(
             session,
             "auth.login_locked",
@@ -74,7 +80,7 @@ async def authenticate_user(
     )
     if not is_valid_password:
         user.failed_login_count += 1
-        if user.failed_login_count >= settings.auth_rate_limit_per_minute:
+        if user.failed_login_count >= settings.auth_failed_login_limit:
             user.locked_until = _now() + timedelta(minutes=settings.auth_lockout_minutes)
 
         await write_audit_event(

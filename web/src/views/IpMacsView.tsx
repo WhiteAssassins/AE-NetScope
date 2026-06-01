@@ -1,11 +1,12 @@
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { InterfaceRecord, IpMacRecord, NetworkRecord } from "../types";
 import { hasPermission, stateLabel, stateTone, titleCase } from "../utils";
 export default function IpMacsView({
   csrfToken,
+  focusIpId,
   ipMacs,
   interfaces,
   networks,
@@ -13,6 +14,7 @@ export default function IpMacsView({
   permissions,
 }: {
   csrfToken: string;
+  focusIpId?: number;
   ipMacs: IpMacRecord[];
   interfaces: InterfaceRecord[];
   networks: NetworkRecord[];
@@ -35,6 +37,19 @@ export default function IpMacsView({
   const canCreate = hasPermission(permissions, "ip_addresses:create");
   const canUpdate = hasPermission(permissions, "ip_addresses:update");
   const canDelete = hasPermission(permissions, "ip_addresses:delete");
+
+  useEffect(() => {
+    if (!focusIpId) {
+      return;
+    }
+    const item = ipMacs.find((record) => record.id === focusIpId);
+    if (item) {
+      queueMicrotask(() => {
+        selectIp(item);
+        setQuery(item.address);
+      });
+    }
+  }, [focusIpId, ipMacs]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredIpMacs = ipMacs.filter((item) => {

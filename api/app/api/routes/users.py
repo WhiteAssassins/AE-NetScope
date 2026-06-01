@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentSession, CurrentUser, SessionDep, require_csrf, require_permission
+from app.core.rate_limit import rate_limit
 from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import (
@@ -27,7 +28,10 @@ from app.services.users import (
 
 router = APIRouter(
     prefix="/users",
-    dependencies=[Depends(require_permission("users:manage"))],
+    dependencies=[
+        Depends(require_permission("users:manage")),
+        Depends(rate_limit("users.manage", limit=120)),
+    ],
 )
 
 

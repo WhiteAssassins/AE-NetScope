@@ -18,6 +18,10 @@ export function stateTone(value: string) {
 export function typeTone(type: string) {
   if (type === "Servidor") return "server";
   if (type === "Access Point") return "access";
+  if (["Cámara IP", "NVR", "DVR", "Sensor", "Control de acceso"].includes(type)) return "camera";
+  if (["Firewall", "UPS"].includes(type)) return "security";
+  if (["NAS", "SAN", "Virtualización", "Contenedor"].includes(type)) return "storage";
+  if (["Impresora", "VoIP", "IoT"].includes(type)) return "device";
   if (type === "Equipo") return "workstation";
   return "network";
 }

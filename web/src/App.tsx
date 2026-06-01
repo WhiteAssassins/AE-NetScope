@@ -24,10 +24,12 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { API_BASE_URL, fetchInventoryData } from "./api";
 import "./App.css";
 import type {
+  AuditEvent,
   DashboardSummary,
   DeviceRecord,
   InterfaceRecord,
   IpMacRecord,
+  ManagedUser,
   NetworkRecord,
   ServiceRecord,
   User,
@@ -35,13 +37,31 @@ import type {
   VlanRecord,
 } from "./types";
 
-type NavItem = { label: string; icon: LucideIcon; active?: boolean };
+type NavItem = { label: string; icon: LucideIcon };
+type TopbarMenu = "notifications" | "help" | "user" | null;
+type SearchTarget = { view: ViewName; id?: number; query?: string };
+type LocalSettings = {
+  compactTables: boolean;
+  defaultView: string;
+  showPreviewNotice: boolean;
+};
+
+const defaultLocalSettings: LocalSettings = {
+  compactTables: false,
+  defaultView: "dashboard",
+  showPreviewNotice: true,
+};
+
+function readLocalSettings() {
+  const stored = window.localStorage.getItem("ae-netscope-settings");
+  if (!stored) {
+    return defaultLocalSettings;
+  }
+  return { ...defaultLocalSettings, ...(JSON.parse(stored) as Partial<LocalSettings>) };
+}
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
-  {
-    label: "",
-    items: [{ label: "Dashboard", icon: Home, active: true }],
-  },
+  { label: "", items: [{ label: "Dashboard", icon: Home }] },
   {
     label: "Inventario",
     items: [
@@ -54,10 +74,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { label: "Notas técnicas", icon: FileText },
     ],
   },
-  {
-    label: "Historial",
-    items: [{ label: "Cambios", icon: Clock3 }],
-  },
+  { label: "Historial", items: [{ label: "Cambios", icon: Clock3 }] },
   {
     label: "Herramientas",
     items: [
@@ -79,10 +96,14 @@ const DashboardView = lazy(() => import("./views/DashboardView"));
 const AuditView = lazy(() => import("./views/AuditView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
+const ImportExportView = lazy(() => import("./views/ImportExportView"));
 const IpMacsView = lazy(() => import("./views/IpMacsView"));
 const LoginScreen = lazy(() => import("./views/LoginScreen"));
 const NetworksView = lazy(() => import("./views/NetworksView"));
 const ServicesView = lazy(() => import("./views/ServicesView"));
+const SettingsView = lazy(() => import("./views/SettingsView"));
+const SetupScreen = lazy(() => import("./views/SetupScreen"));
+const SupportView = lazy(() => import("./views/SupportView"));
 const UsersView = lazy(() => import("./views/UsersView"));
 const VlansView = lazy(() => import("./views/VlansView"));
 
@@ -95,50 +116,106 @@ function App() {
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [ipMacs, setIpMacs] = useState<IpMacRecord[]>([]);
   const [interfaces, setInterfaces] = useState<InterfaceRecord[]>([]);
-  const [view, setView] = useState<ViewName>("dashboard");
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [localSettings, setLocalSettings] = useState<LocalSettings>(readLocalSettings);
+  const [view, setView] = useState<ViewName>(() => localSettings.defaultView as ViewName);
+  const [focusTarget, setFocusTarget] = useState<SearchTarget | null>(null);
   const [csrfToken, setCsrfToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [setupRequired, setSetupRequired] = useState(false);
   const [sessionMessage, setSessionMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTopbarMenu, setActiveTopbarMenu] = useState<TopbarMenu>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" })
+    fetch(`${API_BASE_URL}/auth/setup`, { credentials: "include" })
       .then(async (response) => {
-        if (!response.ok) {
+        if (response.ok) {
+          const setupData = (await response.json()) as { setup_required: boolean };
+          if (setupData.setup_required) {
+            setSetupRequired(true);
+            setUser(null);
+            return;
+          }
+        }
+
+        const meResponse = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
+        if (!meResponse.ok) {
           setUser(null);
-          if (response.status === 401) {
+          if (meResponse.status === 401) {
             setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
           }
           return;
         }
 
-        const data = (await response.json()) as { user: User };
+        const data = (await meResponse.json()) as { user: User };
         setUser(data.user);
-        const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, {
-          credentials: "include",
-        });
+        const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
         if (csrfResponse.ok) {
           const csrfData = (await csrfResponse.json()) as { csrf_token: string };
           setCsrfToken(csrfData.csrf_token);
         }
         if (!data.user.must_change_password) {
-          const inventoryData = await fetchInventoryData();
-          setDashboard(inventoryData.dashboard);
-          setDevices(inventoryData.devices);
-          setNetworks(inventoryData.networks);
-          setVlans(inventoryData.vlans);
-          setServices(inventoryData.services);
-          setIpMacs(inventoryData.ipMacs);
-          setInterfaces(inventoryData.interfaces);
+          await refreshInventory();
         }
       })
-      .catch((error) => {
+      .catch(() => {
         setUser(null);
-        if (error instanceof Error && error.message === "unauthorized") {
-          setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
-        }
+        setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => {
+    function syncSettings() {
+      setLocalSettings(readLocalSettings());
+    }
+    window.addEventListener("ae-netscope-settings-changed", syncSettings);
+    return () => window.removeEventListener("ae-netscope-settings-changed", syncSettings);
+  }, []);
+
+  useEffect(() => {
+    if (!user || user.must_change_password) {
+      return;
+    }
+    if (user.permissions.includes("users:manage")) {
+      refreshManagedUsers().catch(() => undefined);
+    }
+    if (user.permissions.includes("audit:read")) {
+      refreshAuditEvents().catch(() => undefined);
+    }
+  }, [user]);
+
+  async function refreshInventory() {
+    const inventoryData = await fetchInventoryData();
+    setDashboard(inventoryData.dashboard);
+    setDevices(inventoryData.devices);
+    setNetworks(inventoryData.networks);
+    setVlans(inventoryData.vlans);
+    setServices(inventoryData.services);
+    setIpMacs(inventoryData.ipMacs);
+    setInterfaces(inventoryData.interfaces);
+    setLastUpdatedAt(new Date());
+  }
+
+  async function refreshManagedUsers() {
+    const response = await fetch(`${API_BASE_URL}/users`, { credentials: "include" });
+    if (response.ok) {
+      setManagedUsers((await response.json()) as ManagedUser[]);
+    }
+  }
+
+  async function refreshAuditEvents() {
+    const response = await fetch(`${API_BASE_URL}/audit/events?limit=8`, {
+      credentials: "include",
+    });
+    if (response.ok) {
+      setAuditEvents((await response.json()) as AuditEvent[]);
+    }
+  }
 
   async function handleLogout() {
     await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -150,26 +227,90 @@ function App() {
     setCsrfToken("");
   }
 
-  async function refreshInventory() {
-    try {
-      const inventoryData = await fetchInventoryData();
-      setDashboard(inventoryData.dashboard);
-      setDevices(inventoryData.devices);
-      setNetworks(inventoryData.networks);
-      setVlans(inventoryData.vlans);
-      setServices(inventoryData.services);
-      setIpMacs(inventoryData.ipMacs);
-      setInterfaces(inventoryData.interfaces);
-    } catch (error) {
-      if (error instanceof Error && error.message === "unauthorized") {
-        setUser(null);
-        setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
-      }
-    }
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const searchResults = normalizedSearch
+    ? [
+        ...devices.map((device) => ({
+          title: device.name,
+          meta: `${device.device_type} - ${device.primary_ip ?? "sin IP"} - ${
+            device.primary_mac ?? "sin MAC"
+          }`,
+          target: { view: "devices" as ViewName, id: device.id },
+        })),
+        ...ipMacs.map((record) => ({
+          title: record.address,
+          meta: `${record.device_name ?? "Sin dispositivo"} - ${record.mac_address ?? "sin MAC"}`,
+          target: { view: "ipMacs" as ViewName, id: record.id },
+        })),
+        ...networks.map((network) => ({
+          title: network.cidr,
+          meta: `${network.name} - ${network.location ?? "sin ubicacion"}`,
+          target: { view: "networks" as ViewName, id: network.id },
+        })),
+        ...vlans.map((vlan) => ({
+          title: `VLAN ${vlan.vlan_id}`,
+          meta: `${vlan.name} - ${vlan.network_count} subredes`,
+          target: { view: "vlans" as ViewName, id: vlan.id },
+        })),
+        ...services.map((service) => ({
+          title: service.name,
+          meta: `${service.device_name} - ${service.port ?? "sin puerto"}/${service.protocol}`,
+          target: { view: "services" as ViewName, id: service.id },
+        })),
+        ...managedUsers.map((managedUser) => ({
+          title: managedUser.email,
+          meta: `${managedUser.username} - ${managedUser.role}`,
+          target: { view: "users" as ViewName, id: managedUser.id },
+        })),
+      ]
+        .filter((item) => `${item.title} ${item.meta}`.toLowerCase().includes(normalizedSearch))
+        .slice(0, 8)
+    : [];
+
+  function openTopbarMenu(menu: Exclude<TopbarMenu, null>) {
+    setActiveTopbarMenu((current) => (current === menu ? null : menu));
+  }
+
+  function goToView(nextView: ViewName, target?: SearchTarget) {
+    setView(nextView);
+    setFocusTarget(target ?? null);
+    setSearchQuery("");
+    setActiveTopbarMenu(null);
+  }
+
+  function navLabelToView(label: string): ViewName | null {
+    const map: Record<string, ViewName> = {
+      Dashboard: "dashboard",
+      Dispositivos: "devices",
+      "IPs y MACs": "ipMacs",
+      Subredes: "networks",
+      VLANs: "vlans",
+      Servicios: "services",
+      Cambios: "audit",
+      "Importar / Exportar": "importExport",
+      Usuarios: "users",
+      Ajustes: "settings",
+    };
+    return map[label] ?? null;
   }
 
   if (isLoading) {
     return <div className="auth-loading">AE NetScope</div>;
+  }
+
+  if (setupRequired) {
+    return (
+      <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
+        <SetupScreen
+          onSetupComplete={(nextUser, nextCsrfToken) => {
+            setSetupRequired(false);
+            setUser(nextUser);
+            setCsrfToken(nextCsrfToken);
+            refreshInventory().catch(() => undefined);
+          }}
+        />
+      </Suspense>
+    );
   }
 
   if (!user) {
@@ -180,6 +321,7 @@ function App() {
           onLogin={(nextUser, nextCsrfToken) => {
             setUser(nextUser);
             setCsrfToken(nextCsrfToken);
+            setSetupRequired(false);
             setSessionMessage("");
             if (!nextUser.must_change_password) {
               refreshInventory().catch(() => undefined);
@@ -204,60 +346,55 @@ function App() {
     );
   }
 
+  const currentUser = user;
 
   return (
-    <div className="app-shell">
+    <div
+      className={[
+        "app-shell",
+        isSidebarCollapsed ? "sidebar-collapsed" : "",
+        localSettings.compactTables ? "compact-tables" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="AE NetScope">
+        <button
+          className="brand button-reset"
+          onClick={() => goToView("dashboard")}
+          aria-label="AE NetScope"
+        >
           <span className="brand-mark">
             <Network size={29} strokeWidth={1.8} />
           </span>
           <span>AE NetScope</span>
-        </a>
+        </button>
 
         <nav className="nav">
           {navGroups.map((group) => (
             <div className="nav-group" key={group.label || "main"}>
               {group.label && <p className="nav-label">{group.label}</p>}
-              {group.items.map((item) => (
-                <button
-                  className={
-                    isActiveNav(item.label, view)
-                      ? "nav-item active button-reset"
-                      : "nav-item button-reset"
-                  }
-                  key={item.label}
-                  onClick={() => {
-                    if (item.label === "Dashboard") {
-                      setView("dashboard");
+              {group.items.map((item) => {
+                const nextView = navLabelToView(item.label);
+                return (
+                  <button
+                    className={
+                      isActiveNav(item.label, view)
+                        ? "nav-item active button-reset"
+                        : "nav-item button-reset"
                     }
-                    if (item.label === "Dispositivos") {
-                      setView("devices");
-                    }
-                    if (item.label === "IPs y MACs") {
-                      setView("ipMacs");
-                    }
-                    if (item.label === "Subredes") {
-                      setView("networks");
-                    }
-                    if (item.label === "VLANs") {
-                      setView("vlans");
-                    }
-                    if (item.label === "Servicios") {
-                      setView("services");
-                    }
-                    if (item.label === "Cambios") {
-                      setView("audit");
-                    }
-                    if (item.label === "Usuarios") {
-                      setView("users");
-                    }
-                  }}
-                >
-                  <item.icon size={19} strokeWidth={1.8} />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+                    key={item.label}
+                    onClick={() => {
+                      if (nextView) {
+                        goToView(nextView);
+                      }
+                    }}
+                  >
+                    <item.icon size={19} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
           ))}
         </nav>
@@ -267,126 +404,317 @@ function App() {
             <LogOut size={18} strokeWidth={1.8} />
             <span>Cerrar sesión</span>
           </button>
-          <a className="help-card" href="#">
+          <button className="help-card button-reset" onClick={() => goToView("support")}>
             <CircleHelp size={20} strokeWidth={1.8} />
             <span>
               ¿Necesitas ayuda?
               <strong>Contáctanos</strong>
             </span>
-          </a>
+          </button>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
-          <button className="icon-button" aria-label="Abrir menú">
+          <button
+            className="icon-button"
+            aria-label={isSidebarCollapsed ? "Mostrar menú" : "Ocultar menú"}
+            onClick={() => setIsSidebarCollapsed((value) => !value)}
+          >
             <Menu size={24} strokeWidth={1.7} />
           </button>
-          <label className="search-box">
-            <Search size={20} strokeWidth={1.8} />
-            <input placeholder="Buscar en AE NetScope..." />
-            <kbd>Ctrl K</kbd>
-          </label>
+
+          <div className="top-search">
+            <label className="search-box">
+              <Search size={20} strokeWidth={1.8} />
+              <input
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onFocus={() => setActiveTopbarMenu(null)}
+                placeholder="Buscar dispositivos, IPs, VLANs, usuarios..."
+                value={searchQuery}
+              />
+              <kbd>Ctrl K</kbd>
+            </label>
+            {normalizedSearch && (
+              <div className="topbar-panel search-panel">
+                {searchResults.length ? (
+                  searchResults.map((result) => (
+                    <button
+                      className="topbar-menu-item"
+                      key={`${result.target.view}-${result.title}-${result.meta}`}
+                      onClick={() => goToView(result.target.view, result.target)}
+                    >
+                      <strong>{result.title}</strong>
+                      <span>{result.meta}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="topbar-empty">
+                    <strong>Sin resultados</strong>
+                    <span>No hay coincidencias en el inventario cargado.</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="top-actions">
-            <button className="icon-button" aria-label="Notificaciones">
-              <Bell size={22} strokeWidth={1.7} />
-            </button>
-            <button className="icon-button" aria-label="Ayuda">
-              <CircleHelp size={22} strokeWidth={1.7} />
-            </button>
-            <button className="avatar" aria-label={`Perfil de ${user.username}`}>
-              {user.username.slice(0, 2).toUpperCase()}
-            </button>
-            <button className="user-menu">
-              {user.username} <ChevronDown size={17} />
-            </button>
+            <div className="top-action-wrap">
+              <button
+                className="icon-button"
+                aria-expanded={activeTopbarMenu === "notifications"}
+                aria-label="Notificaciones"
+                onClick={() => openTopbarMenu("notifications")}
+              >
+                <Bell size={22} strokeWidth={1.7} />
+              </button>
+              {activeTopbarMenu === "notifications" && (
+                <div className="topbar-panel topbar-panel-right">
+                  {auditEvents.length ? (
+                    auditEvents.slice(0, 5).map((event) => (
+                      <button
+                        className="topbar-menu-item"
+                        key={event.id}
+                        onClick={() => goToView("audit", { view: "audit", query: event.message })}
+                      >
+                        <strong>{event.message}</strong>
+                        <span>{new Date(event.created_at).toLocaleString()}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="topbar-empty">
+                      <strong>Sin notificaciones</strong>
+                      <span>Los eventos importantes aparecerán aquí.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="top-action-wrap">
+              <button
+                className="icon-button"
+                aria-expanded={activeTopbarMenu === "help"}
+                aria-label="Ayuda"
+                onClick={() => openTopbarMenu("help")}
+              >
+                <CircleHelp size={22} strokeWidth={1.7} />
+              </button>
+              {activeTopbarMenu === "help" && (
+                <div className="topbar-panel topbar-panel-right">
+                  <button className="topbar-menu-item" onClick={() => goToView("support")}>
+                    <strong>Soporte</strong>
+                    <span>Correos, web oficial y GitHub.</span>
+                  </button>
+                  <button className="topbar-menu-item" onClick={() => goToView("importExport")}>
+                    <strong>Importar / Exportar</strong>
+                    <span>Respaldos portables del inventario.</span>
+                  </button>
+                  <button className="topbar-menu-item" onClick={() => goToView("audit")}>
+                    <strong>Historial de cambios</strong>
+                    <span>Auditoría y actividad reciente.</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="top-action-wrap">
+              <button
+                className="user-menu"
+                aria-expanded={activeTopbarMenu === "user"}
+                onClick={() => openTopbarMenu("user")}
+              >
+                {currentUser.username} <ChevronDown size={17} />
+              </button>
+              {activeTopbarMenu === "user" && (
+                <div className="topbar-panel topbar-panel-right user-panel">
+                  <div className="user-panel-header">
+                    <strong>{currentUser.username}</strong>
+                    <span>{currentUser.email}</span>
+                    <small>{currentUser.role}</small>
+                  </div>
+                  <button
+                    className="topbar-menu-item"
+                    onClick={() => {
+                      setActiveTopbarMenu(null);
+                      setUser({ ...currentUser, must_change_password: true });
+                    }}
+                  >
+                    <strong>Cambiar contraseña</strong>
+                    <span>Actualiza la clave de tu cuenta.</span>
+                  </button>
+                  {currentUser.permissions.includes("users:manage") && (
+                    <button className="topbar-menu-item" onClick={() => goToView("users")}>
+                      <strong>Usuarios</strong>
+                      <span>Roles, bloqueos y sesiones.</span>
+                    </button>
+                  )}
+                  <button className="topbar-menu-item danger-menu-item" onClick={handleLogout}>
+                    <strong>Cerrar sesión</strong>
+                    <span>Salir de AE NetScope.</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        <section className="content">
-          {view === "dashboard" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando dashboard...</div>}>
-              <DashboardView
-                dashboard={dashboard}
-                onOpenDevices={() => setView("devices")}
-                user={user}
-              />
-            </Suspense>
-          ) : view === "devices" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando dispositivos...</div>}>
-              <DevicesView
-                csrfToken={csrfToken}
-                devices={devices}
-                networks={networks}
-                onCreated={refreshInventory}
-                permissions={user.permissions}
-              />
-            </Suspense>
-          ) : view === "ipMacs" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando IPs...</div>}>
-              <IpMacsView
-                csrfToken={csrfToken}
-                interfaces={interfaces}
-                ipMacs={ipMacs}
-                networks={networks}
-                onChanged={refreshInventory}
-                permissions={user.permissions}
-              />
-            </Suspense>
-          ) : view === "networks" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando subredes...</div>}>
-              <NetworksView
-                csrfToken={csrfToken}
-                networks={networks}
-                onChanged={refreshInventory}
-                permissions={user.permissions}
-                vlans={vlans}
-              />
-            </Suspense>
-          ) : view === "vlans" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando VLANs...</div>}>
-              <VlansView
-                csrfToken={csrfToken}
-                onChanged={refreshInventory}
-                permissions={user.permissions}
-                vlans={vlans}
-              />
-            </Suspense>
-          ) : view === "services" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando servicios...</div>}>
-              <ServicesView
-                csrfToken={csrfToken}
-                devices={devices}
-                onChanged={refreshInventory}
-                permissions={user.permissions}
-                services={services}
-              />
-            </Suspense>
-          ) : view === "audit" ? (
-            <Suspense fallback={<div className="auth-loading">Cargando cambios...</div>}>
-              <AuditView permissions={user.permissions} />
-            </Suspense>
-          ) : (
-            <Suspense fallback={<div className="auth-loading">Cargando usuarios...</div>}>
-              <UsersView csrfToken={csrfToken} currentUser={user} />
-            </Suspense>
-          )}
-        </section>
+        <section className="content">{renderView()}</section>
 
         <footer className="footer">
           <span>AE NetScope v1.0.0</span>
           <div>
-            <a href="#">
+            <button className="footer-link button-reset" onClick={() => goToView("support")}>
               <FileText size={17} /> Documentación
-            </a>
-            <a href="#">
+            </button>
+            <button className="footer-link button-reset" onClick={() => goToView("support")}>
               <CircleHelp size={17} /> Soporte
-            </a>
+            </button>
           </div>
         </footer>
       </main>
     </div>
   );
+
+  function renderView() {
+    if (view === "dashboard") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando dashboard...</div>}>
+          <DashboardView
+            auditEvents={auditEvents}
+            dashboard={dashboard}
+            lastUpdatedAt={lastUpdatedAt}
+            onOpenAudit={() => goToView("audit")}
+            onOpenDevices={() => goToView("devices")}
+            onOpenIpMacs={() => goToView("ipMacs")}
+            onOpenNetworks={() => goToView("networks")}
+            onOpenServices={() => goToView("services")}
+            onOpenVlans={() => goToView("vlans")}
+            onRefresh={() => {
+              refreshInventory().catch(() => undefined);
+              refreshAuditEvents().catch(() => undefined);
+            }}
+            showPreviewNotice={localSettings.showPreviewNotice}
+            user={currentUser}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "devices") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando dispositivos...</div>}>
+          <DevicesView
+            csrfToken={csrfToken}
+            devices={devices}
+            focusDeviceId={focusTarget?.view === "devices" ? focusTarget.id : undefined}
+            networks={networks}
+            onCreated={refreshInventory}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "ipMacs") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando IPs...</div>}>
+          <IpMacsView
+            csrfToken={csrfToken}
+            focusIpId={focusTarget?.view === "ipMacs" ? focusTarget.id : undefined}
+            interfaces={interfaces}
+            ipMacs={ipMacs}
+            networks={networks}
+            onChanged={refreshInventory}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "networks") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando subredes...</div>}>
+          <NetworksView
+            csrfToken={csrfToken}
+            focusNetworkId={focusTarget?.view === "networks" ? focusTarget.id : undefined}
+            networks={networks}
+            onChanged={refreshInventory}
+            permissions={currentUser.permissions}
+            vlans={vlans}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "vlans") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando VLANs...</div>}>
+          <VlansView
+            csrfToken={csrfToken}
+            focusVlanId={focusTarget?.view === "vlans" ? focusTarget.id : undefined}
+            onChanged={refreshInventory}
+            permissions={currentUser.permissions}
+            vlans={vlans}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "services") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando servicios...</div>}>
+          <ServicesView
+            csrfToken={csrfToken}
+            devices={devices}
+            focusServiceId={focusTarget?.view === "services" ? focusTarget.id : undefined}
+            onChanged={refreshInventory}
+            permissions={currentUser.permissions}
+            services={services}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "audit") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando cambios...</div>}>
+          <AuditView
+            initialQuery={focusTarget?.view === "audit" ? focusTarget.query : undefined}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "importExport") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando exportación...</div>}>
+          <ImportExportView
+            csrfToken={csrfToken}
+            onImported={refreshInventory}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "users") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando usuarios...</div>}>
+          <UsersView
+            csrfToken={csrfToken}
+            currentUser={currentUser}
+            focusUserId={focusTarget?.view === "users" ? focusTarget.id : undefined}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "settings") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
+          <SettingsView />
+        </Suspense>
+      );
+    }
+    return (
+      <Suspense fallback={<div className="auth-loading">Cargando soporte...</div>}>
+        <SupportView />
+      </Suspense>
+    );
+  }
 }
 
 function isActiveNav(label: string, view: ViewName) {
@@ -398,9 +726,10 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "VLANs" && view === "vlans") ||
     (label === "Servicios" && view === "services") ||
     (label === "Cambios" && view === "audit") ||
-    (label === "Usuarios" && view === "users")
+    (label === "Importar / Exportar" && view === "importExport") ||
+    (label === "Usuarios" && view === "users") ||
+    (label === "Ajustes" && view === "settings")
   );
 }
 
 export default App;
-

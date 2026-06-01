@@ -398,15 +398,7 @@ async def list_devices(session: AsyncSession) -> list[DeviceResponse]:
         seen.add(device.id)
         devices.append(
             DeviceResponse(
-                id=device.id,
-                name=device.name,
-                device_type=device.device_type,
-                status=device.status,
-                vendor=device.vendor,
-                model=device.model,
-                operating_system=device.operating_system,
-                location=device.location,
-                notes=device.notes,
+                **device_response_payload(device),
                 primary_ip=ip_address,
                 primary_mac=mac_address,
             )
@@ -419,31 +411,38 @@ async def device_to_response(session: AsyncSession, device: Device) -> DeviceRes
     row = result.first()
     if row is None:
         return DeviceResponse(
-            id=device.id,
-            name=device.name,
-            device_type=device.device_type,
-            status=device.status,
-            vendor=device.vendor,
-            model=device.model,
-            operating_system=device.operating_system,
-            location=device.location,
-            notes=device.notes,
+            **device_response_payload(device),
         )
 
     selected_device, ip_address, mac_address = row
     return DeviceResponse(
-        id=selected_device.id,
-        name=selected_device.name,
-        device_type=selected_device.device_type,
-        status=selected_device.status,
-        vendor=selected_device.vendor,
-        model=selected_device.model,
-        operating_system=selected_device.operating_system,
-        location=selected_device.location,
-        notes=selected_device.notes,
+        **device_response_payload(selected_device),
         primary_ip=ip_address,
         primary_mac=mac_address,
     )
+
+
+def device_response_payload(device: Device) -> dict[str, object]:
+    return {
+        "id": device.id,
+        "name": device.name,
+        "device_type": device.device_type,
+        "status": device.status,
+        "vendor": device.vendor,
+        "model": device.model,
+        "serial_number": device.serial_number,
+        "asset_tag": device.asset_tag,
+        "operating_system": device.operating_system,
+        "firmware_version": device.firmware_version,
+        "cpu": device.cpu,
+        "memory": device.memory,
+        "storage": device.storage,
+        "warranty_expires": device.warranty_expires,
+        "owner": device.owner,
+        "rack_position": device.rack_position,
+        "location": device.location,
+        "notes": device.notes,
+    }
 
 
 async def device_to_detail_response(session: AsyncSession, device: Device) -> DeviceDetailResponse:

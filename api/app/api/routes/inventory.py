@@ -1,10 +1,15 @@
+import csv
 import ipaddress
+from datetime import UTC, datetime
+from io import StringIO
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
-from app.models.inventory import Network, NetworkInterface, Vlan
+from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.schemas.inventory import (
     DashboardSummary,
     DeviceDetailResponse,
@@ -72,6 +77,8 @@ router = APIRouter(
     dependencies=[Depends(require_permission("inventory:read"))],
 )
 
+ExportResource = Literal["devices", "ip-addresses", "networks", "vlans", "services", "interfaces"]
+
 
 @router.get("/dashboard", response_model=DashboardSummary)
 async def dashboard(
@@ -79,6 +86,207 @@ async def dashboard(
     _: CurrentUser,
 ) -> DashboardSummary:
     return await dashboard_summary(session)
+
+
+@router.get("/export.json")
+async def export_inventory_json(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> dict[str, object]:
+    exported_at = datetime.now(UTC).isoformat()
+    payload = {
+        "exported_at": exported_at,
+        "format": "ae-netscope.inventory.v1",
+        "devices": [item.model_dump(mode="json") for item in await list_devices(session)],
+        "ip_addresses": [
+            item.model_dump(mode="json") for item in await list_ip_addresses(session)
+        ],
+        "networks": [item.model_dump(mode="json") for item in await list_networks(session)],
+        "vlans": [item.model_dump(mode="json") for item in await list_vlans(session)],
+        "services": [item.model_dump(mode="json") for item in await list_services(session)],
+        "interfaces": [item.model_dump(mode="json") for item in await list_interfaces(session)],
+    }
+    await write_audit_event(
+        session,
+        "inventory.exported",
+        "Inventory exported as JSON",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return payload
+
+
+@router.get("/export/{resource}.csv")
+async def export_inventory_csv(
+    resource: ExportResource,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    rows = await export_rows_for_resource(session, resource)
+    output = StringIO()
+    fieldnames = sorted({key for row in rows for key in row})
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    await write_audit_event(
+        session,
+        "inventory.exported",
+        f"Inventory exported as CSV: {resource}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    filename = f"ae-netscope-{resource}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post(
+    "/import.json",
+    dependencies=[Depends(require_csrf), Depends(require_permission("settings:manage"))],
+)
+async def import_inventory_json(
+    payload: dict[str, object],
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> dict[str, object]:
+    if payload.get("format") != "ae-netscope.inventory.v1":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Unsupported inventory backup format.",
+        )
+
+    try:
+        counts = await restore_inventory_from_payload(session, payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid inventory backup: {exc}",
+        ) from exc
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Backup contains duplicate inventory records.",
+        ) from exc
+
+    await write_audit_event(
+        session,
+        "inventory.imported",
+        (
+            "Inventory restored from JSON backup "
+            f"({counts['devices']} devices, {counts['ip_addresses']} IPs)"
+        ),
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return {"status": "imported", "counts": counts}
+
+
+async def export_rows_for_resource(
+    session: SessionDep,
+    resource: ExportResource,
+) -> list[dict[str, object]]:
+    if resource == "devices":
+        return [item.model_dump(mode="json") for item in await list_devices(session)]
+    if resource == "ip-addresses":
+        return [item.model_dump(mode="json") for item in await list_ip_addresses(session)]
+    if resource == "networks":
+        return [item.model_dump(mode="json") for item in await list_networks(session)]
+    if resource == "vlans":
+        return [item.model_dump(mode="json") for item in await list_vlans(session)]
+    if resource == "services":
+        return [item.model_dump(mode="json") for item in await list_services(session)]
+    return [item.model_dump(mode="json") for item in await list_interfaces(session)]
+
+
+async def restore_inventory_from_payload(
+    session: SessionDep,
+    payload: dict[str, object],
+) -> dict[str, int]:
+    vlans = backup_list(payload, "vlans")
+    networks = backup_list(payload, "networks")
+    devices = backup_list(payload, "devices")
+    interfaces = backup_list(payload, "interfaces")
+    ip_addresses = backup_list(payload, "ip_addresses")
+    services = backup_list(payload, "services")
+
+    for model in (Service, IpAddress, NetworkInterface, Device, Network, Vlan):
+        await session.execute(delete(model))
+    await session.flush()
+
+    vlan_map: dict[int, int] = {}
+    network_map: dict[int, int] = {}
+    device_map: dict[int, int] = {}
+    interface_map: dict[int, int] = {}
+
+    for item in sorted(vlans, key=lambda row: int(row["id"])):
+        source_id = int(item["id"])
+        vlan = await create_vlan(session, VlanCreate.model_validate(item))
+        vlan_map[source_id] = vlan.id
+
+    for item in sorted(networks, key=lambda row: int(row["id"])):
+        source_id = int(item["id"])
+        data = dict(item)
+        if data.get("vlan_id") is not None:
+            data["vlan_id"] = vlan_map[int(data["vlan_id"])]
+        network = await create_network(session, NetworkCreate.model_validate(data))
+        network_map[source_id] = network.id
+
+    for item in sorted(devices, key=lambda row: int(row["id"])):
+        source_id = int(item["id"])
+        device = await create_device(
+            session,
+            DeviceWithInterfaceCreate.model_validate({**item, "interface": None}),
+        )
+        device_map[source_id] = device.id
+
+    for item in sorted(interfaces, key=lambda row: int(row["id"])):
+        source_id = int(item["id"])
+        source_device_id = int(item["device_id"])
+        interface = NetworkInterface(
+            device_id=device_map[source_device_id],
+            name=str(item["name"]),
+            mac_address=item.get("mac_address"),
+        )
+        session.add(interface)
+        await session.flush()
+        interface_map[source_id] = interface.id
+
+    for item in sorted(ip_addresses, key=lambda row: int(row["id"])):
+        data = dict(item)
+        if data.get("network_id") is not None:
+            data["network_id"] = network_map[int(data["network_id"])]
+        if data.get("interface_id") is not None:
+            data["interface_id"] = interface_map[int(data["interface_id"])]
+        await create_ip_address(session, IpAddressCreate.model_validate(data))
+
+    for item in sorted(services, key=lambda row: int(row["id"])):
+        data = dict(item)
+        data["device_id"] = device_map[int(data["device_id"])]
+        await create_service(session, ServiceCreate.model_validate(data))
+
+    await session.flush()
+    return {
+        "vlans": len(vlans),
+        "networks": len(networks),
+        "devices": len(devices),
+        "interfaces": len(interfaces),
+        "ip_addresses": len(ip_addresses),
+        "services": len(services),
+    }
+
+
+def backup_list(payload: dict[str, object], key: str) -> list[dict[str, object]]:
+    value = payload.get(key, [])
+    if not isinstance(value, list):
+        raise TypeError(f"{key} must be a list")
+    if not all(isinstance(item, dict) for item in value):
+        raise TypeError(f"{key} must contain objects")
+    return value
 
 
 @router.get("/devices", response_model=list[DeviceResponse])

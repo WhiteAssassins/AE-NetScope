@@ -1,33 +1,85 @@
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { DeviceDetail, DeviceRecord, NetworkRecord } from "../types";
 import { hasPermission, titleCase, typeTone } from "../utils";
+
+const deviceTypes = [
+  "Equipo",
+  "Servidor",
+  "Switch",
+  "Router",
+  "Firewall",
+  "Access Point",
+  "Cámara IP",
+  "NVR",
+  "DVR",
+  "NAS",
+  "SAN",
+  "Impresora",
+  "VoIP",
+  "UPS",
+  "IoT",
+  "Virtualización",
+  "Contenedor",
+  "Sensor",
+  "Control de acceso",
+  "Otro",
+];
+
+const emptyDeviceForm = {
+  name: "",
+  device_type: "Equipo",
+  status: "active",
+  vendor: "",
+  model: "",
+  serial_number: "",
+  asset_tag: "",
+  operating_system: "",
+  firmware_version: "",
+  cpu: "",
+  memory: "",
+  storage: "",
+  warranty_expires: "",
+  owner: "",
+  rack_position: "",
+  location: "",
+  notes: "",
+};
+
+const emptyCreateForm = {
+  ...emptyDeviceForm,
+  interface_name: "eth0",
+  mac_address: "",
+  ip_address: "",
+  network_id: "",
+};
+
+type DeviceForm = typeof emptyDeviceForm;
+type CreateForm = typeof emptyCreateForm;
+
 export default function DevicesView({
   csrfToken,
   devices,
+  focusDeviceId,
   networks,
   onCreated,
   permissions,
 }: {
   csrfToken: string;
   devices: DeviceRecord[];
+  focusDeviceId?: number;
   networks: NetworkRecord[];
   onCreated: () => Promise<void>;
   permissions: string[];
 }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    device_type: "Equipo",
-    vendor: "",
-    model: "",
-    operating_system: "",
-    location: "",
-    notes: "",
-    interface_name: "eth0",
+  const [form, setForm] = useState<CreateForm>(emptyCreateForm);
+  const [editForm, setEditForm] = useState<DeviceForm>(emptyDeviceForm);
+  const [interfaceForm, setInterfaceForm] = useState({
+    name: "eth1",
     mac_address: "",
     ip_address: "",
     network_id: "",
@@ -37,25 +89,16 @@ export default function DevicesView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceDetail | null>(null);
   const [detailError, setDetailError] = useState("");
-  const [editForm, setEditForm] = useState({
-    name: "",
-    device_type: "Equipo",
-    status: "active",
-    vendor: "",
-    model: "",
-    operating_system: "",
-    location: "",
-    notes: "",
-  });
-  const [interfaceForm, setInterfaceForm] = useState({
-    name: "eth1",
-    mac_address: "",
-    ip_address: "",
-    network_id: "",
-  });
+
   const canCreate = hasPermission(permissions, "devices:create");
   const canUpdate = hasPermission(permissions, "devices:update");
   const canDelete = hasPermission(permissions, "devices:delete");
+
+  useEffect(() => {
+    if (focusDeviceId) {
+      loadDeviceDetail(focusDeviceId).catch(() => undefined);
+    }
+  }, [focusDeviceId]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredDevices = devices.filter((device) => {
@@ -68,7 +111,16 @@ export default function DevicesView({
       device.status,
       device.vendor,
       device.model,
+      device.serial_number,
+      device.asset_tag,
       device.operating_system,
+      device.firmware_version,
+      device.cpu,
+      device.memory,
+      device.storage,
+      device.warranty_expires,
+      device.owner,
+      device.rack_position,
       device.location,
       device.primary_ip,
       device.primary_mac,
@@ -77,16 +129,38 @@ export default function DevicesView({
       .some((value) => value!.toLowerCase().includes(normalizedQuery));
   });
 
-  function updateField(field: keyof typeof form, value: string) {
+  function updateField(field: keyof CreateForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function updateEditField(field: keyof typeof editForm, value: string) {
+  function updateEditField(field: keyof DeviceForm, value: string) {
     setEditForm((current) => ({ ...current, [field]: value }));
   }
 
   function updateInterfaceField(field: keyof typeof interfaceForm, value: string) {
     setInterfaceForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function devicePayload(values: DeviceForm) {
+    return {
+      name: values.name,
+      device_type: values.device_type,
+      status: values.status,
+      vendor: values.vendor || null,
+      model: values.model || null,
+      serial_number: values.serial_number || null,
+      asset_tag: values.asset_tag || null,
+      operating_system: values.operating_system || null,
+      firmware_version: values.firmware_version || null,
+      cpu: values.cpu || null,
+      memory: values.memory || null,
+      storage: values.storage || null,
+      warranty_expires: values.warranty_expires || null,
+      owner: values.owner || null,
+      rack_position: values.rack_position || null,
+      location: values.location || null,
+      notes: values.notes || null,
+    };
   }
 
   async function loadDeviceDetail(deviceId: number) {
@@ -106,7 +180,16 @@ export default function DevicesView({
       status: device.status,
       vendor: device.vendor ?? "",
       model: device.model ?? "",
+      serial_number: device.serial_number ?? "",
+      asset_tag: device.asset_tag ?? "",
       operating_system: device.operating_system ?? "",
+      firmware_version: device.firmware_version ?? "",
+      cpu: device.cpu ?? "",
+      memory: device.memory ?? "",
+      storage: device.storage ?? "",
+      warranty_expires: device.warranty_expires ?? "",
+      owner: device.owner ?? "",
+      rack_position: device.rack_position ?? "",
       location: device.location ?? "",
       notes: device.notes ?? "",
     });
@@ -126,16 +209,7 @@ export default function DevicesView({
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
-      body: JSON.stringify({
-        name: editForm.name,
-        device_type: editForm.device_type,
-        status: editForm.status,
-        vendor: editForm.vendor || null,
-        model: editForm.model || null,
-        operating_system: editForm.operating_system || null,
-        location: editForm.location || null,
-        notes: editForm.notes || null,
-      }),
+      body: JSON.stringify(devicePayload(editForm)),
     });
     if (!response.ok) {
       setDetailError("No se pudo guardar. Revisa nombres duplicados o campos inválidos.");
@@ -233,13 +307,7 @@ export default function DevicesView({
     setIsSubmitting(true);
 
     const payload = {
-      name: form.name,
-      device_type: form.device_type,
-      vendor: form.vendor || null,
-      model: form.model || null,
-      operating_system: form.operating_system || null,
-      location: form.location || null,
-      notes: form.notes || null,
+      ...devicePayload(form),
       interface:
         form.mac_address || form.ip_address
           ? {
@@ -268,19 +336,7 @@ export default function DevicesView({
       }
 
       setMessage("Dispositivo creado.");
-      setForm({
-        name: "",
-        device_type: "Equipo",
-        vendor: "",
-        model: "",
-        operating_system: "",
-        location: "",
-        notes: "",
-        interface_name: "eth0",
-        mac_address: "",
-        ip_address: "",
-        network_id: "",
-      });
+      setForm(emptyCreateForm);
       await onCreated();
     } catch {
       setError("No se pudo conectar con la API.");
@@ -311,7 +367,7 @@ export default function DevicesView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nombre, IP, MAC, tipo..."
+                placeholder="Buscar por nombre, IP, MAC, serial, asset tag..."
                 value={query}
               />
             </label>
@@ -326,6 +382,7 @@ export default function DevicesView({
                   <th>IP principal</th>
                   <th>MAC</th>
                   <th>Fabricante</th>
+                  <th>Serial</th>
                   <th>Ubicación</th>
                   <th>Estado</th>
                 </tr>
@@ -349,6 +406,7 @@ export default function DevicesView({
                     <td>{device.primary_ip ?? "-"}</td>
                     <td>{device.primary_mac ?? "-"}</td>
                     <td>{device.vendor ?? "-"}</td>
+                    <td>{device.serial_number ?? "-"}</td>
                     <td>{device.location ?? "-"}</td>
                     <td>
                       <span className="status-dot" /> {titleCase(device.status)}
@@ -364,57 +422,7 @@ export default function DevicesView({
           <article className="panel device-form-panel">
             <h2>Nuevo dispositivo</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
-              <label>
-                Nombre
-                <input
-                  onChange={(event) => updateField("name", event.target.value)}
-                  required
-                  value={form.name}
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  onChange={(event) => updateField("device_type", event.target.value)}
-                  value={form.device_type}
-                >
-                  <option>Equipo</option>
-                  <option>Servidor</option>
-                  <option>Switch</option>
-                  <option>Router</option>
-                  <option>Access Point</option>
-                  <option>Impresora</option>
-                  <option>Otro</option>
-                </select>
-              </label>
-              <label>
-                Fabricante
-                <input
-                  onChange={(event) => updateField("vendor", event.target.value)}
-                  value={form.vendor}
-                />
-              </label>
-              <label>
-                Modelo
-                <input
-                  onChange={(event) => updateField("model", event.target.value)}
-                  value={form.model}
-                />
-              </label>
-              <label>
-                Sistema operativo
-                <input
-                  onChange={(event) => updateField("operating_system", event.target.value)}
-                  value={form.operating_system}
-                />
-              </label>
-              <label>
-                Ubicación
-                <input
-                  onChange={(event) => updateField("location", event.target.value)}
-                  value={form.location}
-                />
-              </label>
+              <DeviceFields mode="create" values={form} onChange={updateField} />
               <label>
                 Interfaz
                 <input
@@ -438,27 +446,11 @@ export default function DevicesView({
                   value={form.ip_address}
                 />
               </label>
-              <label>
-                Subred
-                <select
-                  onChange={(event) => updateField("network_id", event.target.value)}
-                  value={form.network_id}
-                >
-                  <option value="">Sin subred</option>
-                  {networks.map((network) => (
-                    <option key={network.id} value={network.id}>
-                      {network.cidr} - {network.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-wide">
-                Notas
-                <textarea
-                  onChange={(event) => updateField("notes", event.target.value)}
-                  value={form.notes}
-                />
-              </label>
+              <NetworkSelect
+                networks={networks}
+                onChange={(value) => updateField("network_id", value)}
+                value={form.network_id}
+              />
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
@@ -483,81 +475,12 @@ export default function DevicesView({
             {detailError && <p className="login-error">{detailError}</p>}
 
             {canUpdate && (
-            <form className="inventory-form" onSubmit={saveDeviceChanges}>
-              <label>
-                Nombre
-                <input
-                  onChange={(event) => updateEditField("name", event.target.value)}
-                  required
-                  value={editForm.name}
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  onChange={(event) => updateEditField("device_type", event.target.value)}
-                  value={editForm.device_type}
-                >
-                  <option>Equipo</option>
-                  <option>Servidor</option>
-                  <option>Switch</option>
-                  <option>Router</option>
-                  <option>Access Point</option>
-                  <option>Impresora</option>
-                  <option>Otro</option>
-                </select>
-              </label>
-              <label>
-                Estado
-                <select
-                  onChange={(event) => updateEditField("status", event.target.value)}
-                  value={editForm.status}
-                >
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                  <option value="reserved">Reservado</option>
-                  <option value="unknown">Desconocido</option>
-                </select>
-              </label>
-              <label>
-                Fabricante
-                <input
-                  onChange={(event) => updateEditField("vendor", event.target.value)}
-                  value={editForm.vendor}
-                />
-              </label>
-              <label>
-                Modelo
-                <input
-                  onChange={(event) => updateEditField("model", event.target.value)}
-                  value={editForm.model}
-                />
-              </label>
-              <label>
-                Sistema operativo
-                <input
-                  onChange={(event) => updateEditField("operating_system", event.target.value)}
-                  value={editForm.operating_system}
-                />
-              </label>
-              <label className="form-wide">
-                Ubicación
-                <input
-                  onChange={(event) => updateEditField("location", event.target.value)}
-                  value={editForm.location}
-                />
-              </label>
-              <label className="form-wide">
-                Notas
-                <textarea
-                  onChange={(event) => updateEditField("notes", event.target.value)}
-                  value={editForm.notes}
-                />
-              </label>
-              <button className="login-button form-wide" type="submit">
-                Guardar cambios
-              </button>
-            </form>
+              <form className="inventory-form" onSubmit={saveDeviceChanges}>
+                <DeviceFields mode="edit" values={editForm} onChange={updateEditField} />
+                <button className="login-button form-wide" type="submit">
+                  Guardar cambios
+                </button>
+              </form>
             )}
 
             <div className="detail-section">
@@ -578,50 +501,41 @@ export default function DevicesView({
             </div>
 
             {canUpdate && (
-            <form className="inventory-form detail-section" onSubmit={addInterface}>
-              <h3 className="form-wide">Agregar interfaz</h3>
-              <label>
-                Nombre
-                <input
-                  onChange={(event) => updateInterfaceField("name", event.target.value)}
-                  required
-                  value={interfaceForm.name}
-                />
-              </label>
-              <label>
-                MAC
-                <input
-                  onChange={(event) => updateInterfaceField("mac_address", event.target.value)}
-                  placeholder="00:11:22:33:44:aa"
-                  value={interfaceForm.mac_address}
-                />
-              </label>
-              <label>
-                IP
-                <input
-                  onChange={(event) => updateInterfaceField("ip_address", event.target.value)}
-                  placeholder="10.0.0.20"
-                  value={interfaceForm.ip_address}
-                />
-              </label>
-              <label>
-                Subred
-                <select
-                  onChange={(event) => updateInterfaceField("network_id", event.target.value)}
+              <form className="inventory-form detail-section" onSubmit={addInterface}>
+                <h3 className="form-wide">Agregar interfaz</h3>
+                <label>
+                  Nombre
+                  <input
+                    onChange={(event) => updateInterfaceField("name", event.target.value)}
+                    required
+                    value={interfaceForm.name}
+                  />
+                </label>
+                <label>
+                  MAC
+                  <input
+                    onChange={(event) => updateInterfaceField("mac_address", event.target.value)}
+                    placeholder="00:11:22:33:44:aa"
+                    value={interfaceForm.mac_address}
+                  />
+                </label>
+                <label>
+                  IP
+                  <input
+                    onChange={(event) => updateInterfaceField("ip_address", event.target.value)}
+                    placeholder="10.0.0.20"
+                    value={interfaceForm.ip_address}
+                  />
+                </label>
+                <NetworkSelect
+                  networks={networks}
+                  onChange={(value) => updateInterfaceField("network_id", value)}
                   value={interfaceForm.network_id}
-                >
-                  <option value="">Sin subred</option>
-                  {networks.map((network) => (
-                    <option key={network.id} value={network.id}>
-                      {network.cidr} - {network.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="login-button form-wide" type="submit">
-                Agregar interfaz
-              </button>
-            </form>
+                />
+                <button className="login-button form-wide" type="submit">
+                  Agregar interfaz
+                </button>
+              </form>
             )}
 
             {canUpdate && (
@@ -638,5 +552,130 @@ export default function DevicesView({
         )}
       </section>
     </>
+  );
+}
+
+function DeviceFields({
+  mode,
+  onChange,
+  values,
+}: {
+  mode: "create" | "edit";
+  onChange: (field: keyof DeviceForm, value: string) => void;
+  values: DeviceForm;
+}) {
+  return (
+    <>
+      <label>
+        Nombre
+        <input onChange={(event) => onChange("name", event.target.value)} required value={values.name} />
+      </label>
+      <label>
+        Tipo
+        <select onChange={(event) => onChange("device_type", event.target.value)} value={values.device_type}>
+          {deviceTypes.map((type) => (
+            <option key={type}>{type}</option>
+          ))}
+        </select>
+      </label>
+      {mode === "edit" && (
+        <label>
+          Estado
+          <select onChange={(event) => onChange("status", event.target.value)} value={values.status}>
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+            <option value="reserved">Reservado</option>
+            <option value="unknown">Desconocido</option>
+          </select>
+        </label>
+      )}
+      <TextField field="vendor" label="Fabricante" onChange={onChange} value={values.vendor} />
+      <TextField field="model" label="Modelo" onChange={onChange} value={values.model} />
+      <TextField field="serial_number" label="Serial" onChange={onChange} value={values.serial_number} />
+      <TextField field="asset_tag" label="Asset tag" onChange={onChange} value={values.asset_tag} />
+      <TextField
+        field="operating_system"
+        label="Sistema operativo"
+        onChange={onChange}
+        value={values.operating_system}
+      />
+      <TextField
+        field="firmware_version"
+        label="Firmware"
+        onChange={onChange}
+        value={values.firmware_version}
+      />
+      <TextField field="cpu" label="CPU" onChange={onChange} value={values.cpu} />
+      <TextField field="memory" label="RAM" onChange={onChange} value={values.memory} />
+      <TextField field="storage" label="Almacenamiento" onChange={onChange} value={values.storage} />
+      <TextField
+        field="warranty_expires"
+        label="Garantía"
+        onChange={onChange}
+        placeholder="2028-12-31"
+        value={values.warranty_expires}
+      />
+      <TextField field="owner" label="Responsable" onChange={onChange} value={values.owner} />
+      <TextField
+        field="rack_position"
+        label="Rack / posición"
+        onChange={onChange}
+        value={values.rack_position}
+      />
+      <TextField field="location" label="Ubicación" onChange={onChange} value={values.location} />
+      <label className="form-wide">
+        Notas
+        <textarea onChange={(event) => onChange("notes", event.target.value)} value={values.notes} />
+      </label>
+    </>
+  );
+}
+
+function TextField({
+  field,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  field: keyof DeviceForm;
+  label: string;
+  onChange: (field: keyof DeviceForm, value: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        onChange={(event) => onChange(field, event.target.value)}
+        placeholder={placeholder}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function NetworkSelect({
+  networks,
+  onChange,
+  value,
+}: {
+  networks: NetworkRecord[];
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label>
+      Subred
+      <select onChange={(event) => onChange(event.target.value)} value={value}>
+        <option value="">Sin subred</option>
+        {networks.map((network) => (
+          <option key={network.id} value={network.id}>
+            {network.cidr} - {network.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -6,6 +6,16 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class InitialSetupStatusResponse(BaseModel):
+    setup_required: bool
+
+
+class InitialSetupRequest(BaseModel):
+    email: EmailStr
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=12, max_length=1024)
+
+
 class UserResponse(BaseModel):
     id: int
     email: str
