@@ -1092,24 +1092,140 @@ textarea {
   gap: 17px;
 }
 
-.export-card {
+.backup-layout,
+.role-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+  margin-bottom: 17px;
+}
+
+.role-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.export-card,
+.backup-card,
+.role-card {
   display: grid;
   align-content: start;
   gap: 18px;
 }
 
-.export-card svg {
+.export-card svg,
+.backup-card svg,
+.role-card svg {
   color: #1747ff;
 }
 
-.export-card h2 {
+.export-card h2,
+.backup-card h2,
+.role-card h2 {
   margin-bottom: 8px;
 }
 
-.export-card p {
+.export-card p,
+.backup-card p,
+.role-card p,
+.backup-notes p {
   margin: 0;
   color: #66728a;
   font-size: 14px;
+}
+
+.role-card strong {
+  color: #172033;
+  font-size: 18px;
+}
+
+.backup-scope-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.permissions-panel {
+  overflow-x: auto;
+}
+
+.permissions-table {
+  display: grid;
+  min-width: 760px;
+}
+
+.permissions-group {
+  display: grid;
+}
+
+.permissions-group h2 {
+  margin: 18px 0 8px;
+  color: #536079;
+  font-size: 13px;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.permissions-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) repeat(3, minmax(115px, 0.7fr));
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #e7ebf2;
+  padding: 12px 0;
+}
+
+.permissions-head {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.permissions-row > span:first-child {
+  color: #28334a;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.notes-list {
+  display: grid;
+  gap: 12px;
+}
+
+.note-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #e7ebf2;
+  border-radius: 10px;
+  background: #fbfcff;
+  padding: 14px;
+}
+
+.note-row.selected {
+  border-color: #b7c5ff;
+  background: #f6f8ff;
+}
+
+.note-main {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+  color: #172033;
+}
+
+.note-main strong {
+  font-size: 15px;
+}
+
+.note-main small,
+.note-main p {
+  margin: 0;
+  color: #66728a;
+  font-size: 13px;
+}
+
+.note-main p {
+  white-space: pre-wrap;
 }
 
 .export-actions {
@@ -1479,6 +1595,88 @@ th {
   color: #66728a;
 }
 
+.hardware-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hardware-card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid #e3e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 18px;
+}
+
+.hardware-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hardware-card h2 {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.hardware-card p {
+  margin: 0;
+  color: #66728a;
+  font-size: 14px;
+}
+
+.hardware-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 14px;
+  margin: 0;
+}
+
+.hardware-facts div {
+  min-width: 0;
+}
+
+.hardware-facts dt {
+  margin-bottom: 4px;
+  color: #66728a;
+  font-size: 12px;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.hardware-facts dd {
+  min-height: 18px;
+  margin: 0;
+  overflow: hidden;
+  color: #253149;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hardware-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed #d8deea;
+  border-radius: 12px;
+  color: #66728a;
+  text-align: center;
+}
+
+.hardware-empty strong {
+  color: #172033;
+  font-size: 16px;
+}
+
 .change-list {
   margin-top: -7px;
 }
@@ -1506,10 +1704,16 @@ th {
   margin: 0;
 }
 
-.change-row a {
+.change-row a,
+.change-row button {
   color: #0646ff;
   font-size: 14px;
   font-weight: 650;
+  text-align: left;
+}
+
+.change-row button:hover {
+  text-decoration: underline;
 }
 
 .change-row small,
@@ -1674,6 +1878,10 @@ th {
 
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hardware-grid {
+    grid-template-columns: 1fr;
   }
 
   .summary-layout {

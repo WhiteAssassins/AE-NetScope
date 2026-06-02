@@ -94,12 +94,16 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 
 const DashboardView = lazy(() => import("./views/DashboardView"));
 const AuditView = lazy(() => import("./views/AuditView"));
+const BackupsView = lazy(() => import("./views/BackupsView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
+const HardwareView = lazy(() => import("./views/HardwareView"));
 const ImportExportView = lazy(() => import("./views/ImportExportView"));
 const IpMacsView = lazy(() => import("./views/IpMacsView"));
 const LoginScreen = lazy(() => import("./views/LoginScreen"));
 const NetworksView = lazy(() => import("./views/NetworksView"));
+const NotesView = lazy(() => import("./views/NotesView"));
+const RolesPermissionsView = lazy(() => import("./views/RolesPermissionsView"));
 const ServicesView = lazy(() => import("./views/ServicesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SetupScreen = lazy(() => import("./views/SetupScreen"));
@@ -232,9 +236,17 @@ function App() {
     ? [
         ...devices.map((device) => ({
           title: device.name,
-          meta: `${device.device_type} - ${device.primary_ip ?? "sin IP"} - ${
-            device.primary_mac ?? "sin MAC"
-          }`,
+          meta: [
+            device.device_type,
+            device.primary_ip ?? "sin IP",
+            device.primary_mac ?? "sin MAC",
+            device.serial_number ? `SN ${device.serial_number}` : null,
+            device.asset_tag ? `Asset ${device.asset_tag}` : null,
+            device.owner,
+            device.rack_position,
+          ]
+            .filter(Boolean)
+            .join(" - "),
           target: { view: "devices" as ViewName, id: device.id },
         })),
         ...ipMacs.map((record) => ({
@@ -286,8 +298,12 @@ function App() {
       Subredes: "networks",
       VLANs: "vlans",
       Servicios: "services",
+      Hardware: "hardware",
+      "Notas técnicas": "notes",
       Cambios: "audit",
+      Respaldos: "backups",
       "Importar / Exportar": "importExport",
+      "Roles y permisos": "roles",
       Usuarios: "users",
       Ajustes: "settings",
     };
@@ -670,11 +686,45 @@ function App() {
         </Suspense>
       );
     }
+    if (view === "hardware") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando hardware...</div>}>
+          <HardwareView
+            devices={devices}
+            onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "notes") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando notas...</div>}>
+          <NotesView
+            csrfToken={csrfToken}
+            devices={devices}
+            onChanged={refreshInventory}
+            onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
     if (view === "audit") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando cambios...</div>}>
           <AuditView
             initialQuery={focusTarget?.view === "audit" ? focusTarget.query : undefined}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "backups") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando respaldos...</div>}>
+          <BackupsView
+            csrfToken={csrfToken}
+            onImported={refreshInventory}
             permissions={currentUser.permissions}
           />
         </Suspense>
@@ -688,6 +738,13 @@ function App() {
             onImported={refreshInventory}
             permissions={currentUser.permissions}
           />
+        </Suspense>
+      );
+    }
+    if (view === "roles") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando roles...</div>}>
+          <RolesPermissionsView />
         </Suspense>
       );
     }
@@ -725,8 +782,12 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Subredes" && view === "networks") ||
     (label === "VLANs" && view === "vlans") ||
     (label === "Servicios" && view === "services") ||
+    (label === "Hardware" && view === "hardware") ||
+    (label === "Notas técnicas" && view === "notes") ||
     (label === "Cambios" && view === "audit") ||
+    (label === "Respaldos" && view === "backups") ||
     (label === "Importar / Exportar" && view === "importExport") ||
+    (label === "Roles y permisos" && view === "roles") ||
     (label === "Usuarios" && view === "users") ||
     (label === "Ajustes" && view === "settings")
   );

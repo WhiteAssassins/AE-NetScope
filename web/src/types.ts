@@ -170,8 +170,12 @@ export type ViewName =
   | "networks"
   | "vlans"
   | "services"
+  | "hardware"
+  | "notes"
   | "audit"
+  | "backups"
   | "importExport"
+  | "roles"
   | "users"
   | "settings"
   | "support";

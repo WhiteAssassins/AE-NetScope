@@ -19,6 +19,11 @@ call npm run lint
 if errorlevel 1 goto failed
 
 echo.
+echo [AE NetScope] Running web tests...
+call npm run web:test
+if errorlevel 1 goto failed
+
+echo.
 echo [AE NetScope] Running web build...
 call npm run build
 if errorlevel 1 goto failed
