@@ -154,7 +154,7 @@ async def import_inventory_json(
 ) -> dict[str, object]:
     if payload.get("format") != "ae-netscope.inventory.v1":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Unsupported inventory backup format.",
         )
 
@@ -163,7 +163,7 @@ async def import_inventory_json(
     except (KeyError, TypeError, ValueError) as exc:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid inventory backup: {exc}",
         ) from exc
     except IntegrityError as exc:
