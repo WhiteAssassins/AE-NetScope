@@ -7,9 +7,13 @@
     "dev:api": "api\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir api --host 127.0.0.1 --port 8000 --reload",
     "api:lint": "api\\.venv\\Scripts\\python.exe -m ruff check api",
     "api:test": "api\\.venv\\Scripts\\python.exe -m pytest api",
+    "api:test:coverage": "api\\.venv\\Scripts\\python.exe -m pytest api --cov=app --cov-report=term-missing --cov-report=xml:api/coverage.xml",
     "test": "npm run api:test && npm --prefix web run test",
+    "test:coverage": "npm run api:test:coverage && npm --prefix web run test:coverage",
     "build": "npm --prefix web run build",
     "lint": "npm --prefix web run lint",
-    "web:test": "npm --prefix web run test"
+    "web:test": "npm --prefix web run test",
+    "web:test:coverage": "npm --prefix web run test:coverage",
+    "secrets:scan": "node scripts/scan-secrets.mjs"
   }
 }

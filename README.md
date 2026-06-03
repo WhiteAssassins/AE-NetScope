@@ -65,11 +65,18 @@ Local development also seeds fictional inventory data so the dashboard has safe 
 ## Local Checks
 
 ```bat
-api\.venv\Scripts\python.exe -m pytest api
-api\.venv\Scripts\python.exe -m ruff check api
-npm run build
-npm run lint
+test.cmd
 ```
+
+Coverage reports:
+
+```bat
+npm run test:coverage
+```
+
+The API coverage XML is generated at `api/coverage.xml`. The web coverage report is generated under `web/coverage/`.
+
+GitHub Actions runs the same main checks on push and pull requests. The workflow summary includes a simple test and coverage report, and the full coverage artifacts are attached to the workflow run.
 
 ## Stack
 

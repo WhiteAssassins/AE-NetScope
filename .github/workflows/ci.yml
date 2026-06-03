@@ -10,6 +10,21 @@ permissions:
   contents: read
 
 jobs:
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Scan for obvious hardcoded secrets
+        run: npm run secrets:scan
+
   api:
     name: API
     runs-on: ubuntu-latest
@@ -32,7 +47,35 @@ jobs:
         run: python -m ruff check api
 
       - name: Test API
-        run: python -m pytest api
+        run: |
+          set -o pipefail
+          python -m pytest api \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:api/coverage.xml \
+            | tee api/test-report.txt
+
+      - name: Add API test summary
+        if: always()
+        run: |
+          echo "## API checks" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ruff lint: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pytest: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Coverage XML: api/coverage.xml" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 45 api/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload API coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: api-coverage
+          path: |
+            api/coverage.xml
+            api/test-report.txt
+          if-no-files-found: error
 
   web:
     name: Web
@@ -54,5 +97,33 @@ jobs:
       - name: Lint web
         run: npm run lint
 
+      - name: Test web
+        run: |
+          set -o pipefail
+          npm run web:test:coverage | tee web/test-report.txt
+
       - name: Build web
         run: npm run build
+
+      - name: Add web test summary
+        if: always()
+        run: |
+          echo "## Web checks" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ESLint: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Vitest coverage: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Vite build: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Coverage report: web/coverage/" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 35 web/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload web coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: web-coverage
+          path: |
+            web/coverage
+            web/test-report.txt
+          if-no-files-found: error

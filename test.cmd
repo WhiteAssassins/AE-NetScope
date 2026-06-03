@@ -4,6 +4,11 @@ setlocal
 pushd "%~dp0" >nul
 
 echo.
+echo [AE NetScope] Scanning for obvious hardcoded secrets...
+call npm run secrets:scan
+if errorlevel 1 goto failed
+
+echo.
 echo [AE NetScope] Running API lint...
 call api\.venv\Scripts\python.exe -m ruff check api
 if errorlevel 1 goto failed
