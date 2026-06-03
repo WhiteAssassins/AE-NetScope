@@ -15,11 +15,11 @@ const currentUser: User = {
 
 const installedVersion = {
   app_name: "AE NetScope",
-  version: "0.1.0-alpha",
+  version: "0.1.1-alpha",
   release_channel: "alpha",
   repository_url: "https://github.com/WhiteAssassins/AE-NetScope",
   releases_url: "https://github.com/WhiteAssassins/AE-NetScope/releases",
-  release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.0-alpha",
+  release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.1-alpha",
 };
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -51,9 +51,9 @@ describe("SettingsView", () => {
           return Promise.resolve(
             jsonResponse([
               {
-                tag_name: "v0.1.0-alpha",
-                html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.0-alpha",
-                name: "AE NetScope v0.1.0-alpha",
+                tag_name: "v0.1.1-alpha",
+                html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.1-alpha",
+                name: "AE NetScope v0.1.1-alpha",
                 prerelease: true,
                 draft: false,
                 published_at: "2026-06-03T00:00:00Z",
@@ -78,7 +78,7 @@ describe("SettingsView", () => {
     expect(screen.getByRole("combobox")).toHaveValue("dashboard");
     expect(screen.getByLabelText(/tablas compactas/i)).not.toBeChecked();
     expect(screen.getByLabelText(/mostrar aviso/i)).toBeChecked();
-    expect(screen.getByText("AE NetScope v0.1.0-alpha (alpha)")).toBeInTheDocument();
+    expect(screen.getByText("AE NetScope v0.1.1-alpha (alpha)")).toBeInTheDocument();
     expect(await screen.findByText("Actualizado")).toBeInTheDocument();
   });
 
