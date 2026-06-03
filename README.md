@@ -12,6 +12,8 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.0-alpha.md`. See `CHANGELOG.md` for release history.
+
 ## Current Status
 
 - Web dashboard foundation.

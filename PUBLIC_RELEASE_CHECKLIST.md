@@ -6,6 +6,8 @@
 - Repository description is short, clear, and accurate.
 - License file is present.
 - README explains what the project is and how to run it.
+- README clearly states that the project is an early public preview and not production ready.
+- The app displays an early preview warning.
 - Screenshots or demo data do not expose real networks, hostnames, IPs, MACs, users, or locations.
 
 ## Security
@@ -22,10 +24,14 @@
 - First admin must be forced to change the generated password.
 - Authenticated write endpoints must require CSRF protection.
 - Role and permission checks must be enforced by the API.
+- `npm run secrets:scan` passes.
+- `npm run deps:audit` passes.
 
 ## Source hygiene
 
 - Generated dependency folders are ignored: `node_modules`, `dist`, `build`, `coverage`.
+- Local/generated files are not tracked: `.venv`, `venv`, `api/var`, `api/.local-*`, caches, logs, coverage output, and build output.
+- `npm run tracked:check` passes.
 - Lockfiles are committed for reproducible installs.
 - The default branch builds from a clean checkout.
 - Placeholder template text, unused sample assets, and framework boilerplate are removed.
@@ -36,6 +42,7 @@
 - The full local development stack starts from the repository root with one command.
 - The app has a documented local URL.
 - Build and lint commands pass.
+- `test.cmd` passes from the repository root.
 - The root start command runs without requiring private files.
 - Environment variables have safe defaults or documented placeholders.
 
@@ -70,3 +77,5 @@
 - Run `start-dev.cmd` from the repository root.
 - Search for sensitive strings before publishing.
 - Confirm the repository visibility and license choice.
+- Create release notes with clear alpha status: "Early public preview, not production ready".
+- Create the first public tag: `v0.1.0-alpha`.
