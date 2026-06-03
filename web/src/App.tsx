@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { API_BASE_URL, fetchInventoryData } from "./api";
+import { API_BASE_URL, fetchInventoryData, fetchVersionInfo } from "./api";
 import "./App.css";
 import type {
   AuditEvent,
@@ -33,6 +33,7 @@ import type {
   NetworkRecord,
   ServiceRecord,
   User,
+  VersionInfo,
   ViewName,
   VlanRecord,
 } from "./types";
@@ -133,8 +134,13 @@ function App() {
   const [activeTopbarMenu, setActiveTopbarMenu] = useState<TopbarMenu>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
+    fetchVersionInfo()
+      .then(setVersionInfo)
+      .catch(() => undefined);
+
     fetch(`${API_BASE_URL}/auth/setup`, { credentials: "include" })
       .then(async (response) => {
         if (response.ok) {
@@ -578,7 +584,7 @@ function App() {
         <section className="content">{renderView()}</section>
 
         <footer className="footer">
-          <span>AE NetScope v1.0.0</span>
+          <span>AE NetScope {versionInfo ? `v${versionInfo.version}` : ""}</span>
           <div>
             <button className="footer-link button-reset" onClick={() => goToView("support")}>
               <FileText size={17} /> Documentación
@@ -762,7 +768,7 @@ function App() {
     if (view === "settings") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
-          <SettingsView />
+          <SettingsView initialVersionInfo={versionInfo} />
         </Suspense>
       );
     }

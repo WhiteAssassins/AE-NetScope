@@ -163,6 +163,24 @@ export type ServiceRecord = {
   primary_ip: string | null;
 };
 
+export type VersionInfo = {
+  app_name: string;
+  version: string;
+  release_channel: string;
+  repository_url: string;
+  releases_url: string;
+  release_notes_url: string;
+};
+
+export type GitHubReleaseInfo = {
+  tag_name: string;
+  html_url: string;
+  name: string | null;
+  prerelease: boolean;
+  draft: boolean;
+  published_at: string | null;
+};
+
 export type ViewName =
   | "dashboard"
   | "devices"

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { API_BASE_URL, fetchInventoryData } from "./api";
+import {
+  API_BASE_URL,
+  GITHUB_RELEASES_API_URL,
+  fetchInventoryData,
+  fetchLatestGitHubRelease,
+  fetchVersionInfo,
+} from "./api";
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -71,5 +77,58 @@ describe("api client", () => {
     expect(data.services).toEqual([]);
     expect(data.ipMacs).toEqual([]);
     expect(data.interfaces).toEqual([]);
+  });
+
+  it("fetches installed version information from the API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            app_name: "AE NetScope",
+            version: "0.1.0-alpha",
+            release_channel: "alpha",
+            repository_url: "https://github.com/WhiteAssassins/AE-NetScope",
+            releases_url: "https://github.com/WhiteAssassins/AE-NetScope/releases",
+            release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.0-alpha",
+          }),
+        ),
+      ),
+    );
+
+    await expect(fetchVersionInfo()).resolves.toMatchObject({
+      app_name: "AE NetScope",
+      version: "0.1.0-alpha",
+      release_channel: "alpha",
+    });
+  });
+
+  it("returns the first non-draft GitHub release", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse([
+            { tag_name: "v0.2.0-alpha", draft: true },
+            {
+              tag_name: "v0.1.0-alpha",
+              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.0-alpha",
+              name: "AE NetScope v0.1.0-alpha",
+              prerelease: true,
+              draft: false,
+              published_at: "2026-06-03T00:00:00Z",
+            },
+          ]),
+        ),
+      ),
+    );
+
+    await expect(fetchLatestGitHubRelease()).resolves.toMatchObject({
+      tag_name: "v0.1.0-alpha",
+      prerelease: true,
+    });
+    expect(fetch).toHaveBeenCalledWith(GITHUB_RELEASES_API_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
   });
 });

@@ -34,6 +34,18 @@ Current alpha release notes are available in `RELEASE_NOTES_v0.1.0-alpha.md`. Se
 - Deletion flows for devices and subnets with reference cleanup for related IP records.
 - Service management with device association, ports, protocols, status filters, editing, and deletion.
 
+## Versioning
+
+The public project version is stored in the root `VERSION` file and mirrored in the GitHub release tag.
+
+The API exposes the installed version at:
+
+```text
+/api/version
+```
+
+The web UI shows the installed version in the footer and in **Ajustes**, where administrators can compare the installed version with the latest GitHub release.
+
 ## Local Development
 
 From the project root, run:

@@ -1806,6 +1806,25 @@ th {
   color: #172033;
 }
 
+.version-row {
+  align-items: flex-start;
+}
+
+.version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.version-actions .user-action {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
 .settings-check input {
   width: 22px;
   height: 22px;
