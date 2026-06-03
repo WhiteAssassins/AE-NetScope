@@ -8,6 +8,7 @@ from app.core.rate_limit import rate_limit
 from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.auth import (
+    ChangeEmailRequest,
     ChangePasswordRequest,
     CsrfResponse,
     InitialSetupRequest,
@@ -20,6 +21,7 @@ from app.services.auth import (
     AccountLockedError,
     AuthError,
     authenticate_user,
+    change_user_email,
     change_user_password,
     create_user_session,
     revoke_user_session,
@@ -189,6 +191,38 @@ async def change_password(
     except AuthError as exc:
         await session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    await session.commit()
+    return SessionResponse(user=serialize_user(current_user))
+
+
+@router.post(
+    "/email",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_csrf), Depends(rate_limit("auth.email", limit=10))],
+)
+async def change_email(
+    payload: ChangeEmailRequest,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> SessionResponse:
+    try:
+        await change_user_email(
+            session,
+            user=current_user,
+            current_password=payload.current_password,
+            new_email=str(payload.new_email),
+            ip_address=request.client.host if request.client else None,
+        )
+    except AuthError as exc:
+        await session.commit()
+        status_code = (
+            status.HTTP_409_CONFLICT
+            if str(exc) == "Email is already in use."
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
     await session.commit()
     return SessionResponse(user=serialize_user(current_user))

@@ -7,6 +7,7 @@ import {
   DatabaseBackup,
   FileText,
   HardDrive,
+  HeartPulse,
   Home,
   Import,
   LogOut,
@@ -88,6 +89,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { label: "Usuarios", icon: UsersRound },
       { label: "Roles y permisos", icon: ShieldCheck },
+      { label: "Estado", icon: HeartPulse },
       { label: "Ajustes", icon: Settings },
     ],
   },
@@ -99,6 +101,7 @@ const BackupsView = lazy(() => import("./views/BackupsView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
 const HardwareView = lazy(() => import("./views/HardwareView"));
+const HealthView = lazy(() => import("./views/HealthView"));
 const ImportExportView = lazy(() => import("./views/ImportExportView"));
 const IpMacsView = lazy(() => import("./views/IpMacsView"));
 const LoginScreen = lazy(() => import("./views/LoginScreen"));
@@ -311,6 +314,7 @@ function App() {
       "Importar / Exportar": "importExport",
       "Roles y permisos": "roles",
       Usuarios: "users",
+      Estado: "health",
       Ajustes: "settings",
     };
     return map[label] ?? null;
@@ -765,10 +769,22 @@ function App() {
         </Suspense>
       );
     }
+    if (view === "health") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando estado...</div>}>
+          <HealthView />
+        </Suspense>
+      );
+    }
     if (view === "settings") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
-          <SettingsView initialVersionInfo={versionInfo} />
+          <SettingsView
+            csrfToken={csrfToken}
+            initialVersionInfo={versionInfo}
+            onUserChanged={setUser}
+            user={currentUser}
+          />
         </Suspense>
       );
     }
@@ -795,6 +811,7 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Importar / Exportar" && view === "importExport") ||
     (label === "Roles y permisos" && view === "roles") ||
     (label === "Usuarios" && view === "users") ||
+    (label === "Estado" && view === "health") ||
     (label === "Ajustes" && view === "settings")
   );
 }

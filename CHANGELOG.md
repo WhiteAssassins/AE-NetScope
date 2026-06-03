@@ -11,6 +11,9 @@ All notable changes to AE NetScope will be documented in this file.
 - React/Vite frontend with dashboard, login, user management, roles and permissions, settings, support, backups, technical notes, and inventory views.
 - LAN inventory management for devices, IPs/MACs, subnets, VLANs, services, and hardware metadata.
 - JSON/CSV export and JSON restore for inventory backups.
+- Internal version source, API version endpoint, installed-version display, and GitHub release update check.
+- System status view with API, database, Redis, environment, release channel, and last-check details.
+- Account email change flow with current-password confirmation and audit logging.
 - Test coverage for API and frontend, CI workflow, coverage reports, dependency audits, secret scanning, and tracked-artifact checks.
 - Public project documents: README, license, contributing guide, code of conduct, security policy, support policy, issue templates, and pull request template.
 

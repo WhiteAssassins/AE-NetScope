@@ -148,6 +148,82 @@ async def test_change_password_clears_required_flag(auth_client: AsyncClient) ->
     assert response.json()["user"]["must_change_password"] is False
 
 
+async def test_change_email_requires_csrf(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert login_response.status_code == 200
+
+    response = await auth_client.post(
+        "/api/auth/email",
+        json={"current_password": "correct-password", "new_email": "admin@aewhitedevs.com"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_user_can_change_own_email(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = login_response.json()["csrf_token"]
+
+    response = await auth_client.post(
+        "/api/auth/email",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"current_password": "correct-password", "new_email": "admin@aewhitedevs.com"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "admin@aewhitedevs.com"
+
+    login_with_new_email = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@aewhitedevs.com", "password": "correct-password"},
+    )
+    assert login_with_new_email.status_code == 200
+
+
+async def test_change_email_rejects_wrong_password(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = login_response.json()["csrf_token"]
+
+    response = await auth_client.post(
+        "/api/auth/email",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"current_password": "wrong-password", "new_email": "admin@aewhitedevs.com"},
+    )
+
+    assert response.status_code == 400
+
+
+async def test_change_email_rejects_duplicate_email(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = login_response.json()["csrf_token"]
+    created_user = await auth_client.post(
+        "/api/users",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "operator@example.com", "username": "operator", "role": "operator"},
+    )
+    assert created_user.status_code == 201
+
+    response = await auth_client.post(
+        "/api/auth/email",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"current_password": "correct-password", "new_email": "operator@example.com"},
+    )
+
+    assert response.status_code == 409
+
+
 async def test_initial_setup_creates_first_admin_only_once() -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)

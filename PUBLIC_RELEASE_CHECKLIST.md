@@ -55,6 +55,8 @@
 - Public deployments use a reverse proxy with HTTPS.
 - Production logs do not expose credentials, tokens, private LAN scan data, or request secrets.
 - Health checks exist for the web app, API, database, and Redis before the first hosted release.
+- The app exposes the installed version and release channel for sysadmins.
+- The app exposes a system status page for API, database, and Redis checks.
 
 ## First version scope
 

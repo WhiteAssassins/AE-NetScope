@@ -37,3 +37,8 @@ class CsrfResponse(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
     new_password: str = Field(min_length=12, max_length=1024)
+
+
+class ChangeEmailRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=1024)
+    new_email: EmailStr

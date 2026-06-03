@@ -218,6 +218,51 @@ async def change_user_password(
     )
 
 
+async def change_user_email(
+    session: AsyncSession,
+    *,
+    user: User,
+    current_password: str,
+    new_email: str,
+    ip_address: str | None,
+) -> None:
+    is_valid_password, _ = verify_password_and_update(current_password, user.password_hash)
+    if not is_valid_password:
+        await write_audit_event(
+            session,
+            "auth.email_change_failed",
+            f"Email change failed for {user.email}",
+            actor_user_id=user.id,
+            ip_address=ip_address,
+        )
+        raise AuthError("Current password is invalid.")
+
+    normalized_email = new_email.lower()
+    if normalized_email == user.email:
+        return
+
+    existing_user = await session.scalar(select(User).where(User.email == normalized_email))
+    if existing_user is not None:
+        await write_audit_event(
+            session,
+            "auth.email_change_failed",
+            f"Email change conflict for {user.email}",
+            actor_user_id=user.id,
+            ip_address=ip_address,
+        )
+        raise AuthError("Email is already in use.")
+
+    old_email = user.email
+    user.email = normalized_email
+    await write_audit_event(
+        session,
+        "auth.email_changed",
+        f"Email changed for {old_email} to {normalized_email}",
+        actor_user_id=user.id,
+        ip_address=ip_address,
+    )
+
+
 async def revoke_user_session(session: AsyncSession, token: str | None) -> None:
     if not token:
         return

@@ -1677,6 +1677,83 @@ th {
   font-size: 16px;
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 17px;
+  margin-bottom: 17px;
+}
+
+.health-card {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.health-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.health-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.health-icon.green {
+  background: #dcf6e7;
+  color: #1b9c55;
+}
+
+.health-icon.orange {
+  background: #fff0dc;
+  color: #f07800;
+}
+
+.health-card h2,
+.health-details h2 {
+  margin: 0 0 8px;
+  color: #172033;
+}
+
+.health-card p {
+  margin: 0;
+  color: #66728a;
+  font-size: 14px;
+}
+
+.health-details dl {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.health-details div {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px;
+  border-top: 1px solid #edf0f6;
+  padding-top: 14px;
+}
+
+.health-details dt {
+  color: #66728a;
+  font-size: 13px;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.health-details dd {
+  margin: 0;
+  color: #172033;
+  overflow-wrap: anywhere;
+}
+
 .change-list {
   margin-top: -7px;
 }
@@ -1806,6 +1883,36 @@ th {
   color: #172033;
 }
 
+.account-settings-row {
+  align-items: flex-start;
+}
+
+.account-settings-form {
+  display: grid;
+  width: min(100%, 430px);
+  gap: 10px;
+}
+
+.account-settings-form input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #dce2eb;
+  border-radius: 9px;
+  background: #fff;
+  color: #111827;
+  outline: 0;
+  padding: 0 12px;
+}
+
+.account-settings-form .user-action {
+  justify-self: start;
+}
+
+.account-settings-form .form-success,
+.account-settings-form .login-error {
+  margin: 0;
+}
+
 .version-row {
   align-items: flex-start;
 }
@@ -1900,6 +2007,14 @@ th {
   }
 
   .hardware-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-details div {
     grid-template-columns: 1fr;
   }
 

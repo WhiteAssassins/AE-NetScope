@@ -3,6 +3,7 @@ import {
   API_BASE_URL,
   GITHUB_RELEASES_API_URL,
   fetchInventoryData,
+  fetchHealthStatus,
   fetchLatestGitHubRelease,
   fetchVersionInfo,
 } from "./api";
@@ -100,6 +101,37 @@ describe("api client", () => {
       app_name: "AE NetScope",
       version: "0.1.0-alpha",
       release_channel: "alpha",
+    });
+  });
+
+  it("fetches detailed health status from the API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            status: "ready",
+            service: "AE NetScope",
+            environment: "local",
+            version: "0.1.0-alpha",
+            release_channel: "alpha",
+            checked_at: "2026-06-03T00:00:00Z",
+            checks: {
+              api: { status: "ok", required: true, message: "API process is responding." },
+              database: { status: "ok", required: true, message: "Database responded." },
+              redis: { status: "ok", required: true, message: "Redis ping succeeded." },
+            },
+          }),
+        ),
+      ),
+    );
+
+    await expect(fetchHealthStatus()).resolves.toMatchObject({
+      status: "ready",
+      version: "0.1.0-alpha",
+      checks: expect.objectContaining({
+        database: expect.objectContaining({ status: "ok" }),
+      }),
     });
   });
 

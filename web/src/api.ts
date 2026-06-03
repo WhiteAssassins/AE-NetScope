@@ -6,6 +6,7 @@ import type {
   NetworkRecord,
   ServiceRecord,
   GitHubReleaseInfo,
+  HealthStatus,
   VersionInfo,
   VlanRecord,
 } from "./types";
@@ -58,6 +59,14 @@ export async function fetchVersionInfo() {
     throw new Error("version-unavailable");
   }
   return (await response.json()) as VersionInfo;
+}
+
+export async function fetchHealthStatus() {
+  const response = await fetch(`${API_BASE_URL}/health/status`, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error("health-unavailable");
+  }
+  return (await response.json()) as HealthStatus;
 }
 
 export async function fetchLatestGitHubRelease() {

@@ -15,7 +15,9 @@ Do not use this release with sensitive production network data. APIs, database s
 - Admin user management with role changes, activation state, password reset, session review, and session revocation.
 - Audit/history views for operational changes.
 - Inventory backup/export and restore flows.
-- Health checks and Redis-backed login rate limiting.
+- Health checks, detailed system status page, and Redis-backed login rate limiting.
+- Internal project versioning with installed-version display and GitHub release update checks.
+- Account email change from Settings with current-password confirmation.
 - CI checks for API lint/tests, frontend lint/tests/build, coverage reports, dependency audits, secret scanning, and forbidden tracked local files.
 
 ## Known Limitations

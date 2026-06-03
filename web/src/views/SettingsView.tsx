@@ -1,7 +1,8 @@
 import { RefreshCw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { fetchLatestGitHubRelease, fetchVersionInfo } from "../api";
-import type { GitHubReleaseInfo, VersionInfo } from "../types";
+import type { FormEvent } from "react";
+import { API_BASE_URL, fetchLatestGitHubRelease, fetchVersionInfo } from "../api";
+import type { GitHubReleaseInfo, User, VersionInfo } from "../types";
 
 const storageKey = "ae-netscope-settings";
 
@@ -20,10 +21,18 @@ const defaultSettings: LocalSettings = {
 type VersionStatus = "checking" | "current" | "update-available" | "unavailable";
 
 type SettingsViewProps = {
+  csrfToken: string;
   initialVersionInfo?: VersionInfo | null;
+  onUserChanged: (user: User) => void;
+  user: User;
 };
 
-export default function SettingsView({ initialVersionInfo = null }: SettingsViewProps) {
+export default function SettingsView({
+  csrfToken,
+  initialVersionInfo = null,
+  onUserChanged,
+  user,
+}: SettingsViewProps) {
   const [settings, setSettings] = useState<LocalSettings>(() => {
     const stored = window.localStorage.getItem(storageKey);
     if (!stored) {
@@ -32,6 +41,11 @@ export default function SettingsView({ initialVersionInfo = null }: SettingsView
     return { ...defaultSettings, ...(JSON.parse(stored) as Partial<LocalSettings>) };
   });
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState(user.email);
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [isEmailSaving, setIsEmailSaving] = useState(false);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(initialVersionInfo);
   const [latestRelease, setLatestRelease] = useState<GitHubReleaseInfo | null>(null);
   const [versionStatus, setVersionStatus] = useState<VersionStatus>("checking");
@@ -45,6 +59,43 @@ export default function SettingsView({ initialVersionInfo = null }: SettingsView
     window.localStorage.setItem(storageKey, JSON.stringify(settings));
     window.dispatchEvent(new Event("ae-netscope-settings-changed"));
     setMessage("Ajustes guardados en este navegador.");
+  }
+
+  async function saveEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setEmailMessage("");
+    setEmailError("");
+    setIsEmailSaving(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/email`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({ current_password: emailPassword, new_email: email }),
+      });
+
+      if (!response.ok) {
+        setEmailError(
+          response.status === 409
+            ? "Ese correo ya está en uso."
+            : "No se pudo cambiar el correo. Verifica tu contraseña.",
+        );
+        return;
+      }
+
+      const data = (await response.json()) as { user: User };
+      onUserChanged(data.user);
+      setEmail(data.user.email);
+      setEmailPassword("");
+      setEmailMessage("Correo actualizado correctamente.");
+    } catch {
+      setEmailError("No se pudo conectar con la API.");
+    } finally {
+      setIsEmailSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -117,6 +168,37 @@ export default function SettingsView({ initialVersionInfo = null }: SettingsView
       </div>
 
       <section className="panel settings-panel">
+        <form className="settings-row account-settings-row" onSubmit={saveEmail}>
+          <div>
+            <strong>Correo de la cuenta</strong>
+            <span>Cambia el correo con el que inicias sesión. Requiere tu contraseña actual.</span>
+          </div>
+          <div className="account-settings-form">
+            <input
+              aria-label="Nuevo correo"
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+            <input
+              aria-label="Contraseña actual para cambiar correo"
+              autoComplete="current-password"
+              onChange={(event) => setEmailPassword(event.target.value)}
+              placeholder="Contraseña actual"
+              required
+              type="password"
+              value={emailPassword}
+            />
+            <button className="user-action" disabled={isEmailSaving} type="submit">
+              {isEmailSaving ? "Guardando..." : "Cambiar correo"}
+            </button>
+            {emailMessage && <p className="form-success">{emailMessage}</p>}
+            {emailError && <p className="login-error">{emailError}</p>}
+          </div>
+        </form>
+
         <div className="settings-row version-row">
           <div>
             <strong>Versión instalada</strong>

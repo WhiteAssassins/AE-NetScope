@@ -181,6 +181,22 @@ export type GitHubReleaseInfo = {
   published_at: string | null;
 };
 
+export type HealthCheckStatus = {
+  status: "ok" | "error";
+  required: boolean;
+  message: string;
+};
+
+export type HealthStatus = {
+  status: "ready" | "degraded";
+  service: string;
+  environment: string;
+  version: string;
+  release_channel: string;
+  checked_at: string;
+  checks: Record<string, HealthCheckStatus>;
+};
+
 export type ViewName =
   | "dashboard"
   | "devices"
@@ -195,5 +211,6 @@ export type ViewName =
   | "importExport"
   | "roles"
   | "users"
+  | "health"
   | "settings"
   | "support";
