@@ -9,6 +9,16 @@ call npm run secrets:scan
 if errorlevel 1 goto failed
 
 echo.
+echo [AE NetScope] Checking tracked local/generated files...
+call npm run tracked:check
+if errorlevel 1 goto failed
+
+echo.
+echo [AE NetScope] Auditing web and API dependencies...
+call npm run deps:audit
+if errorlevel 1 goto failed
+
+echo.
 echo [AE NetScope] Running API lint...
 call api\.venv\Scripts\python.exe -m ruff check api
 if errorlevel 1 goto failed

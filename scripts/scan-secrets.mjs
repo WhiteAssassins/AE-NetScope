@@ -6,6 +6,7 @@ const ignoredDirectories = new Set([
   ".git",
   ".github",
   ".pytest_cache",
+  ".pip-audit-cache",
   ".ruff_cache",
   ".venv",
   "__pycache__",

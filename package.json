@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "npm --prefix web run dev -- --host 127.0.0.1 --port 5173 --strictPort",
     "dev:api": "api\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir api --host 127.0.0.1 --port 8000 --reload",
+    "api:audit": "api\\.venv\\Scripts\\pip-audit.exe --skip-editable --cache-dir api/.pip-audit-cache --progress-spinner=off",
     "api:lint": "api\\.venv\\Scripts\\python.exe -m ruff check api",
     "api:test": "api\\.venv\\Scripts\\python.exe -m pytest api",
     "api:test:coverage": "api\\.venv\\Scripts\\python.exe -m pytest api --cov=app --cov-report=term-missing --cov-report=xml:api/coverage.xml",
@@ -14,6 +15,8 @@
     "lint": "npm --prefix web run lint",
     "web:test": "npm --prefix web run test",
     "web:test:coverage": "npm --prefix web run test:coverage",
-    "secrets:scan": "node scripts/scan-secrets.mjs"
+    "secrets:scan": "node scripts/scan-secrets.mjs",
+    "tracked:check": "node scripts/check-tracked-artifacts.mjs",
+    "deps:audit": "npm --prefix web audit --audit-level=moderate && npm run api:audit"
   }
 }

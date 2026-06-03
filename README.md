@@ -78,6 +78,24 @@ The API coverage XML is generated at `api/coverage.xml`. The web coverage report
 
 GitHub Actions runs the same main checks on push and pull requests. The workflow summary includes a simple test and coverage report, and the full coverage artifacts are attached to the workflow run.
 
+## Pre-Release Hardening Checks
+
+Before publishing a release, run:
+
+```bat
+test.cmd
+```
+
+This checks for obvious hardcoded secrets, forbidden tracked local files, dependency advisories, API lint, API tests, web lint, web tests, and web build.
+
+You can also run the hardening checks individually:
+
+```bat
+npm run secrets:scan
+npm run tracked:check
+npm run deps:audit
+```
+
 ## Stack
 
 - React
