@@ -392,6 +392,16 @@ async def test_admin_can_restore_inventory_backup(inventory_client) -> None:
     assert backup_response.status_code == 200
     backup = backup_response.json()
 
+    preview_response = await client.post(
+        "/api/inventory/import/preview",
+        headers={"X-CSRF-Token": csrf_token},
+        json=backup,
+    )
+    assert preview_response.status_code == 200
+    assert preview_response.json()["valid"] is True
+    assert preview_response.json()["counts"]["devices"] == 1
+    assert preview_response.json()["current_counts"]["devices"] == 1
+
     await client.delete(
         f"/api/inventory/devices/{device.json()['id']}",
         headers={"X-CSRF-Token": csrf_token},
@@ -406,6 +416,11 @@ async def test_admin_can_restore_inventory_backup(inventory_client) -> None:
     assert import_response.status_code == 200
     assert import_response.json()["counts"]["devices"] == 1
     assert import_response.json()["counts"]["services"] == 1
+    assert import_response.json()["previous_backup"]["format"] == "ae-netscope.inventory.v1"
+    assert import_response.json()["previous_backup"]["devices"] == []
+    assert import_response.json()["previous_backup_filename"].startswith(
+        "ae-netscope-before-restore-"
+    )
 
     restored_devices = await client.get("/api/inventory/devices")
     assert restored_devices.json()[0]["name"] == "SRV-APP-01"
@@ -415,3 +430,25 @@ async def test_admin_can_restore_inventory_backup(inventory_client) -> None:
 
     restored_services = await client.get("/api/inventory/services")
     assert restored_services.json()[0]["name"] == "HTTPS"
+
+
+async def test_import_preview_reports_invalid_references(inventory_client) -> None:
+    client, csrf_token = inventory_client
+
+    response = await client.post(
+        "/api/inventory/import/preview",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "format": "ae-netscope.inventory.v1",
+            "devices": [{"id": 1, "name": "SRV-01", "device_type": "Servidor"}],
+            "interfaces": [{"id": 1, "device_id": 999, "name": "eth0"}],
+            "ip_addresses": [{"id": 1, "address": "10.0.0.10", "interface_id": 999}],
+            "services": [{"id": 1, "device_id": 999, "name": "SSH"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert "Interface 1 references a missing device." in response.json()["errors"]
+    assert "IP 1 references a missing interface." in response.json()["errors"]
+    assert "Service 1 references a missing device." in response.json()["errors"]

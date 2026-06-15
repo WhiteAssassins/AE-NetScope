@@ -1,6 +1,6 @@
 [project]
 name = "ae-netscope-api"
-version = "0.1.1a0"
+version = "0.1.2a0"
 description = "API foundation for AE NetScope."
 requires-python = ">=3.12"
 dependencies = [

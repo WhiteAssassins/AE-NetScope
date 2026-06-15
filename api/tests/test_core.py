@@ -70,3 +70,13 @@ def test_local_database_uses_sqlite_and_production_uses_postgres() -> None:
     assert production_settings.database_url == (
         "postgresql+asyncpg://ae_user:secret@db:5432/ae_netscope"
     )
+
+
+def test_production_enables_secure_cookie_and_hsts_effectively() -> None:
+    local_settings = Settings(app_env="local")
+    production_settings = Settings(app_env="production")
+
+    assert local_settings.effective_session_cookie_secure is False
+    assert local_settings.effective_hsts_enabled is False
+    assert production_settings.effective_session_cookie_secure is True
+    assert production_settings.effective_hsts_enabled is True

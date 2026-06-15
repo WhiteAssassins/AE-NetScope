@@ -14,6 +14,7 @@ import {
   Menu,
   Monitor,
   Network,
+  PackageCheck,
   Route,
   Search,
   Settings,
@@ -90,6 +91,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { label: "Usuarios", icon: UsersRound },
       { label: "Roles y permisos", icon: ShieldCheck },
       { label: "Estado", icon: HeartPulse },
+      { label: "Actualizaciones", icon: PackageCheck },
       { label: "Ajustes", icon: Settings },
     ],
   },
@@ -112,6 +114,7 @@ const ServicesView = lazy(() => import("./views/ServicesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SetupScreen = lazy(() => import("./views/SetupScreen"));
 const SupportView = lazy(() => import("./views/SupportView"));
+const UpdateView = lazy(() => import("./views/UpdateView"));
 const UsersView = lazy(() => import("./views/UsersView"));
 const VlansView = lazy(() => import("./views/VlansView"));
 
@@ -315,6 +318,7 @@ function App() {
       "Roles y permisos": "roles",
       Usuarios: "users",
       Estado: "health",
+      Actualizaciones: "updates",
       Ajustes: "settings",
     };
     return map[label] ?? null;
@@ -776,6 +780,13 @@ function App() {
         </Suspense>
       );
     }
+    if (view === "updates") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando actualizaciones...</div>}>
+          <UpdateView initialVersionInfo={versionInfo} />
+        </Suspense>
+      );
+    }
     if (view === "settings") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
@@ -812,6 +823,7 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Roles y permisos" && view === "roles") ||
     (label === "Usuarios" && view === "users") ||
     (label === "Estado" && view === "health") ||
+    (label === "Actualizaciones" && view === "updates") ||
     (label === "Ajustes" && view === "settings")
   );
 }

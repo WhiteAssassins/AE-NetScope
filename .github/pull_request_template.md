@@ -18,6 +18,7 @@
 - [ ] I updated documentation where needed.
 - [ ] I did not commit secrets, `.env` files, credentials, real LAN data, private IP inventories, MAC inventories, hostnames, screenshots, or sensitive logs.
 - [ ] This change keeps authorization enforced in the API where applicable.
+- [ ] I understand contributions are submitted under the AE NetScope source-available proprietary license in `LICENSE`.
 
 ## Checks run
 
@@ -26,5 +27,4 @@
 ```
 
 ## Notes for reviewers
-
 

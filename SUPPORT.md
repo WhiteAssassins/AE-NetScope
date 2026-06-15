@@ -1,6 +1,6 @@
 # Support
 
-AE NetScope is a public source-available project. Support is provided through public project channels when maintainers and contributors have time.
+AE NetScope is a public source-available proprietary project. Support is provided through public project channels when maintainers and contributors have time.
 
 ## Before asking for help
 
@@ -35,4 +35,4 @@ Maintainers may not be able to provide:
 - Emergency incident response.
 - Help with unsupported forks or heavily modified deployments.
 
-Commercial or private support can be discussed outside the public issue tracker if maintainers choose to offer it.
+Commercial licensing, private support, marketplace distribution, hosted offerings, reseller rights, OEM use, or paid managed service rights require a separate written agreement with Christopher David Alberto Roque or AE White Devs LLC.

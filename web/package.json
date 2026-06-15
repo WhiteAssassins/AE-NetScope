@@ -1,7 +1,7 @@
 {
   "name": "ae-netscope-web",
   "private": true,
-  "version": "0.1.1-alpha",
+  "version": "0.1.2-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",

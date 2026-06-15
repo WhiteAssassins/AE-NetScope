@@ -8,6 +8,8 @@ This is an **Early public preview, not production ready**.
 
 Do not use this release with sensitive production network data. APIs, database schema, permission boundaries, security controls, deployment guidance, and UI behavior may change before v1.0.
 
+AE NetScope is source-available proprietary software. Internal business use is allowed, but resale, sublicensing, marketplace publishing, paid hosting, commercial managed-service use, and repackaging as another product require written permission from Christopher David Alberto Roque or AE White Devs LLC.
+
 ## Highlights
 
 - LAN inventory dashboard for devices, IPs/MACs, subnets, VLANs, services, hardware details, and technical notes.

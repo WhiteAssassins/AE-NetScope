@@ -1,6 +1,6 @@
 # AE NetScope v0.1.1-alpha
 
-AE NetScope v0.1.1-alpha is a maintenance alpha release.
+AE NetScope v0.1.1-alpha is a maintenance alpha release focused on version visibility, system health, and account email management.
 
 ## Important
 

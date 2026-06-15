@@ -1,21 +1,98 @@
-MIT License
+AE NetScope Source-Available License
+Version 1.0
 
-Copyright (c) 2026 Christopher David Alberto Roque
+Copyright (c) 2026 Christopher David Alberto Roque.
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Owner:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Christopher David Alberto Roque, also known as WhiteAssassins
+GitHub: https://github.com/WhiteAssassins
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+AE White Devs LLC
+Website: https://aewhitedevs.com
+
+1. Grant of Use
+
+Subject to this license, you may view, download, copy, install, run, and modify
+AE NetScope for:
+
+- personal use;
+- educational use;
+- homelab use;
+- testing and evaluation;
+- internal business use inside your own organization.
+
+Internal business use means using AE NetScope to support your own operations,
+including inside a company, school, lab, nonprofit, or internal IT environment.
+
+2. Restrictions
+
+You may not, without prior written permission from Christopher David Alberto
+Roque or AE White Devs LLC:
+
+- sell, resell, rent, lease, or otherwise commercialize AE NetScope;
+- sublicense AE NetScope;
+- sell support, hosting, managed services, or consulting where AE NetScope is
+  the product or a material part of the paid offering;
+- offer AE NetScope as a paid or commercial SaaS, hosted service, managed
+  service, appliance, bundle, marketplace app, container image, or packaged
+  product;
+- repackage, redistribute, or publish AE NetScope as your own software product;
+- remove or obscure copyright, license, attribution, or ownership notices;
+- use the AE NetScope name, AE White Devs name, WhiteAssassins name, logos,
+  marks, branding, or project identity to imply endorsement, partnership, or
+  ownership without written permission.
+
+3. Contributions
+
+By submitting a pull request, patch, issue comment with code, design asset,
+documentation change, or other contribution to AE NetScope, you grant
+Christopher David Alberto Roque and AE White Devs LLC a perpetual, worldwide,
+non-exclusive, royalty-free, irrevocable license to use, copy, modify, publish,
+distribute, sublicense, and commercialize your contribution as part of AE
+NetScope.
+
+You confirm that you have the right to submit the contribution and that it does
+not include secrets, private infrastructure data, third-party code without
+permission, or content that violates another license.
+
+Submitting a contribution does not give you ownership of AE NetScope or the
+right to sell, resell, sublicense, repackage, host as a commercial service,
+publish to marketplaces, or present AE NetScope as your own product.
+
+4. Third-Party Software
+
+Third-party dependencies, libraries, tools, and assets included with or used by
+AE NetScope remain governed by their own licenses. This license applies only to
+AE NetScope code, documentation, branding, and project materials owned by
+Christopher David Alberto Roque or AE White Devs LLC.
+
+5. No Warranty
+
+AE NetScope is provided "as is", without warranty of any kind, express or
+implied, including but not limited to warranties of merchantability, fitness for
+a particular purpose, non-infringement, security, availability, or correctness.
+
+You are responsible for evaluating whether AE NetScope is appropriate for your
+environment and for protecting your own systems, networks, data, and backups.
+
+6. Limitation of Liability
+
+To the maximum extent permitted by law, Christopher David Alberto Roque, AE
+White Devs LLC, maintainers, and contributors are not liable for any claim,
+damage, loss, data loss, downtime, security incident, business interruption, or
+other liability arising from use of AE NetScope.
+
+7. Commercial Licensing
+
+Commercial licensing, marketplace distribution, hosted offerings, reseller
+rights, OEM use, paid managed service use, or other commercial rights require a
+separate written agreement with Christopher David Alberto Roque or AE White
+Devs LLC.
+
+Contact:
+
+- https://aewhitedevs.com
+- admin@aewhitedevs.com
+- contacto@aewhitedevs.com

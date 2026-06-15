@@ -16,9 +16,11 @@ target_metadata = Base.metadata
 
 
 def sync_database_url() -> str:
-    return (
-        settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-        .replace("sqlite+aiosqlite://", "sqlite://")
+    configured_url = config.get_main_option("sqlalchemy.url")
+    database_url = configured_url or settings.database_url
+    return database_url.replace("postgresql+asyncpg://", "postgresql://").replace(
+        "sqlite+aiosqlite://",
+        "sqlite://",
     )
 
 

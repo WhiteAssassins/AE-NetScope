@@ -29,11 +29,17 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_rate_limit_fail_open: bool = True
 
+    max_import_json_bytes: int = 2_000_000
+
     session_secret: str = Field(default="change-me", repr=False)
     session_cookie_name: str = "ae_netscope_session"
     session_cookie_secure: bool = False
     session_cookie_samesite: str = "strict"
     session_ttl_seconds: int = 28800
+
+    security_headers_enabled: bool = True
+    security_hsts_enabled: bool = False
+    security_hsts_max_age: int = 31536000
 
     password_hash_algorithm: str = "argon2id"
     auth_rate_limit_per_minute: int = 5
@@ -66,6 +72,14 @@ class Settings(BaseSettings):
     @cached_property
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @cached_property
+    def effective_session_cookie_secure(self) -> bool:
+        return self.session_cookie_secure or self.app_env == "production"
+
+    @cached_property
+    def effective_hsts_enabled(self) -> bool:
+        return self.security_hsts_enabled or self.app_env == "production"
 
 
 settings = Settings()

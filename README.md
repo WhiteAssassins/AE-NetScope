@@ -1,7 +1,7 @@
 # AE NetScope
 
 [![CI](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml/badge.svg)](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml)
-![License](https://img.shields.io/badge/license-source--available-orange)
+![License](https://img.shields.io/badge/license-source--available%20proprietary-orange)
 ![Status](https://img.shields.io/badge/status-early%20public%20preview-yellow)
 
 AE NetScope is a self-hosted web app for organizing LAN inventory data such as devices, IP addresses, MAC addresses, subnets, VLANs, services, hardware details, and technical notes.
@@ -12,7 +12,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.1-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.2-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -139,11 +139,15 @@ DATABASE_URL=postgresql+asyncpg://ae_netscope:CHANGE_ME@127.0.0.1:5432/ae_netsco
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_DB=0
+MAX_IMPORT_JSON_BYTES=2000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
 SESSION_TTL_SECONDS=28800
+SECURITY_HEADERS_ENABLED=true
+SECURITY_HSTS_ENABLED=true
+SECURITY_HSTS_MAX_AGE=31536000
 PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
@@ -255,11 +259,15 @@ DATABASE_URL=postgresql+asyncpg://ae_netscope:CHANGE_ME_DATABASE_PASSWORD@127.0.
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_DB=0
+MAX_IMPORT_JSON_BYTES=2000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
 SESSION_TTL_SECONDS=28800
+SECURITY_HEADERS_ENABLED=true
+SECURITY_HSTS_ENABLED=true
+SECURITY_HSTS_MAX_AGE=31536000
 PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
@@ -290,6 +298,8 @@ cd /opt/ae-netscope/api
 sudo -u ae-netscope bash -lc 'set -a; source /etc/ae-netscope/ae-netscope.env; set +a; .venv/bin/python -m alembic upgrade head'
 ```
 
+For every upgrade, run migrations before starting the API again. The migration chain is tested in CI and should have a single Alembic head.
+
 ### 10. Create the initial admin
 
 For the current early version, the bootstrap command creates the first admin if there are no users:
@@ -318,6 +328,30 @@ cd /opt/ae-netscope
 sudo -u ae-netscope npm --prefix web ci
 sudo -u ae-netscope env VITE_API_BASE_URL=/api npm --prefix web run build
 ```
+
+## Backup and Restore Policy
+
+- Export a JSON backup before every upgrade, restore, or migration.
+- The restore UI validates the JSON first and shows a preview before replacing data.
+- A restore replaces inventory records only: devices, interfaces, IPs, subnets, VLANs, and services.
+- A restore does not modify users, sessions, password hashes, secrets, or environment variables.
+- Before a restore is applied, the API returns a pre-restore backup and the web UI downloads it automatically.
+- Keep production backups outside the repository and outside the web root.
+
+## SQLite Local to PostgreSQL Production
+
+SQLite is for local development only. PostgreSQL is the production target.
+
+Recommended path:
+
+1. Upgrade the local app to the latest code and run `test.cmd`.
+2. Export inventory JSON from the local app.
+3. Prepare PostgreSQL and run `alembic upgrade head` in production.
+4. Create the first production admin.
+5. Import the JSON backup from the production web UI.
+6. Confirm `/api/health/status` shows API, database, and Redis checks.
+
+Do not copy the local SQLite database file directly into production.
 
 ### 12. Create the systemd service
 
@@ -419,6 +453,7 @@ After HTTPS is active, confirm these production variables remain set:
 APP_URL=https://netscope.example.com
 API_CORS_ORIGINS=https://netscope.example.com
 SESSION_COOKIE_SECURE=true
+SECURITY_HSTS_ENABLED=true
 ```
 
 Restart:
@@ -432,7 +467,8 @@ sudo systemctl reload nginx
 
 ```bash
 curl -I https://netscope.example.com
-curl https://netscope.example.com/api/health
+curl https://netscope.example.com/api/health/live
+curl https://netscope.example.com/api/health/status
 sudo journalctl -u ae-netscope-api -n 100 --no-pager
 ```
 
@@ -473,8 +509,10 @@ For support boundaries, see `SUPPORT.md`.
 
 ## License
 
-AE NetScope is public source-available software under a proprietary license. You may use it for personal, educational, homelab, and internal business purposes, including inside a company.
+AE NetScope is public source-available software under a proprietary license. You may use it for personal, educational, homelab, testing, evaluation, and internal business purposes, including inside a company or organization.
 
 Copyright is held by Christopher David Alberto Roque, also known as [WhiteAssassins](https://github.com/WhiteAssassins), CEO of AE White Devs LLC.
 
-You may not sell, resell, sublicense, repackage, host as a commercial service, publish to marketplaces, or present AE NetScope as your own product without written permission from Christopher David Alberto Roque or AE White Devs LLC. See `LICENSE`.
+You may not sell, resell, sublicense, repackage, redistribute as your own product, offer as a paid hosted service, publish to marketplaces, sell managed services where AE NetScope is the product or a material part of the paid offering, or use project branding to imply ownership or endorsement without written permission from Christopher David Alberto Roque or AE White Devs LLC.
+
+See `LICENSE` for the full terms.

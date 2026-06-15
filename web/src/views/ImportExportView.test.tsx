@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API_BASE_URL } from "../api";
-import BackupsView from "./BackupsView";
+import ImportExportView from "./ImportExportView";
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -11,61 +11,46 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
-describe("BackupsView", () => {
+const counts = {
+  devices: 2,
+  interfaces: 2,
+  ip_addresses: 3,
+  networks: 1,
+  services: 1,
+  vlans: 1,
+};
+
+describe("ImportExportView", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("blocks the page when the user cannot read inventory", () => {
-    render(<BackupsView csrfToken="csrf" onImported={vi.fn()} permissions={[]} />);
-
-    expect(screen.getByRole("heading", { name: "Respaldos" })).toBeInTheDocument();
-    expect(screen.getByText("No tienes permisos para leer el inventario.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /descargar backup/i })).not.toBeInTheDocument();
-  });
-
-  it("downloads the JSON backup from the official API endpoint", async () => {
+  it("opens CSV exports through the API", async () => {
     const user = userEvent.setup();
     const openMock = vi.fn();
     vi.stubGlobal("open", openMock);
 
     render(
-      <BackupsView
+      <ImportExportView
         csrfToken="csrf"
         onImported={vi.fn()}
         permissions={["inventory:read", "settings:manage"]}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /descargar backup/i }));
+    await user.click(screen.getByRole("button", { name: "Dispositivos" }));
 
     expect(openMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/inventory/export.json`,
+      `${API_BASE_URL}/inventory/export/devices.csv`,
       "_blank",
       "noopener,noreferrer",
     );
   });
 
-  it("disables restore for non-admin inventory readers", () => {
-    render(
-      <BackupsView csrfToken="csrf" onImported={vi.fn()} permissions={["inventory:read"]} />,
-    );
-
-    expect(screen.getByRole("button", { name: /subir backup/i })).toBeDisabled();
-  });
-
-  it("restores a valid backup and refreshes inventory", async () => {
+  it("previews and confirms JSON restore explicitly", async () => {
     const user = userEvent.setup();
     const onImported = vi.fn(() => Promise.resolve());
-    const counts = {
-      devices: 1,
-      interfaces: 1,
-      ip_addresses: 2,
-      networks: 1,
-      services: 3,
-      vlans: 1,
-    };
     const fetchMock = vi.fn((url: string) => {
       if (url.endsWith("/inventory/import/preview")) {
         return Promise.resolve(
@@ -94,7 +79,7 @@ describe("BackupsView", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
     const { container } = render(
-      <BackupsView
+      <ImportExportView
         csrfToken="csrf-token"
         onImported={onImported}
         permissions={["inventory:read", "settings:manage"]}
@@ -110,24 +95,18 @@ describe("BackupsView", () => {
       }),
     );
 
-    expect(await screen.findByText("Preview de restauración")).toBeInTheDocument();
-    expect(screen.getByText("Backup validado. Revisa el resumen antes de restaurar.")).toBeInTheDocument();
+    expect(await screen.findByText("Preview de importación")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /reemplazar inventario/i }));
 
     await waitFor(() => expect(onImported).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/inventory/import/preview`,
+      `${API_BASE_URL}/inventory/import.json`,
       expect.objectContaining({
         method: "POST",
         credentials: "include",
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
       }),
     );
-    expect(
-      screen.getByText(
-        "Backup restaurado: 1 dispositivos, 2 IPs, 1 subredes, 1 VLANs y 3 servicios. Se descargó un backup previo automático.",
-      ),
-    ).toBeInTheDocument();
   });
 });

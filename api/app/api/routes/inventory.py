@@ -4,11 +4,13 @@ from datetime import UTC, datetime
 from io import StringIO
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
+from app.core.config import settings
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.schemas.inventory import (
     DashboardSummary,
@@ -35,6 +37,7 @@ from app.schemas.inventory import (
 from app.services.audit import write_audit_event
 from app.services.inventory import (
     add_device_interface,
+    count_rows,
     create_device,
     create_ip_address,
     create_network,
@@ -78,6 +81,18 @@ router = APIRouter(
 )
 
 ExportResource = Literal["devices", "ip-addresses", "networks", "vlans", "services", "interfaces"]
+BACKUP_FORMAT = "ae-netscope.inventory.v1"
+BACKUP_KEYS = ("vlans", "networks", "devices", "interfaces", "ip_addresses", "services")
+
+
+async def require_import_size_limit(content_length: int | None = Header(default=None)) -> None:
+    if content_length is None:
+        return
+    if content_length > settings.max_import_json_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Inventory import JSON is too large.",
+        )
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
@@ -93,19 +108,7 @@ async def export_inventory_json(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> dict[str, object]:
-    exported_at = datetime.now(UTC).isoformat()
-    payload = {
-        "exported_at": exported_at,
-        "format": "ae-netscope.inventory.v1",
-        "devices": [item.model_dump(mode="json") for item in await list_devices(session)],
-        "ip_addresses": [
-            item.model_dump(mode="json") for item in await list_ip_addresses(session)
-        ],
-        "networks": [item.model_dump(mode="json") for item in await list_networks(session)],
-        "vlans": [item.model_dump(mode="json") for item in await list_vlans(session)],
-        "services": [item.model_dump(mode="json") for item in await list_services(session)],
-        "interfaces": [item.model_dump(mode="json") for item in await list_interfaces(session)],
-    }
+    payload = await export_inventory_payload(session)
     await write_audit_event(
         session,
         "inventory.exported",
@@ -114,6 +117,27 @@ async def export_inventory_json(
     )
     await session.commit()
     return payload
+
+
+@router.post(
+    "/import/preview",
+    dependencies=[
+        Depends(require_csrf),
+        Depends(require_permission("settings:manage")),
+        Depends(require_import_size_limit),
+    ],
+)
+async def preview_inventory_import(
+    payload: dict[str, object],
+    session: SessionDep,
+    _: CurrentUser,
+) -> dict[str, object]:
+    analysis = analyze_backup_payload(payload)
+    return {
+        **analysis,
+        "current_counts": await current_inventory_counts(session),
+        "mode": "replace",
+    }
 
 
 @router.get("/export/{resource}.csv")
@@ -145,20 +169,26 @@ async def export_inventory_csv(
 
 @router.post(
     "/import.json",
-    dependencies=[Depends(require_csrf), Depends(require_permission("settings:manage"))],
+    dependencies=[
+        Depends(require_csrf),
+        Depends(require_permission("settings:manage")),
+        Depends(require_import_size_limit),
+    ],
 )
 async def import_inventory_json(
     payload: dict[str, object],
     session: SessionDep,
     current_user: CurrentUser,
 ) -> dict[str, object]:
-    if payload.get("format") != "ae-netscope.inventory.v1":
+    analysis = analyze_backup_payload(payload)
+    if not analysis["valid"]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Unsupported inventory backup format.",
+            detail={"message": "Invalid inventory backup.", "errors": analysis["errors"]},
         )
 
     try:
+        previous_backup = await export_inventory_payload(session)
         counts = await restore_inventory_from_payload(session, payload)
     except (KeyError, TypeError, ValueError) as exc:
         await session.rollback()
@@ -183,7 +213,198 @@ async def import_inventory_json(
         actor_user_id=current_user.id,
     )
     await session.commit()
-    return {"status": "imported", "counts": counts}
+    return {
+        "status": "imported",
+        "counts": counts,
+        "previous_backup": previous_backup,
+        "previous_backup_filename": (
+            f"ae-netscope-before-restore-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.json"
+        ),
+    }
+
+
+async def export_inventory_payload(session: SessionDep) -> dict[str, object]:
+    return {
+        "exported_at": datetime.now(UTC).isoformat(),
+        "format": BACKUP_FORMAT,
+        "devices": [item.model_dump(mode="json") for item in await list_devices(session)],
+        "ip_addresses": [
+            item.model_dump(mode="json") for item in await list_ip_addresses(session)
+        ],
+        "networks": [item.model_dump(mode="json") for item in await list_networks(session)],
+        "vlans": [item.model_dump(mode="json") for item in await list_vlans(session)],
+        "services": [item.model_dump(mode="json") for item in await list_services(session)],
+        "interfaces": [item.model_dump(mode="json") for item in await list_interfaces(session)],
+    }
+
+
+async def current_inventory_counts(session: SessionDep) -> dict[str, int]:
+    return {
+        "vlans": await count_rows(session, Vlan),
+        "networks": await count_rows(session, Network),
+        "devices": await count_rows(session, Device),
+        "interfaces": await count_rows(session, NetworkInterface),
+        "ip_addresses": await count_rows(session, IpAddress),
+        "services": await count_rows(session, Service),
+    }
+
+
+def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    counts = {key: 0 for key in BACKUP_KEYS}
+
+    if payload.get("format") != BACKUP_FORMAT:
+        errors.append("Unsupported inventory backup format.")
+
+    try:
+        data = {key: backup_list(payload, key) for key in BACKUP_KEYS}
+    except TypeError as exc:
+        errors.append(str(exc))
+        return {"valid": False, "counts": counts, "warnings": warnings, "errors": errors}
+
+    counts = {key: len(data[key]) for key in BACKUP_KEYS}
+    for key in BACKUP_KEYS:
+        errors.extend(validate_unique_source_ids(data[key], key))
+
+    vlan_source_ids = source_ids(data["vlans"])
+    network_source_ids = source_ids(data["networks"])
+    device_source_ids = source_ids(data["devices"])
+    interface_source_ids = source_ids(data["interfaces"])
+
+    vlan_values: set[int] = set()
+    network_cidrs: dict[int, str] = {}
+    device_names: set[str] = set()
+    interface_keys: set[tuple[int, str]] = set()
+    mac_addresses: set[str] = set()
+    ip_addresses: set[str] = set()
+    service_keys: set[tuple[int, str, int | None, str]] = set()
+
+    for row in data["vlans"]:
+        try:
+            item = VlanCreate.model_validate(row)
+            if item.vlan_id in vlan_values:
+                errors.append(f"Duplicate VLAN number: {item.vlan_id}.")
+            vlan_values.add(item.vlan_id)
+        except ValidationError as exc:
+            errors.append(f"Invalid VLAN {row.get('id', '?')}: {validation_message(exc)}")
+
+    for row in data["networks"]:
+        try:
+            item = NetworkCreate.model_validate(row)
+            source_id = int(row["id"])
+            if row.get("vlan_id") is not None and int(row["vlan_id"]) not in vlan_source_ids:
+                errors.append(f"Network {source_id} references a missing VLAN.")
+            if item.cidr in network_cidrs.values():
+                errors.append(f"Duplicate network CIDR: {item.cidr}.")
+            network_cidrs[source_id] = item.cidr
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            errors.append(f"Invalid network {row.get('id', '?')}: {validation_message(exc)}")
+
+    for row in data["devices"]:
+        try:
+            item = DeviceWithInterfaceCreate.model_validate({**row, "interface": None})
+            normalized_name = item.name.lower()
+            if normalized_name in device_names:
+                errors.append(f"Duplicate device name: {item.name}.")
+            device_names.add(normalized_name)
+        except ValidationError as exc:
+            errors.append(f"Invalid device {row.get('id', '?')}: {validation_message(exc)}")
+
+    for row in data["interfaces"]:
+        try:
+            source_id = int(row["id"])
+            source_device_id = int(row["device_id"])
+            if source_device_id not in device_source_ids:
+                errors.append(f"Interface {source_id} references a missing device.")
+            item = InterfaceCreate.model_validate(row)
+            interface_key = (source_device_id, item.name.lower())
+            if interface_key in interface_keys:
+                errors.append(
+                    f"Duplicate interface name on device {source_device_id}: {item.name}."
+                )
+            interface_keys.add(interface_key)
+            if item.mac_address:
+                if item.mac_address in mac_addresses:
+                    errors.append(f"Duplicate MAC address: {item.mac_address}.")
+                mac_addresses.add(item.mac_address)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            errors.append(f"Invalid interface {row.get('id', '?')}: {validation_message(exc)}")
+
+    for row in data["ip_addresses"]:
+        try:
+            source_id = int(row["id"])
+            item = IpAddressCreate.model_validate(row)
+            if row.get("network_id") is not None:
+                network_id = int(row["network_id"])
+                if network_id not in network_source_ids:
+                    errors.append(f"IP {source_id} references a missing network.")
+                elif ipaddress.ip_address(item.address) not in ipaddress.ip_network(
+                    network_cidrs[network_id],
+                    strict=False,
+                ):
+                    errors.append(f"IP {item.address} is outside its referenced network.")
+            if (
+                row.get("interface_id") is not None
+                and int(row["interface_id"]) not in interface_source_ids
+            ):
+                errors.append(f"IP {source_id} references a missing interface.")
+            if item.address in ip_addresses:
+                errors.append(f"Duplicate IP address: {item.address}.")
+            ip_addresses.add(item.address)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            errors.append(f"Invalid IP {row.get('id', '?')}: {validation_message(exc)}")
+
+    for row in data["services"]:
+        try:
+            source_device_id = int(row["device_id"])
+            if source_device_id not in device_source_ids:
+                errors.append(f"Service {row.get('id', '?')} references a missing device.")
+            item = ServiceCreate.model_validate(row)
+            service_key = (source_device_id, item.name.lower(), item.port, item.protocol.lower())
+            if service_key in service_keys:
+                errors.append(f"Duplicate service on device {source_device_id}: {item.name}.")
+            service_keys.add(service_key)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            errors.append(f"Invalid service {row.get('id', '?')}: {validation_message(exc)}")
+
+    if not any(counts.values()):
+        warnings.append("Backup contains no inventory records.")
+
+    return {"valid": not errors, "counts": counts, "warnings": warnings, "errors": errors}
+
+
+def validate_unique_source_ids(rows: list[dict[str, object]], label: str) -> list[str]:
+    errors: list[str] = []
+    seen: set[int] = set()
+    for row in rows:
+        try:
+            source_id = int(row["id"])
+        except (KeyError, TypeError, ValueError):
+            errors.append(f"{label} contains a record without a valid id.")
+            continue
+        if source_id in seen:
+            errors.append(f"{label} contains duplicate source id {source_id}.")
+        seen.add(source_id)
+    return errors
+
+
+def source_ids(rows: list[dict[str, object]]) -> set[int]:
+    ids: set[int] = set()
+    for row in rows:
+        try:
+            ids.add(int(row["id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return ids
+
+
+def validation_message(exc: Exception) -> str:
+    if isinstance(exc, ValidationError):
+        first_error = exc.errors()[0]
+        location = ".".join(str(part) for part in first_error["loc"])
+        return f"{location}: {first_error['msg']}"
+    return str(exc)
 
 
 async def export_rows_for_resource(

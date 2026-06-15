@@ -2,6 +2,26 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.2-alpha - 2026-06-15
+
+### Added
+
+- Source-available proprietary license alignment across public project documentation.
+- Import preview for JSON inventory backups before replacing current data.
+- Stronger backup validation for duplicate records and broken VLAN, network, interface, device, IP, and service references.
+- Automatic pre-restore backup returned by the API and downloaded from the web UI.
+- Production hardening with security headers, production-secure cookies, HSTS controls, and import size limits.
+- Dedicated update page with installed version, latest GitHub release, status, release link, and upgrade checklist.
+- Alembic migration tests for single-head history and clean upgrade to `head`.
+- README production guidance for backup/restore policy and SQLite local to PostgreSQL production migration.
+
+### Status
+
+- Early public preview.
+- Potentially usable for controlled testing with non-sensitive data.
+- Not production ready.
+- Intended for homelab, review, and limited trial environments.
+
 ## v0.1.1-alpha - 2026-06-03
 
 ### Added

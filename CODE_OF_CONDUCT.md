@@ -2,7 +2,7 @@
 
 ## Purpose
 
-AE NetScope is a public source-available project for sysadmins, network operators, homelab users, and developers building safer LAN inventory tooling.
+AE NetScope is a public source-available proprietary project for sysadmins, network operators, homelab users, and developers building safer LAN inventory tooling.
 
 The project should be a professional, practical, and respectful space. People should be able to report bugs, suggest changes, review code, and discuss operational security without harassment, gatekeeping, or pressure to expose private infrastructure details.
 

@@ -212,5 +212,6 @@ export type ViewName =
   | "roles"
   | "users"
   | "health"
+  | "updates"
   | "settings"
   | "support";

@@ -5,6 +5,8 @@
 - Project name is consistent: AE NetScope.
 - Repository description is short, clear, and accurate.
 - License file is present.
+- License terms match the intended source-available proprietary model.
+- Public documentation states that internal business use is allowed but resale, sublicensing, marketplace publishing, paid hosting, and product repackaging require written permission.
 - README explains what the project is and how to run it.
 - README clearly states that the project is an early public preview and not production ready.
 - The app displays an early preview warning.
@@ -78,6 +80,6 @@
 - Run the build command from a clean install.
 - Run `start-dev.cmd` from the repository root.
 - Search for sensitive strings before publishing.
-- Confirm the repository visibility and license choice.
+- Confirm the repository visibility and source-available proprietary license choice.
 - Create release notes with clear alpha status: "Early public preview, not production ready".
 - Create the first public tag: `v0.1.0-alpha`.

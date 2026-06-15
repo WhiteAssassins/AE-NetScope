@@ -9,6 +9,7 @@ body:
       value: |
         Please describe the workflow, not private infrastructure.
         Use fictional examples only.
+        AE NetScope is source-available proprietary software. Contributions and suggestions are handled under the repository license.
   - type: textarea
     id: problem
     attributes:

@@ -87,11 +87,11 @@ describe("api client", () => {
         Promise.resolve(
           jsonResponse({
             app_name: "AE NetScope",
-            version: "0.1.1-alpha",
+            version: "0.1.2-alpha",
             release_channel: "alpha",
             repository_url: "https://github.com/WhiteAssassins/AE-NetScope",
             releases_url: "https://github.com/WhiteAssassins/AE-NetScope/releases",
-            release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.1-alpha",
+            release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.2-alpha",
           }),
         ),
       ),
@@ -99,7 +99,7 @@ describe("api client", () => {
 
     await expect(fetchVersionInfo()).resolves.toMatchObject({
       app_name: "AE NetScope",
-      version: "0.1.1-alpha",
+      version: "0.1.2-alpha",
       release_channel: "alpha",
     });
   });
@@ -113,7 +113,7 @@ describe("api client", () => {
             status: "ready",
             service: "AE NetScope",
             environment: "local",
-            version: "0.1.1-alpha",
+            version: "0.1.2-alpha",
             release_channel: "alpha",
             checked_at: "2026-06-03T00:00:00Z",
             checks: {
@@ -128,7 +128,7 @@ describe("api client", () => {
 
     await expect(fetchHealthStatus()).resolves.toMatchObject({
       status: "ready",
-      version: "0.1.1-alpha",
+      version: "0.1.2-alpha",
       checks: expect.objectContaining({
         database: expect.objectContaining({ status: "ok" }),
       }),
@@ -143,9 +143,9 @@ describe("api client", () => {
           jsonResponse([
             { tag_name: "v0.2.0-alpha", draft: true },
             {
-              tag_name: "v0.1.1-alpha",
-              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.1-alpha",
-              name: "AE NetScope v0.1.1-alpha",
+              tag_name: "v0.1.2-alpha",
+              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.2-alpha",
+              name: "AE NetScope v0.1.2-alpha",
               prerelease: true,
               draft: false,
               published_at: "2026-06-03T00:00:00Z",
@@ -156,7 +156,7 @@ describe("api client", () => {
     );
 
     await expect(fetchLatestGitHubRelease()).resolves.toMatchObject({
-      tag_name: "v0.1.1-alpha",
+      tag_name: "v0.1.2-alpha",
       prerelease: true,
     });
     expect(fetch).toHaveBeenCalledWith(GITHUB_RELEASES_API_URL, {

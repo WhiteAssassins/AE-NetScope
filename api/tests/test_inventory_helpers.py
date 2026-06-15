@@ -91,4 +91,19 @@ async def test_import_rejects_wrong_backup_shape(empty_inventory_client) -> None
     )
 
     assert response.status_code == 422
-    assert "devices must be a list" in response.json()["detail"]
+    assert "devices must be a list" in response.json()["detail"]["errors"]
+
+
+async def test_import_preview_rejects_oversized_payload(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+
+    response = await client.post(
+        "/api/inventory/import/preview",
+        headers={
+            "X-CSRF-Token": csrf_token,
+            "Content-Length": "2000001",
+        },
+        json={"format": "ae-netscope.inventory.v1"},
+    )
+
+    assert response.status_code == 413

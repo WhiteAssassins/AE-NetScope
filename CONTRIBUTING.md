@@ -12,7 +12,7 @@ AE NetScope is a self-hosted LAN inventory tool. Contributions should keep the p
 - Keep examples fictional and safe.
 - Prefer small, focused pull requests.
 - Keep public documentation free of private operational details.
-- Contributions are accepted under the project license in `LICENSE`.
+- AE NetScope is source-available proprietary software. Use and contributions are governed by `LICENSE`.
 
 ## Development setup
 
@@ -86,7 +86,9 @@ By submitting a pull request, patch, issue comment with code, design asset, docu
 
 You confirm that you have the right to submit the contribution and that it does not include secrets, private infrastructure data, third-party code without permission, or content that violates another license.
 
-Submitting a contribution does not give you the right to sell, resell, sublicense, repackage, host as a commercial service, publish to marketplaces, or present AE NetScope as your own product.
+Submitting a contribution does not give you ownership of AE NetScope or the right to sell, resell, sublicense, repackage, redistribute as your own product, host as a paid or commercial service, publish to marketplaces, sell managed services where AE NetScope is the product or a material part of the paid offering, or present AE NetScope as your own product.
+
+The public repository may be used for personal, educational, homelab, testing, evaluation, and internal business use under `LICENSE`. Commercialization rights are reserved by Christopher David Alberto Roque and AE White Devs LLC unless a separate written agreement says otherwise.
 
 ## Reporting vulnerabilities
 

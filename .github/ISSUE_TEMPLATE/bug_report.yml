@@ -10,6 +10,8 @@ body:
         Thanks for reporting a bug.
 
         Do not include secrets, credentials, real LAN diagrams, real IP inventories, MAC inventories, hostnames, screenshots of private infrastructure, or sensitive logs.
+
+        AE NetScope is source-available proprietary software. Contributions and reports are handled under the repository license.
   - type: textarea
     id: summary
     attributes:

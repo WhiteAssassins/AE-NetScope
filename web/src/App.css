@@ -1144,6 +1144,51 @@ textarea {
   gap: 10px;
 }
 
+.import-preview {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 17px;
+}
+
+.import-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.import-preview-head h2 {
+  margin-bottom: 8px;
+}
+
+.import-preview-head p,
+.import-preview-list span,
+.import-preview-count span {
+  color: #66728a;
+  font-size: 14px;
+}
+
+.import-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.import-preview-count,
+.import-preview-list {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e7ebf2;
+  border-radius: 10px;
+  background: #fbfcff;
+  padding: 14px;
+}
+
+.import-preview-count strong,
+.import-preview-list strong {
+  color: #172033;
+}
+
 .permissions-panel {
   overflow-x: auto;
 }
@@ -1754,6 +1799,55 @@ th {
   overflow-wrap: anywhere;
 }
 
+.update-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+  margin-bottom: 17px;
+}
+
+.update-card {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.update-card h2,
+.update-checklist h2 {
+  margin: 0 0 8px;
+  color: #172033;
+}
+
+.update-card strong {
+  color: #172033;
+  font-size: 28px;
+}
+
+.update-card p {
+  margin: 8px 0 0;
+  color: #66728a;
+}
+
+.update-checklist {
+  display: grid;
+  gap: 12px;
+}
+
+.update-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #edf0f6;
+  padding-top: 12px;
+  color: #28334a;
+}
+
+.update-checklist input {
+  width: 18px;
+  height: 18px;
+  accent-color: #1747ff;
+}
+
 .change-list {
   margin-top: -7px;
 }
@@ -2014,8 +2108,21 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .update-grid {
+    grid-template-columns: 1fr;
+  }
+
   .health-details div {
     grid-template-columns: 1fr;
+  }
+
+  .import-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-preview-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .summary-layout {
