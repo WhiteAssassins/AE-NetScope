@@ -211,6 +211,16 @@ To build a versioned image locally:
 docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha .
 ```
 
+Container images are published to GitHub Container Registry when a GitHub Release is published.
+
+Versioned release image:
+
+```text
+ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha
+```
+
+Pre-releases also update the `alpha` tag. The `latest` tag is reserved for stable non-prerelease releases.
+
 ## Production Install on Debian 13
 
 These steps assume:
