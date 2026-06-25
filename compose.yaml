@@ -1,0 +1,83 @@
+services:
+  ae-netscope:
+    build:
+      context: .
+      args:
+        AE_NETSCOPE_UID: ${AE_NETSCOPE_UID:-568}
+        AE_NETSCOPE_GID: ${AE_NETSCOPE_GID:-568}
+        VITE_API_BASE_URL: /api
+    image: ghcr.io/aewhitedevs/ae-netscope:v0.1.3-alpha
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_NAME: AE NetScope
+      APP_URL: ${APP_URL:-http://127.0.0.1:8080}
+      APP_WEB_DIST_DIR: /app/web
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://127.0.0.1:8080}
+      DATABASE_URL: postgresql+asyncpg://ae_netscope:${POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/ae_netscope
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-at-least-32-random-bytes-local-only}
+      SESSION_COOKIE_NAME: ae_netscope_session
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_SAMESITE: strict
+      SESSION_TTL_SECONDS: 28800
+      SECURITY_HEADERS_ENABLED: true
+      SECURITY_HSTS_ENABLED: ${SECURITY_HSTS_ENABLED:-false}
+      SECURITY_HSTS_MAX_AGE: 31536000
+      MAX_IMPORT_JSON_BYTES: 2000000
+      AUTH_RATE_LIMIT_PER_MINUTE: 5
+      AUTH_FAILED_LOGIN_LIMIT: 10
+      AUTH_LOCKOUT_MINUTES: 15
+      AE_NETSCOPE_RUN_MIGRATIONS: true
+    ports:
+      - "${AE_NETSCOPE_PORT:-8080}:8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live', timeout=3).read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ae_netscope
+      POSTGRES_USER: ae_netscope
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+    volumes:
+      - ae_netscope_postgres:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ae_netscope -d ae_netscope"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ae_netscope_redis:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ae_netscope_postgres:
+  ae_netscope_redis:

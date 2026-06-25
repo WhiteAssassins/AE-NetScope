@@ -2,6 +2,38 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.3-alpha - 2026-06-25
+
+### Added
+
+- Initial production container packaging with Dockerfile, compose stack, PostgreSQL, Redis, startup migrations, OCI labels, configurable non-root UID/GID, and one-port API/web serving.
+- Static web serving from FastAPI for container deployments, including SPA fallback routing.
+- PostgreSQL 18 compatible compose volume layout.
+- Alembic sync migrations through `psycopg` for production PostgreSQL migration runs.
+- API test coverage for the production static web mount.
+- README production container preview instructions for local compose validation and GHCR image building.
+
+### Changed
+
+- Updated vulnerable web and API dependency ranges so release hardening audits pass cleanly.
+- Production cookie and HSTS defaults remain secure by default while allowing explicit environment overrides for controlled HTTP container previews.
+- Isolated Redis/rate-limit behavior in API tests so local Redis state cannot cause flaky 429 responses.
+- Updated TrueNAS checklist with verified container, PostgreSQL, Redis, healthcheck, migration, and persistence progress.
+
+### Verified
+
+- Docker image builds successfully.
+- `docker compose up --build` starts AE NetScope, PostgreSQL, and Redis.
+- `/api/health/live`, `/api/health/status`, `/api/version`, and the web UI respond through the container.
+- PostgreSQL data persists after container restart.
+
+### Status
+
+- Early public preview.
+- Container path is now validated locally.
+- Not production ready.
+- Intended for homelab, review, and controlled non-sensitive trial environments.
+
 ## v0.1.2-alpha - 2026-06-15
 
 ### Added
@@ -14,6 +46,10 @@ All notable changes to AE NetScope will be documented in this file.
 - Dedicated update page with installed version, latest GitHub release, status, release link, and upgrade checklist.
 - Alembic migration tests for single-head history and clean upgrade to `head`.
 - README production guidance for backup/restore policy and SQLite local to PostgreSQL production migration.
+
+### Changed
+
+- Documentation and release materials aligned with the source-available proprietary license.
 
 ### Status
 

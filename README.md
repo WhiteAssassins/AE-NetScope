@@ -12,7 +12,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.2-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.3-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -121,6 +121,7 @@ npm run deps:audit
 - PostgreSQL for production data
 - Redis for cache, queues, and future background jobs
 - Argon2id password hashing
+- Docker/OCI image path for production-style deployments
 
 ## Configuration
 
@@ -134,6 +135,7 @@ Important variables:
 APP_ENV=production
 APP_NAME="AE NetScope"
 APP_URL=https://netscope.example.com
+APP_WEB_DIST_DIR=/app/web
 API_CORS_ORIGINS=https://netscope.example.com
 DATABASE_URL=postgresql+asyncpg://ae_netscope:CHANGE_ME@127.0.0.1:5432/ae_netscope
 REDIS_HOST=127.0.0.1
@@ -148,6 +150,9 @@ SESSION_TTL_SECONDS=28800
 SECURITY_HEADERS_ENABLED=true
 SECURITY_HSTS_ENABLED=true
 SECURITY_HSTS_MAX_AGE=31536000
+AE_NETSCOPE_RUN_MIGRATIONS=true
+AE_NETSCOPE_MIGRATION_ATTEMPTS=30
+AE_NETSCOPE_MIGRATION_RETRY_SECONDS=2
 PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
@@ -159,6 +164,51 @@ For the production web build, set:
 
 ```text
 VITE_API_BASE_URL=/api
+```
+
+## Production Container Preview
+
+AE NetScope now includes an early production-style container path. The container builds the Vite web app, installs the FastAPI API, serves both from one HTTP port, and runs Alembic migrations on startup.
+
+This path is intended for local validation, GHCR publishing, and future TrueNAS packaging work. It is still alpha software.
+
+The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` and `AE_NETSCOPE_GID` default to `568` for future TrueNAS compatibility.
+
+From the project root:
+
+```bat
+set POSTGRES_PASSWORD=replace-with-local-postgres-password
+set SESSION_SECRET=replace-with-at-least-32-random-bytes
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8080
+```
+
+Health checks:
+
+```text
+http://127.0.0.1:8080/api/health/live
+http://127.0.0.1:8080/api/health/status
+```
+
+Stop the stack:
+
+```bat
+docker compose down
+```
+
+The local compose file starts AE NetScope, PostgreSQL, and Redis. Do not use the default compose passwords for any exposed or production deployment.
+
+The PostgreSQL volume is mounted at `/var/lib/postgresql` to match the PostgreSQL 18 container layout.
+
+To build a versioned image locally:
+
+```bat
+docker build -t ghcr.io/aewhitedevs/ae-netscope:v0.1.3-alpha .
 ```
 
 ## Production Install on Debian 13

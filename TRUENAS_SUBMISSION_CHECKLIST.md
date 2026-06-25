@@ -12,41 +12,44 @@ Fuentes oficiales revisadas:
 ## Estado Actual
 
 - AE NetScope aun no esta listo para ser enviado a TrueNAS.
-- El proyecto primero necesita una imagen OCI/Docker de produccion.
-- TrueNAS Apps usa Docker Compose renderizado desde plantillas, asi que el proyecto debe funcionar de forma limpia en contenedores.
-- PostgreSQL y Redis deben quedar soportados como servicios de produccion, no solo como configuracion futura.
+- Ya existe un primer Dockerfile de produccion y un `compose.yaml` local con AE NetScope, PostgreSQL y Redis.
+- Falta validar la imagen en escenarios de reinicio, persistencia, actualizacion, reverse proxy y UID/GID compatible con TrueNAS.
+- TrueNAS Apps usa Docker Compose renderizado desde plantillas, asi que el proyecto debe seguir probandose como contenedor antes de abrir PR.
 
 ## 1. Preparar AE NetScope Para Produccion En Contenedor
 
-- [ ] Crear un `Dockerfile` de produccion para AE NetScope.
-- [ ] Construir frontend con Vite y servirlo desde la app final o desde un servidor web interno bien definido.
-- [ ] Ejecutar FastAPI con servidor ASGI apto para produccion.
-- [ ] Evitar dependencias de desarrollo dentro de la imagen final.
-- [ ] Crear un usuario no root dentro del contenedor.
-- [ ] Confirmar que la app puede correr con UID/GID configurable, idealmente compatible con el usuario `568` usado comunmente por apps de TrueNAS.
-- [ ] Exponer un solo puerto HTTP para la interfaz web y API.
-- [ ] Confirmar que `/api/health/live` y `/api/health/ready` funcionan dentro del contenedor.
-- [ ] Agregar healthcheck del contenedor usando el endpoint de readiness o liveness.
-- [ ] Hacer que las migraciones de base de datos se ejecuten de forma segura al iniciar.
+- [x] Crear un `Dockerfile` de produccion para AE NetScope.
+- [x] Construir frontend con Vite y servirlo desde la app final o desde un servidor web interno bien definido.
+- [x] Ejecutar FastAPI con servidor ASGI apto para produccion.
+- [x] Evitar dependencias de desarrollo dentro de la imagen final.
+- [x] Crear un usuario no root dentro del contenedor.
+- [x] Confirmar que la app puede correr con UID/GID configurable, idealmente compatible con el usuario `568` usado comunmente por apps de TrueNAS.
+- [x] Exponer un solo puerto HTTP para la interfaz web y API.
+- [x] Confirmar que `/api/health/live` y `/api/health/ready` funcionan dentro del contenedor.
+- [x] Agregar healthcheck del contenedor usando el endpoint de readiness o liveness.
+- [x] Hacer que las migraciones de base de datos se ejecuten de forma segura al iniciar.
 - [ ] Definir estrategia de archivos estaticos, cache y compresion.
 - [ ] Confirmar que la app funciona detras de proxy/reverse proxy.
 - [ ] Confirmar que cookies seguras, CSRF y origenes CORS se configuran correctamente con variables de entorno.
 
 ## 2. Configuracion Por Variables De Entorno
 
-- [ ] Todas las configuraciones de produccion deben poder venir de variables de entorno.
-- [ ] No debe existir ningun secreto hardcodeado.
-- [ ] No debe existir ningun usuario o password real dentro del codigo.
+- [x] Todas las configuraciones principales de produccion deben poder venir de variables de entorno.
+- [x] No debe existir ningun secreto hardcodeado.
+- [x] No debe existir ningun usuario o password real dentro del codigo.
 - [ ] Definir variables obligatorias para produccion:
-  - [ ] `APP_ENV=production`
-  - [ ] `APP_SECRET_KEY`
-  - [ ] `DATABASE_URL`
-  - [ ] `REDIS_URL`
-  - [ ] `FRONTEND_ORIGIN`
-  - [ ] `SECURE_COOKIES`
-  - [ ] `CSRF_COOKIE_SECURE`
-  - [ ] `AUTH_RATE_LIMIT_PER_MINUTE`
-  - [ ] `AUTH_FAILED_LOGIN_LIMIT`
+  - [x] `APP_ENV=production`
+  - [x] `APP_URL`
+  - [x] `APP_WEB_DIST_DIR`
+  - [x] `API_CORS_ORIGINS`
+  - [x] `DATABASE_URL`
+  - [x] `REDIS_HOST`
+  - [x] `REDIS_PORT`
+  - [x] `REDIS_DB`
+  - [x] `SESSION_SECRET`
+  - [x] `SESSION_COOKIE_SECURE`
+  - [x] `AUTH_RATE_LIMIT_PER_MINUTE`
+  - [x] `AUTH_FAILED_LOGIN_LIMIT`
 - [ ] Definir variables opcionales para bootstrap inicial:
   - [ ] `AE_NETSCOPE_ADMIN_EMAIL`
   - [ ] `AE_NETSCOPE_ADMIN_USERNAME`
@@ -57,9 +60,9 @@ Fuentes oficiales revisadas:
 ## 3. PostgreSQL Y Redis
 
 - [ ] Confirmar que la app no depende de SQLite en produccion.
-- [ ] Probar arranque limpio con PostgreSQL desde cero.
-- [ ] Probar migraciones sobre PostgreSQL.
-- [ ] Probar reinicio de la app sin perdida de datos.
+- [x] Probar arranque limpio con PostgreSQL desde cero.
+- [x] Probar migraciones sobre PostgreSQL.
+- [x] Probar reinicio de la app sin perdida de datos.
 - [ ] Probar Redis real para rate limit y sesiones/cache si aplica.
 - [ ] Decidir si Redis requiere persistencia o puede tratarse como cache efimera.
 - [ ] Preparar timeouts y reintentos razonables para DB y Redis.
@@ -102,10 +105,10 @@ Fuentes oficiales revisadas:
 
 ## 6. Pruebas Locales Antes Del Catalogo TrueNAS
 
-- [ ] Crear un `compose.yaml` de produccion local para AE NetScope, PostgreSQL y Redis.
-- [ ] Probar `docker compose up` desde cero.
-- [ ] Probar instalacion limpia sin datos previos.
-- [ ] Probar reinicio con volumen persistente.
+- [x] Crear un `compose.yaml` de produccion local para AE NetScope, PostgreSQL y Redis.
+- [x] Probar `docker compose up` desde cero.
+- [x] Probar instalacion limpia sin datos previos.
+- [x] Probar reinicio con volumen persistente.
 - [ ] Probar actualizacion entre dos versiones.
 - [ ] Probar recuperacion si PostgreSQL tarda en iniciar.
 - [ ] Probar que readiness no responde OK hasta que dependencias esten listas.

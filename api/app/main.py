@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -27,7 +29,22 @@ def create_app() -> FastAPI:
     app.middleware("http")(request_size_limit_middleware)
 
     app.include_router(api_router, prefix="/api")
+    mount_static_web(app)
     return app
+
+
+def mount_static_web(app: FastAPI) -> None:
+    if not settings.app_web_dist_dir:
+        return
+
+    static_dir = settings.app_web_dist_dir
+    index_file = f"{static_dir.rstrip('/')}/index.html"
+
+    app.mount("/assets", StaticFiles(directory=f"{static_dir.rstrip('/')}/assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa_fallback(path: str) -> FileResponse:
+        return FileResponse(index_file)
 
 
 app = create_app()

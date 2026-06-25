@@ -75,8 +75,15 @@ def test_local_database_uses_sqlite_and_production_uses_postgres() -> None:
 def test_production_enables_secure_cookie_and_hsts_effectively() -> None:
     local_settings = Settings(app_env="local")
     production_settings = Settings(app_env="production")
+    production_http_preview_settings = Settings(
+        app_env="production",
+        session_cookie_secure=False,
+        security_hsts_enabled=False,
+    )
 
     assert local_settings.effective_session_cookie_secure is False
     assert local_settings.effective_hsts_enabled is False
     assert production_settings.effective_session_cookie_secure is True
     assert production_settings.effective_hsts_enabled is True
+    assert production_http_preview_settings.effective_session_cookie_secure is False
+    assert production_http_preview_settings.effective_hsts_enabled is False

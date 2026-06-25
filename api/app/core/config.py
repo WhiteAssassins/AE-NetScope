@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     app_name: str = "AE NetScope"
+    app_web_dist_dir: str | None = None
 
     api_cors_origins: str = "http://127.0.0.1:5173"
 
@@ -33,12 +34,12 @@ class Settings(BaseSettings):
 
     session_secret: str = Field(default="change-me", repr=False)
     session_cookie_name: str = "ae_netscope_session"
-    session_cookie_secure: bool = False
+    session_cookie_secure: bool | None = None
     session_cookie_samesite: str = "strict"
     session_ttl_seconds: int = 28800
 
     security_headers_enabled: bool = True
-    security_hsts_enabled: bool = False
+    security_hsts_enabled: bool | None = None
     security_hsts_max_age: int = 31536000
 
     password_hash_algorithm: str = "argon2id"
@@ -75,11 +76,15 @@ class Settings(BaseSettings):
 
     @cached_property
     def effective_session_cookie_secure(self) -> bool:
-        return self.session_cookie_secure or self.app_env == "production"
+        if self.session_cookie_secure is not None:
+            return self.session_cookie_secure
+        return self.app_env == "production"
 
     @cached_property
     def effective_hsts_enabled(self) -> bool:
-        return self.security_hsts_enabled or self.app_env == "production"
+        if self.security_hsts_enabled is not None:
+            return self.security_hsts_enabled
+        return self.app_env == "production"
 
 
 settings = Settings()
