@@ -1,7 +1,7 @@
 # AE NetScope
 
 [![CI](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml/badge.svg)](https://github.com/WhiteAssassins/AE-NetScope/actions/workflows/ci.yml)
-![License](https://img.shields.io/badge/license-source--available%20proprietary-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-early%20public%20preview-yellow)
 
 AE NetScope is a self-hosted web app for organizing LAN inventory data such as devices, IP addresses, MAC addresses, subnets, VLANs, services, hardware details, and technical notes.
@@ -594,10 +594,8 @@ For support boundaries, see `SUPPORT.md`.
 
 ## License
 
-AE NetScope is public source-available software under a proprietary license. You may use it for personal, educational, homelab, testing, evaluation, and internal business purposes, including inside a company or organization.
+AE NetScope is free and open source software released under the MIT License.
 
 Copyright is held by Christopher David Alberto Roque, also known as [WhiteAssassins](https://github.com/WhiteAssassins), CEO of AE White Devs LLC.
-
-You may not sell, resell, sublicense, repackage, redistribute as your own product, offer as a paid hosted service, publish to marketplaces, sell managed services where AE NetScope is the product or a material part of the paid offering, or use project branding to imply ownership or endorsement without written permission from Christopher David Alberto Roque or AE White Devs LLC.
 
 See `LICENSE` for the full terms.
