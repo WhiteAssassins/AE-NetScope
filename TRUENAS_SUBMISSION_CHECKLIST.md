@@ -11,10 +11,10 @@ Fuentes oficiales revisadas:
 
 ## Estado Actual
 
-- AE NetScope aun no esta listo para ser enviado a TrueNAS.
-- Ya existe un primer Dockerfile de produccion y un `compose.yaml` local con AE NetScope, PostgreSQL y Redis.
-- Falta validar la imagen en escenarios de reinicio, persistencia, actualizacion, reverse proxy y UID/GID compatible con TrueNAS.
-- TrueNAS Apps usa Docker Compose renderizado desde plantillas, asi que el proyecto debe seguir probandose como contenedor antes de abrir PR.
+- AE NetScope aun no esta listo para ser enviado a TrueNAS upstream.
+- Ya existe un Dockerfile de produccion, imagen publica en GHCR y `compose.yaml` local con AE NetScope, PostgreSQL y Redis.
+- Ya existe un primer staging de app TrueNAS en `truenas/ix-dev/community/ae-netscope`.
+- Falta validar la app dentro de un fork de `truenas/apps`, probarla en TrueNAS real, preparar icono/screenshots y confirmar aceptacion de licencia.
 
 ## 1. Preparar AE NetScope Para Produccion En Contenedor
 
@@ -46,6 +46,7 @@ Fuentes oficiales revisadas:
   - [x] `REDIS_HOST`
   - [x] `REDIS_PORT`
   - [x] `REDIS_DB`
+  - [x] `REDIS_PASSWORD`
   - [x] `SESSION_SECRET`
   - [x] `SESSION_COOKIE_SECURE`
   - [x] `AUTH_RATE_LIMIT_PER_MINUTE`
@@ -55,7 +56,7 @@ Fuentes oficiales revisadas:
   - [ ] `AE_NETSCOPE_ADMIN_USERNAME`
   - [ ] `AE_NETSCOPE_ADMIN_PASSWORD`
 - [ ] Si se usan variables de bootstrap, deben aplicar solo cuando no exista ningun usuario admin.
-- [ ] Documentar que los passwords deben pasarse como secretos/valores privados, no en archivos committeados.
+- [x] Documentar que los passwords deben pasarse como secretos/valores privados, no en archivos committeados.
 
 ## 3. PostgreSQL Y Redis
 
@@ -63,8 +64,8 @@ Fuentes oficiales revisadas:
 - [x] Probar arranque limpio con PostgreSQL desde cero.
 - [x] Probar migraciones sobre PostgreSQL.
 - [x] Probar reinicio de la app sin perdida de datos.
-- [ ] Probar Redis real para rate limit y sesiones/cache si aplica.
-- [ ] Decidir si Redis requiere persistencia o puede tratarse como cache efimera.
+- [x] Probar Redis real para rate limit y sesiones/cache si aplica.
+- [x] Decidir si Redis requiere persistencia o puede tratarse como cache efimera.
 - [ ] Preparar timeouts y reintentos razonables para DB y Redis.
 - [ ] Confirmar que `/api/health/ready` falla si PostgreSQL o Redis no estan disponibles.
 
@@ -78,7 +79,7 @@ Fuentes oficiales revisadas:
 - [ ] Mantener cookies HttpOnly.
 - [ ] Activar cookies secure en produccion.
 - [ ] Mantener CSRF para acciones autenticadas.
-- [ ] Mantener rate limit con Redis.
+- [x] Mantener rate limit con Redis.
 - [ ] Confirmar bloqueo/desbloqueo de usuarios desde admin.
 - [ ] Confirmar que el admin puede revocar sesiones.
 - [ ] Confirmar que no hay bypass de permisos en endpoints de inventario, usuarios, auditoria y exportacion.
@@ -88,18 +89,18 @@ Fuentes oficiales revisadas:
 
 ## 5. Imagen Publica
 
-- [ ] Publicar imagen en GHCR o registro equivalente.
-- [ ] Preferir `ghcr.io/aewhitedevs/ae-netscope` o ruta definitiva del propietario.
-- [ ] Usar tags versionados, por ejemplo `v0.1.0`.
-- [ ] Evitar depender solo de `latest`.
-- [ ] Generar imagen linux/amd64.
+- [x] Publicar imagen en GHCR o registro equivalente.
+- [x] Usar ruta publica actual `ghcr.io/whiteassassins/ae-netscope`.
+- [x] Usar tags versionados, por ejemplo `v0.1.3-alpha`.
+- [x] Evitar depender solo de `latest`.
+- [x] Generar imagen linux/amd64.
 - [ ] Si se puede, preparar multi-arch linux/amd64 y linux/arm64.
 - [ ] Agregar labels OCI:
-  - [ ] `org.opencontainers.image.title`
-  - [ ] `org.opencontainers.image.description`
-  - [ ] `org.opencontainers.image.source`
-  - [ ] `org.opencontainers.image.licenses` debe reflejar la licencia source-available propietaria de AE NetScope, no MIT/Apache/GPL.
-  - [ ] `org.opencontainers.image.version`
+  - [x] `org.opencontainers.image.title`
+  - [x] `org.opencontainers.image.description`
+  - [x] `org.opencontainers.image.source`
+  - [x] `org.opencontainers.image.licenses` debe reflejar la licencia source-available propietaria de AE NetScope, no MIT/Apache/GPL.
+  - [x] `org.opencontainers.image.version`
 - [ ] Ejecutar escaneo de vulnerabilidades de la imagen.
 - [ ] Definir politica de actualizacion de tags.
 
@@ -122,20 +123,20 @@ Fuentes oficiales revisadas:
 - [ ] Revisar PRs abiertos relacionados.
 - [ ] Abrir issue o draft PR temprano si la app aun no existe.
 - [ ] Hacer fork de `https://github.com/truenas/apps`.
-- [ ] Crear la app en `ix-dev/community/ae-netscope`.
+- [x] Crear staging de la app en `truenas/ix-dev/community/ae-netscope`.
 - [ ] No editar archivos auto-generados fuera de `ix-dev/` o `library/`.
-- [ ] Usar una app similar como base, idealmente una app web con PostgreSQL y Redis.
+- [x] Usar una app similar como base, idealmente una app web con PostgreSQL y Redis.
 
 ## 8. Archivos Requeridos Por TrueNAS
 
 Dentro de `ix-dev/community/ae-netscope` deben existir:
 
-- [ ] `app.yaml`
-- [ ] `ix_values.yaml`
-- [ ] `questions.yaml`
-- [ ] `README.md`
-- [ ] `templates/docker-compose.yaml`
-- [ ] `templates/test_values/basic-values.yaml`
+- [x] `app.yaml`
+- [x] `ix_values.yaml`
+- [x] `questions.yaml`
+- [x] `README.md`
+- [x] `templates/docker-compose.yaml`
+- [x] `templates/test_values/basic-values.yaml`
 
 Archivos opcionales segun necesidad:
 
@@ -145,78 +146,75 @@ Archivos opcionales segun necesidad:
 
 ## 9. `app.yaml`
 
-- [ ] `name` debe ser `ae-netscope`.
-- [ ] `title` debe ser `AE NetScope`.
-- [ ] `train` debe ser `community`.
-- [ ] `version` debe empezar en `1.0.0` para la definicion de app TrueNAS.
-- [ ] `app_version` debe coincidir con la version real de AE NetScope o tag de imagen.
-- [ ] `description` debe ser corta y clara.
-- [ ] `home` debe apuntar al sitio del proyecto.
-- [ ] `sources` debe apuntar al repo publico.
-- [ ] `keywords` debe incluir terminos como `network`, `inventory`, `lan`, `sysadmin`.
-- [ ] `categories` debe usar una categoria aceptada por el catalogo.
+- [x] `name` debe ser `ae-netscope`.
+- [x] `title` debe ser `AE NetScope`.
+- [x] `train` debe ser `community`.
+- [x] `version` debe empezar en `1.0.0` para la definicion de app TrueNAS.
+- [x] `app_version` debe coincidir con la version real de AE NetScope o tag de imagen.
+- [x] `description` debe ser corta y clara.
+- [x] `home` debe apuntar al sitio del proyecto.
+- [x] `sources` debe apuntar al repo publico.
+- [x] `keywords` debe incluir terminos como `network`, `inventory`, `lan`, `sysadmin`.
+- [x] `categories` debe usar una categoria aceptada por el catalogo.
 - [ ] `icon` debe usar una URL valida cuando TrueNAS la proporcione/suba a CDN.
 - [ ] `screenshots` deben estar preparadas para adjuntar en PR o usar URLs finales del CDN.
-- [ ] `run_as_context` debe documentar UID/GID no root.
-- [ ] `capabilities` debe estar vacio salvo que sea estrictamente necesario.
-- [ ] `host_mounts` debe estar vacio salvo que sea estrictamente necesario.
+- [x] `run_as_context` debe documentar UID/GID no root.
+- [x] `capabilities` debe estar vacio salvo que sea estrictamente necesario.
+- [x] `host_mounts` debe estar vacio salvo que sea estrictamente necesario.
 
 ## 10. `ix_values.yaml`
 
-- [ ] Definir imagen principal de AE NetScope.
-- [ ] Definir imagen de PostgreSQL si se usa dependencia incluida.
-- [ ] Definir imagen de Redis si se usa dependencia incluida.
-- [ ] Las claves de imagen deben terminar en `image`.
-- [ ] Preferir GHCR sobre Docker Hub si aplica.
-- [ ] Usar tags exactos.
-- [ ] Definir constantes para nombres de contenedores.
-- [ ] Definir constantes para usuario, base de datos y rutas internas.
-- [ ] No guardar passwords ni secretos reales.
+- [x] Definir imagen principal de AE NetScope.
+- [x] Definir imagen de PostgreSQL si se usa dependencia incluida.
+- [x] Definir imagen de Redis si se usa dependencia incluida.
+- [x] Las claves de imagen deben terminar en `image`.
+- [x] Preferir GHCR sobre Docker Hub si aplica.
+- [x] Usar tags exactos.
+- [x] Definir constantes para nombres de contenedores.
+- [x] Definir constantes para usuario, base de datos y rutas internas.
+- [x] No guardar passwords ni secretos reales.
 
 ## 11. `questions.yaml`
 
-- [ ] Crear grupo de configuracion de AE NetScope.
-- [ ] Crear grupo de red.
-- [ ] Crear grupo de almacenamiento.
-- [ ] Crear grupo de recursos.
-- [ ] Crear grupo de labels si aplica.
-- [ ] Puerto web configurable.
-- [ ] Configuracion de dominio/origen publico.
-- [ ] Configuracion de secure cookies.
-- [ ] Password inicial marcado como `private` si se expone en formulario.
-- [ ] Variables sensibles marcadas como privadas.
-- [ ] Validar minimos/maximos de puertos.
+- [x] Crear grupo de configuracion de AE NetScope.
+- [x] Crear grupo de red.
+- [x] Crear grupo de almacenamiento.
+- [x] Crear grupo de recursos.
+- [x] Crear grupo de labels si aplica.
+- [x] Puerto web configurable.
+- [x] Configuracion de dominio/origen publico.
+- [x] Configuracion de secure cookies.
+- [x] Variables sensibles marcadas como privadas.
+- [x] Validar minimos/maximos de puertos.
 - [ ] Validar formato de email admin si TrueNAS schema lo permite.
 - [ ] No pedir configuraciones innecesarias al usuario final.
-- [ ] Defaults seguros y razonables.
+- [x] Defaults seguros y razonables.
 
 ## 12. `templates/docker-compose.yaml`
 
-- [ ] Usar la libreria de renderizado de TrueNAS.
-- [ ] Crear contenedor principal de AE NetScope.
-- [ ] Configurar usuario no root.
-- [ ] Configurar environment desde valores de TrueNAS.
-- [ ] Agregar puerto web.
-- [ ] Agregar healthcheck.
-- [ ] Agregar portal para Web UI.
-- [ ] Agregar dependencia PostgreSQL usando la libreria si corresponde.
-- [ ] Agregar dependencia Redis usando la libreria si corresponde.
-- [ ] Agregar volumen persistente para PostgreSQL.
-- [ ] Agregar volumen persistente o efimero para Redis segun decision.
-- [ ] Agregar volumen de configuracion si AE NetScope lo necesita.
-- [ ] Usar `depends_on` con `service_healthy` donde aplique.
-- [ ] Evitar privilegios elevados.
-- [ ] Evitar `network_mode: host` salvo necesidad real.
-- [ ] Evitar mounts del host salvo necesidad real.
+- [x] Usar la libreria de renderizado de TrueNAS.
+- [x] Crear contenedor principal de AE NetScope.
+- [x] Configurar usuario no root.
+- [x] Configurar environment desde valores de TrueNAS.
+- [x] Agregar puerto web.
+- [x] Agregar healthcheck.
+- [x] Agregar portal para Web UI.
+- [x] Agregar dependencia PostgreSQL usando la libreria si corresponde.
+- [x] Agregar dependencia Redis usando la libreria si corresponde.
+- [x] Agregar volumen persistente para PostgreSQL.
+- [x] Agregar volumen persistente o efimero para Redis segun decision.
+- [x] Usar `depends_on` con `service_healthy` donde aplique.
+- [x] Evitar privilegios elevados.
+- [x] Evitar `network_mode: host` salvo necesidad real.
+- [x] Evitar mounts del host salvo necesidad real.
 
 ## 13. `templates/test_values`
 
-- [ ] Crear `basic-values.yaml`.
-- [ ] Usar rutas de prueba bajo `/opt/tests/...`.
-- [ ] Usar puerto publicado no privilegiado.
-- [ ] Incluir todos los valores requeridos por `questions.yaml`.
-- [ ] Incluir valores de almacenamiento.
-- [ ] Incluir limites de CPU y memoria.
+- [x] Crear `basic-values.yaml`.
+- [x] Usar puerto publicado no privilegiado.
+- [x] Incluir todos los valores requeridos por `questions.yaml`.
+- [x] Incluir valores de almacenamiento.
+- [x] Incluir limites de CPU y memoria.
 - [ ] Agregar otro test si existe modo con host path.
 - [ ] Agregar otro test si existe configuracion alternativa importante.
 
@@ -240,11 +238,11 @@ Comandos esperados dentro del fork de `truenas/apps`:
 
 ## 15. Documentacion Para Usuarios TrueNAS
 
-- [ ] README corto dentro de la app TrueNAS.
-- [ ] Descripcion clara de que AE NetScope es inventario LAN/sysadmin.
+- [x] README corto dentro de la app TrueNAS.
+- [x] Descripcion clara de que AE NetScope es inventario LAN/sysadmin.
 - [ ] Instrucciones de primer login.
 - [ ] Explicar que PostgreSQL guarda datos persistentes.
-- [ ] Explicar si Redis es cache o persistente.
+- [x] Explicar si Redis es cache o persistente.
 - [ ] Explicar como resetear admin de forma segura si se implementa.
 - [ ] Preparar capturas limpias sin datos reales.
 - [ ] Preparar icono cuadrado de buena calidad.
@@ -282,7 +280,7 @@ Cuando trabajemos dentro del fork de `truenas/apps`, no deben commitearse:
 - [ ] Lint frontend pasa.
 - [ ] Imagen de produccion construye sin errores.
 - [ ] Compose local de produccion funciona.
-- [ ] Imagen publicada con tag versionado.
+- [x] Imagen publicada con tag versionado.
 - [ ] Escaneo de secretos limpio.
 - [ ] Escaneo de vulnerabilidades revisado.
 - [ ] Documentacion publica actualizada.

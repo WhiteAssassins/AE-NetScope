@@ -1,6 +1,6 @@
 services:
   ae-netscope:
-    image: ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.1.4-alpha
     depends_on:
       postgres:
         condition: service_healthy
@@ -16,6 +16,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-change-me-redis-local-only}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-at-least-32-random-bytes-local-only}
       SESSION_COOKIE_NAME: ae_netscope_session
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
@@ -62,12 +63,21 @@ services:
 
   redis:
     image: redis:8-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-change-me-redis-local-only}
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:-change-me-redis-local-only}",
+      ]
     volumes:
       - ae_netscope_redis:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-change-me-redis-local-only}\" ping"]
       interval: 10s
       timeout: 5s
       retries: 5

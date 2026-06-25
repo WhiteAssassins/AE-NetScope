@@ -37,4 +37,5 @@ Thumbs.db
 .idea/
 .vscode/
 TRUENAS_SUBMISSION_CHECKLIST.md
+truenas/**/templates/rendered/
 TRUENAS_SUBMISSION_CHECKLIST.md

@@ -2,6 +2,33 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.4-alpha - 2026-06-25
+
+### Added
+
+- Redis password support through `REDIS_PASSWORD` for production and TrueNAS deployments.
+- Initial TrueNAS Apps community package staging under `truenas/ix-dev/community/ae-netscope`.
+- TrueNAS app metadata, questions, image values, Docker Compose template, generated library compatibility, and basic test values.
+
+### Changed
+
+- Updated local production compose to run Redis with password authentication.
+- Updated GHCR image references and internal project version to `0.1.4-alpha`.
+- Updated TrueNAS packaging to target AE NetScope `v0.1.4-alpha`.
+- Updated TrueNAS submission checklist with current packaging and validation status.
+
+### Verified
+
+- API test suite passes.
+- TrueNAS app YAML validates statically.
+- TrueNAS render path was validated in the official validation container for the staged app package.
+
+### Status
+
+- Early public preview.
+- Not production ready.
+- Intended for TrueNAS, homelab, review, and controlled non-sensitive trial environments.
+
 ## v0.1.3-alpha - 2026-06-25
 
 ### Added

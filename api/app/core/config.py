@@ -1,5 +1,6 @@
 from functools import cached_property
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     redis_db: int = 0
+    redis_password: str | None = Field(default=None, repr=False)
     redis_rate_limit_fail_open: bool = True
 
     max_import_json_bytes: int = 2_000_000
@@ -72,6 +74,9 @@ class Settings(BaseSettings):
 
     @cached_property
     def redis_url(self) -> str:
+        if self.redis_password:
+            password = quote_plus(self.redis_password)
+            return f"redis://default:{password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @cached_property
