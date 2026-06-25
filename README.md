@@ -208,7 +208,7 @@ The PostgreSQL volume is mounted at `/var/lib/postgresql` to match the PostgreSQ
 To build a versioned image locally:
 
 ```bat
-docker build -t ghcr.io/aewhitedevs/ae-netscope:v0.1.3-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha .
 ```
 
 ## Production Install on Debian 13
