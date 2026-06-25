@@ -167,7 +167,9 @@ For the production web build, set:
 VITE_API_BASE_URL=/api
 ```
 
-## Container Preview
+## Docker Installation
+
+These Docker instructions are the supported alpha container installation path for local testing and TrueNAS packaging validation.
 
 AE NetScope includes an early production-style container path. The public image serves the built Vite web app and FastAPI API from one HTTP port, starts with PostgreSQL and Redis, and runs Alembic migrations on startup.
 
