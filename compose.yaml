@@ -6,7 +6,7 @@ services:
         AE_NETSCOPE_UID: ${AE_NETSCOPE_UID:-568}
         AE_NETSCOPE_GID: ${AE_NETSCOPE_GID:-568}
         VITE_API_BASE_URL: /api
-    image: ghcr.io/aewhitedevs/ae-netscope:v0.1.3-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha
     depends_on:
       postgres:
         condition: service_healthy
