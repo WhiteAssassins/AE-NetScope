@@ -1,0 +1,8 @@
+services:
+  ae-netscope:
+    build:
+      context: .
+      args:
+        AE_NETSCOPE_UID: ${AE_NETSCOPE_UID:-568}
+        AE_NETSCOPE_GID: ${AE_NETSCOPE_GID:-568}
+        VITE_API_BASE_URL: /api

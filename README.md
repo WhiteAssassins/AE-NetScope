@@ -166,20 +166,25 @@ For the production web build, set:
 VITE_API_BASE_URL=/api
 ```
 
-## Production Container Preview
+## Container Preview
 
-AE NetScope now includes an early production-style container path. The container builds the Vite web app, installs the FastAPI API, serves both from one HTTP port, and runs Alembic migrations on startup.
+AE NetScope includes an early production-style container path. The public image serves the built Vite web app and FastAPI API from one HTTP port, starts with PostgreSQL and Redis, and runs Alembic migrations on startup.
 
-This path is intended for local validation, GHCR publishing, and future TrueNAS packaging work. It is still alpha software.
+This path is intended for local validation, public alpha testing, and future TrueNAS packaging work. It is still alpha software.
 
-The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` and `AE_NETSCOPE_GID` default to `568` for future TrueNAS compatibility.
+Public image:
+
+```text
+ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha
+```
 
 From the project root:
 
 ```bat
 set POSTGRES_PASSWORD=replace-with-local-postgres-password
 set SESSION_SECRET=replace-with-at-least-32-random-bytes
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
 
 Then open:
@@ -205,19 +210,35 @@ The local compose file starts AE NetScope, PostgreSQL, and Redis. Do not use the
 
 The PostgreSQL volume is mounted at `/var/lib/postgresql` to match the PostgreSQL 18 container layout.
 
-To build a versioned image locally:
+To stop the stack and keep data volumes:
+
+```bat
+docker compose down
+```
+
+To remove the stack and local data volumes:
+
+```bat
+docker compose down -v
+```
+
+### Local Image Build
+
+The default `compose.yaml` uses the published GHCR image and does not build locally. To build from source, use the build override:
+
+```bat
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
+The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` and `AE_NETSCOPE_GID` default to `568` for future TrueNAS compatibility.
+
+To build the image manually:
 
 ```bat
 docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.
-
-Versioned release image:
-
-```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.3-alpha
-```
 
 Pre-releases also update the `alpha` tag. The `latest` tag is reserved for stable non-prerelease releases.
 
