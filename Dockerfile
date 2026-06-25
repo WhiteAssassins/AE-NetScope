@@ -18,9 +18,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     API_PORT=8000
 
 LABEL org.opencontainers.image.title="AE NetScope" \
-    org.opencontainers.image.description="Source-available LAN inventory and sysadmin network documentation web app." \
+    org.opencontainers.image.description="Open source LAN inventory and sysadmin network documentation web app." \
     org.opencontainers.image.source="https://github.com/WhiteAssassins/AE-NetScope" \
-    org.opencontainers.image.licenses="AE-NetScope-Source-Available-Proprietary" \
+    org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.version="0.1.4-alpha"
 
 WORKDIR /app

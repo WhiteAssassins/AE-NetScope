@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        AE NetScope is source-available proprietary software. Documentation suggestions are handled under the repository license.
+        AE NetScope is free and open source software under the MIT License. Documentation suggestions are handled under the repository license.
   - type: textarea
     id: location
     attributes:
