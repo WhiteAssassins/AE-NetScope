@@ -124,7 +124,11 @@ jobs:
           echo "- Coverage report: web/coverage/" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 35 web/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          if [ -f web/test-report.txt ]; then
+            tail -n 35 web/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "web/test-report.txt was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload web coverage report
@@ -135,4 +139,4 @@ jobs:
           path: |
             web/coverage
             web/test-report.txt
-          if-no-files-found: error
+          if-no-files-found: warn

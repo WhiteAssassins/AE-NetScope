@@ -1,5 +1,5 @@
 import { FileText, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord } from "../types";
@@ -22,26 +22,17 @@ export default function NotesView({
   onOpenDevice,
   permissions,
 }: NotesViewProps) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("with-notes");
-  const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(null);
-  const [notes, setNotes] = useState("");
+  const initialFocusedDevice = focusDeviceId
+    ? devices.find((device) => device.id === focusDeviceId) ?? null
+    : null;
+  const [query, setQuery] = useState(initialFocusedDevice?.name ?? "");
+  const [filter, setFilter] = useState(initialFocusedDevice ? "all" : "with-notes");
+  const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(initialFocusedDevice);
+  const [notes, setNotes] = useState(initialFocusedDevice?.notes ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const canUpdateDevices = hasPermission(permissions, "devices:update");
-
-  useEffect(() => {
-    if (!focusDeviceId || !devices.length) {
-      return;
-    }
-    const focusedDevice = devices.find((device) => device.id === focusDeviceId);
-    if (focusedDevice) {
-      setFilter("all");
-      setQuery(focusedDevice.name);
-      selectDevice(focusedDevice);
-    }
-  }, [devices, focusDeviceId]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const devicesWithNotes = devices.filter((device) => Boolean(device.notes?.trim())).length;

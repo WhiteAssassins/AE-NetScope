@@ -356,10 +356,6 @@ function App() {
     : [];
 
   useEffect(() => {
-    setActiveSearchIndex(0);
-  }, [normalizedSearch]);
-
-  useEffect(() => {
     function handleGlobalShortcuts(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -396,6 +392,7 @@ function App() {
     if (!searchResults.length) {
       return;
     }
+    const selectedSearchIndex = Math.min(activeSearchIndex, searchResults.length - 1);
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActiveSearchIndex((current) => (current + 1) % searchResults.length);
@@ -406,7 +403,7 @@ function App() {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      openSearchResult(searchResults[activeSearchIndex] ?? searchResults[0]);
+      openSearchResult(searchResults[selectedSearchIndex] ?? searchResults[0]);
     }
   }
 
@@ -565,7 +562,10 @@ function App() {
             <label className="search-box">
               <Search size={20} strokeWidth={1.8} />
               <input
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setActiveSearchIndex(0);
+                }}
                 onFocus={() => setActiveTopbarMenu(null)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Buscar dispositivos, IPs, VLANs, usuarios..."
@@ -580,7 +580,7 @@ function App() {
                   searchResults.map((result, index) => (
                     <button
                       className={
-                        index === activeSearchIndex
+                        index === Math.min(activeSearchIndex, searchResults.length - 1)
                           ? "topbar-menu-item search-result-active"
                           : "topbar-menu-item"
                       }
@@ -838,6 +838,7 @@ function App() {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando notas...</div>}>
           <NotesView
+            key={`notes-${focusTarget?.view === "notes" ? focusTarget.id ?? "all" : "all"}`}
             csrfToken={csrfToken}
             devices={devices}
             focusDeviceId={focusTarget?.view === "notes" ? focusTarget.id : undefined}
