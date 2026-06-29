@@ -4,7 +4,6 @@ import {
   ChevronDown,
   CircleHelp,
   Clock3,
-  DatabaseBackup,
   FileText,
   HardDrive,
   HeartPulse,
@@ -22,7 +21,8 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { API_BASE_URL, fetchInventoryData, fetchVersionInfo } from "./api";
 import "./App.css";
 import type {
@@ -43,6 +43,11 @@ import type {
 type NavItem = { label: string; icon: LucideIcon };
 type TopbarMenu = "notifications" | "help" | "user" | null;
 type SearchTarget = { view: ViewName; id?: number; query?: string };
+type SearchResult = {
+  title: string;
+  meta: string;
+  target: SearchTarget;
+};
 type LocalSettings = {
   compactTables: boolean;
   defaultView: string;
@@ -80,10 +85,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
   { label: "Historial", items: [{ label: "Cambios", icon: Clock3 }] },
   {
     label: "Herramientas",
-    items: [
-      { label: "Importar / Exportar", icon: Import },
-      { label: "Respaldos", icon: DatabaseBackup },
-    ],
+    items: [{ label: "Datos", icon: Import }],
   },
   {
     label: "Configuración",
@@ -99,7 +101,6 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 
 const DashboardView = lazy(() => import("./views/DashboardView"));
 const AuditView = lazy(() => import("./views/AuditView"));
-const BackupsView = lazy(() => import("./views/BackupsView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
 const HardwareView = lazy(() => import("./views/HardwareView"));
@@ -109,6 +110,7 @@ const IpMacsView = lazy(() => import("./views/IpMacsView"));
 const LoginScreen = lazy(() => import("./views/LoginScreen"));
 const NetworksView = lazy(() => import("./views/NetworksView"));
 const NotesView = lazy(() => import("./views/NotesView"));
+const ProfileView = lazy(() => import("./views/ProfileView"));
 const RolesPermissionsView = lazy(() => import("./views/RolesPermissionsView"));
 const ServicesView = lazy(() => import("./views/ServicesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
@@ -137,10 +139,12 @@ function App() {
   const [setupRequired, setSetupRequired] = useState(false);
   const [sessionMessage, setSessionMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [activeTopbarMenu, setActiveTopbarMenu] = useState<TopbarMenu>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchVersionInfo()
@@ -244,7 +248,7 @@ function App() {
   }
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const searchResults = normalizedSearch
+  const searchResults: SearchResult[] = normalizedSearch
     ? [
         ...devices.map((device) => ({
           title: device.name,
@@ -261,6 +265,43 @@ function App() {
             .join(" - "),
           target: { view: "devices" as ViewName, id: device.id },
         })),
+        ...devices
+          .filter((device) =>
+            [
+              device.vendor,
+              device.model,
+              device.serial_number,
+              device.asset_tag,
+              device.operating_system,
+              device.firmware_version,
+              device.cpu,
+              device.memory,
+              device.storage,
+              device.warranty_expires,
+              device.location,
+            ].some(Boolean),
+          )
+          .map((device) => ({
+            title: `Hardware: ${device.name}`,
+            meta: [
+              device.vendor,
+              device.model,
+              device.serial_number ? `SN ${device.serial_number}` : null,
+              device.asset_tag ? `Asset ${device.asset_tag}` : null,
+              device.operating_system,
+              device.location,
+            ]
+              .filter(Boolean)
+              .join(" - "),
+            target: { view: "devices" as ViewName, id: device.id },
+          })),
+        ...devices
+          .filter((device) => device.notes?.trim())
+          .map((device) => ({
+            title: `Nota: ${device.name}`,
+            meta: device.notes ?? "",
+            target: { view: "notes" as ViewName, id: device.id },
+          })),
         ...ipMacs.map((record) => ({
           title: record.address,
           meta: `${record.device_name ?? "Sin dispositivo"} - ${record.mac_address ?? "sin MAC"}`,
@@ -286,10 +327,55 @@ function App() {
           meta: `${managedUser.username} - ${managedUser.role}`,
           target: { view: "users" as ViewName, id: managedUser.id },
         })),
+        ...auditEvents.map((event) => ({
+          title: event.message,
+          meta: `${event.event_type} - ${event.actor_email ?? "Sistema"} - ${new Date(
+            event.created_at,
+          ).toLocaleString()}`,
+          target: { view: "audit" as ViewName, query: event.message },
+        })),
+        ...[
+          { title: "Dashboard", meta: "Resumen general de la red", view: "dashboard" },
+          { title: "Datos", meta: "Backups, restauracion, JSON y CSV", view: "importExport" },
+          { title: "Cambios", meta: "Auditoria e historial de actividad", view: "audit" },
+          { title: "Usuarios", meta: "Roles, bloqueos y sesiones", view: "users" },
+          { title: "Perfil", meta: "Cuenta, correo, contrasena y permisos", view: "profile" },
+          { title: "Roles y permisos", meta: "Matriz de permisos", view: "roles" },
+          { title: "Estado", meta: "Health checks de API, base de datos y Redis", view: "health" },
+          { title: "Actualizaciones", meta: "Version instalada y releases", view: "updates" },
+          { title: "Ajustes", meta: "Preferencias locales y correo", view: "settings" },
+          { title: "Soporte", meta: "Contacto, web y GitHub", view: "support" },
+        ].map((item) => ({
+          title: item.title,
+          meta: item.meta,
+          target: { view: item.view as ViewName },
+        })),
       ]
         .filter((item) => `${item.title} ${item.meta}`.toLowerCase().includes(normalizedSearch))
         .slice(0, 8)
     : [];
+
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [normalizedSearch]);
+
+  useEffect(() => {
+    function handleGlobalShortcuts(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setActiveTopbarMenu(null);
+        searchInputRef.current?.focus();
+      }
+      if (event.key === "Escape" && normalizedSearch) {
+        event.preventDefault();
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    }
+
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [normalizedSearch]);
 
   function openTopbarMenu(menu: Exclude<TopbarMenu, null>) {
     setActiveTopbarMenu((current) => (current === menu ? null : menu));
@@ -300,6 +386,28 @@ function App() {
     setFocusTarget(target ?? null);
     setSearchQuery("");
     setActiveTopbarMenu(null);
+  }
+
+  function openSearchResult(result: SearchResult) {
+    goToView(result.target.view, result.target);
+  }
+
+  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!searchResults.length) {
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSearchIndex((current) => (current + 1) % searchResults.length);
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSearchIndex((current) => (current - 1 + searchResults.length) % searchResults.length);
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openSearchResult(searchResults[activeSearchIndex] ?? searchResults[0]);
+    }
   }
 
   function navLabelToView(label: string): ViewName | null {
@@ -313,8 +421,7 @@ function App() {
       Hardware: "hardware",
       "Notas técnicas": "notes",
       Cambios: "audit",
-      Respaldos: "backups",
-      "Importar / Exportar": "importExport",
+      Datos: "importExport",
       "Roles y permisos": "roles",
       Usuarios: "users",
       Estado: "health",
@@ -460,7 +567,9 @@ function App() {
               <input
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onFocus={() => setActiveTopbarMenu(null)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Buscar dispositivos, IPs, VLANs, usuarios..."
+                ref={searchInputRef}
                 value={searchQuery}
               />
               <kbd>Ctrl K</kbd>
@@ -468,11 +577,15 @@ function App() {
             {normalizedSearch && (
               <div className="topbar-panel search-panel">
                 {searchResults.length ? (
-                  searchResults.map((result) => (
+                  searchResults.map((result, index) => (
                     <button
-                      className="topbar-menu-item"
+                      className={
+                        index === activeSearchIndex
+                          ? "topbar-menu-item search-result-active"
+                          : "topbar-menu-item"
+                      }
                       key={`${result.target.view}-${result.title}-${result.meta}`}
-                      onClick={() => goToView(result.target.view, result.target)}
+                      onClick={() => openSearchResult(result)}
                     >
                       <strong>{result.title}</strong>
                       <span>{result.meta}</span>
@@ -537,8 +650,8 @@ function App() {
                     <span>Correos, web oficial y GitHub.</span>
                   </button>
                   <button className="topbar-menu-item" onClick={() => goToView("importExport")}>
-                    <strong>Importar / Exportar</strong>
-                    <span>Respaldos portables del inventario.</span>
+                    <strong>Datos</strong>
+                    <span>Backups, restauracion y exportaciones.</span>
                   </button>
                   <button className="topbar-menu-item" onClick={() => goToView("audit")}>
                     <strong>Historial de cambios</strong>
@@ -563,6 +676,10 @@ function App() {
                     <span>{currentUser.email}</span>
                     <small>{currentUser.role}</small>
                   </div>
+                  <button className="topbar-menu-item" onClick={() => goToView("profile")}>
+                    <strong>Perfil</strong>
+                    <span>Cuenta, correo y permisos.</span>
+                  </button>
                   <button
                     className="topbar-menu-item"
                     onClick={() => {
@@ -594,9 +711,14 @@ function App() {
         <footer className="footer">
           <span>AE NetScope {versionInfo ? `v${versionInfo.version}` : ""}</span>
           <div>
-            <button className="footer-link button-reset" onClick={() => goToView("support")}>
+            <a
+              className="footer-link"
+              href="https://github.com/WhiteAssassins/AE-NetScope#readme"
+              rel="noreferrer"
+              target="_blank"
+            >
               <FileText size={17} /> Documentación
-            </button>
+            </a>
             <button className="footer-link button-reset" onClick={() => goToView("support")}>
               <CircleHelp size={17} /> Soporte
             </button>
@@ -615,6 +737,8 @@ function App() {
             dashboard={dashboard}
             lastUpdatedAt={lastUpdatedAt}
             onOpenAudit={() => goToView("audit")}
+            onOpenAuditEvent={(event) => goToView("audit", { view: "audit", query: event.message })}
+            onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
             onOpenDevices={() => goToView("devices")}
             onOpenIpMacs={() => goToView("ipMacs")}
             onOpenNetworks={() => goToView("networks")}
@@ -716,6 +840,7 @@ function App() {
           <NotesView
             csrfToken={csrfToken}
             devices={devices}
+            focusDeviceId={focusTarget?.view === "notes" ? focusTarget.id : undefined}
             onChanged={refreshInventory}
             onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
             permissions={currentUser.permissions}
@@ -736,7 +861,7 @@ function App() {
     if (view === "backups") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando respaldos...</div>}>
-          <BackupsView
+          <ImportExportView
             csrfToken={csrfToken}
             onImported={refreshInventory}
             permissions={currentUser.permissions}
@@ -773,6 +898,18 @@ function App() {
         </Suspense>
       );
     }
+    if (view === "profile") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando perfil...</div>}>
+          <ProfileView
+            csrfToken={csrfToken}
+            onChangePassword={() => setUser({ ...currentUser, must_change_password: true })}
+            onUserChanged={setUser}
+            user={currentUser}
+          />
+        </Suspense>
+      );
+    }
     if (view === "health") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando estado...</div>}>
@@ -790,12 +927,7 @@ function App() {
     if (view === "settings") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
-          <SettingsView
-            csrfToken={csrfToken}
-            initialVersionInfo={versionInfo}
-            onUserChanged={setUser}
-            user={currentUser}
-          />
+          <SettingsView />
         </Suspense>
       );
     }
@@ -818,8 +950,7 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Hardware" && view === "hardware") ||
     (label === "Notas técnicas" && view === "notes") ||
     (label === "Cambios" && view === "audit") ||
-    (label === "Respaldos" && view === "backups") ||
-    (label === "Importar / Exportar" && view === "importExport") ||
+    (label === "Datos" && (view === "importExport" || view === "backups")) ||
     (label === "Roles y permisos" && view === "roles") ||
     (label === "Usuarios" && view === "users") ||
     (label === "Estado" && view === "health") ||

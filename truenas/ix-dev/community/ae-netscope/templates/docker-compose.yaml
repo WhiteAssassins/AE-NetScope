@@ -22,9 +22,6 @@
 {% do redis.container.add_network(ae_netscope_net) %}
 
 {% set app_url = values.ae_netscope.app_url.rstrip("/") %}
-{% if not app_url %}
-  {% set app_url = "http://127.0.0.1:%d"|format(values.network.web_port.port_number) %}
-{% endif %}
 
 {% do c1.add_network(ae_netscope_net) %}
 {% do c1.set_user(values.run_as.user, values.run_as.group) %}
@@ -44,7 +41,7 @@
 {% do c1.environment.add_env("POSTGRES_USER", values.consts.db_user) %}
 {% do c1.environment.add_env("POSTGRES_PASSWORD", values.ae_netscope.db_password) %}
 {% do c1.environment.add_env("REDIS_HOST", values.consts.redis_container_name) %}
-{% do c1.environment.add_env("REDIS_PORT", 6379) %}
+{% do c1.environment.add_env("REDIS_PORT", redis.get_port()) %}
 {% do c1.environment.add_env("REDIS_DB", 0) %}
 {% do c1.environment.add_env("REDIS_PASSWORD", values.ae_netscope.redis_password) %}
 {% do c1.environment.add_env("REDIS_RATE_LIMIT_FAIL_OPEN", values.ae_netscope.redis_rate_limit_fail_open) %}

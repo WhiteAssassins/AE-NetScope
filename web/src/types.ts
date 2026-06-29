@@ -211,6 +211,7 @@ export type ViewName =
   | "importExport"
   | "roles"
   | "users"
+  | "profile"
   | "health"
   | "updates"
   | "settings"

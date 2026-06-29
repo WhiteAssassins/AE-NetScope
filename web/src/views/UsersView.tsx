@@ -1,4 +1,4 @@
-import { Plus, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
@@ -24,6 +24,7 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
   const [form, setForm] = useState({ email: "", username: "", role: "viewer" as UserRole });
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [selectedSessionUser, setSelectedSessionUser] = useState<ManagedUser | null>(null);
+  const [activeActionsUserId, setActiveActionsUserId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<ManagedUserSession[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -256,6 +257,10 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
     await loadSessions(user);
   }
 
+  function closeActions() {
+    setActiveActionsUserId(null);
+  }
+
   return (
     <>
       <div className="page-title page-title-row">
@@ -334,55 +339,84 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
                       {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "-"}
                     </td>
                     <td>
-                      <div className="row-actions">
+                      <div className="actions-menu-wrap">
                         <button
-                          className="user-action"
-                          disabled={
-                            user.id === currentUser.id &&
-                            user.role === "admin" &&
-                            user.is_active &&
-                            activeAdminCount <= 1
-                          }
+                          aria-expanded={activeActionsUserId === user.id}
+                          className="user-action icon-user-action"
                           onClick={() =>
-                            patchUser(user, {
-                              is_active: !user.is_active,
-                            })
+                            setActiveActionsUserId((current) => (current === user.id ? null : user.id))
                           }
                         >
-                          {user.is_active ? "Bloquear" : "Activar"}
+                          <MoreHorizontal size={17} strokeWidth={2} />
+                          Acciones
                         </button>
-                        <button
-                          className="user-action"
-                          onClick={() => patchUser(user, { must_change_password: true })}
-                        >
-                          Forzar cambio
-                        </button>
-                        {user.locked_until && (
-                          <button
-                            className="user-action"
-                            onClick={() => patchUser(user, { clear_lock: true })}
-                          >
-                            Desbloquear
-                          </button>
+                        {activeActionsUserId === user.id && (
+                          <div className="actions-menu">
+                            <button
+                              disabled={
+                                user.id === currentUser.id &&
+                                user.role === "admin" &&
+                                user.is_active &&
+                                activeAdminCount <= 1
+                              }
+                              onClick={() => {
+                                closeActions();
+                                patchUser(user, { is_active: !user.is_active }).catch(() => undefined);
+                              }}
+                            >
+                              {user.is_active ? "Bloquear usuario" : "Activar usuario"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                closeActions();
+                                patchUser(user, { must_change_password: true }).catch(() => undefined);
+                              }}
+                            >
+                              Forzar cambio de password
+                            </button>
+                            {user.locked_until && (
+                              <button
+                                onClick={() => {
+                                  closeActions();
+                                  patchUser(user, { clear_lock: true }).catch(() => undefined);
+                                }}
+                              >
+                                Desbloquear login
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                closeActions();
+                                resetPassword(user).catch(() => undefined);
+                              }}
+                            >
+                              Reset password
+                            </button>
+                            <button
+                              onClick={() => {
+                                closeActions();
+                                loadSessions(user).catch(() => undefined);
+                              }}
+                            >
+                              Ver sesiones
+                            </button>
+                            <button
+                              className="danger-menu-action"
+                              disabled={
+                                user.id === currentUser.id &&
+                                user.role === "admin" &&
+                                user.is_active &&
+                                activeAdminCount <= 1
+                              }
+                              onClick={() => {
+                                closeActions();
+                                deactivateUser(user).catch(() => undefined);
+                              }}
+                            >
+                              Desactivar usuario
+                            </button>
+                          </div>
                         )}
-                        <button className="user-action" onClick={() => resetPassword(user)}>
-                          Reset password
-                        </button>
-                        <button className="user-action" onClick={() => loadSessions(user)}>
-                          Sesiones
-                        </button>
-                        <button
-                          className="user-action user-danger"
-                          disabled={
-                            user.id === currentUser.id &&
-                            user.role === "admin" &&
-                            user.is_active &&
-                            activeAdminCount <= 1
-                          }
-                          onClick={() => deactivateUser(user)}
-                        >
-                          Desactivar
-                        </button>
                       </div>
                     </td>
                   </tr>

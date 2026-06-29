@@ -455,6 +455,10 @@ textarea {
   background: #f5f7fb;
 }
 
+.topbar-menu-item.search-result-active {
+  background: #eef2ff;
+}
+
 .topbar-menu-item strong {
   font-size: 14px;
   font-weight: 720;
@@ -945,6 +949,54 @@ textarea {
   min-width: 390px;
 }
 
+.actions-menu-wrap {
+  display: inline-grid;
+  gap: 8px;
+}
+
+.icon-user-action {
+  gap: 7px;
+}
+
+.actions-menu {
+  z-index: 20;
+  display: grid;
+  width: 230px;
+  gap: 4px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(17, 24, 39, 0.14);
+  padding: 8px;
+}
+
+.actions-menu button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 680;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.actions-menu button:hover {
+  background: #f5f7fb;
+}
+
+.actions-menu button:disabled {
+  color: #9aa5b7;
+  cursor: not-allowed;
+}
+
+.actions-menu .danger-menu-action {
+  color: #c02633;
+}
+
 .user-action {
   display: inline-flex;
   min-height: 34px;
@@ -1090,6 +1142,43 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 17px;
+}
+
+.data-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.data-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.data-tab {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #66728a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 720;
+  padding: 10px 14px;
+}
+
+.data-tab:hover,
+.data-tab.active {
+  border-color: #dbe4ff;
+  background: #eef2ff;
+  color: #1747ff;
+}
+
+.data-section {
+  border: 0;
+  box-shadow: none;
+  padding: 4px 0 0;
 }
 
 .backup-layout,
@@ -1928,6 +2017,38 @@ th {
   gap: 17px;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+  margin-bottom: 17px;
+}
+
+.profile-card {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.profile-card svg {
+  color: #1747ff;
+}
+
+.profile-card h2,
+.profile-card p {
+  margin: 0;
+}
+
+.profile-card p {
+  color: #66728a;
+}
+
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .support-card {
   display: grid;
   align-content: start;
@@ -2109,6 +2230,10 @@ th {
   }
 
   .update-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-grid {
     grid-template-columns: 1fr;
   }
 

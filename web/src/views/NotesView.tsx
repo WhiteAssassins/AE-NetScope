@@ -1,5 +1,5 @@
 import { FileText, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord } from "../types";
@@ -8,6 +8,7 @@ import { hasPermission, typeTone } from "../utils";
 type NotesViewProps = {
   csrfToken: string;
   devices: DeviceRecord[];
+  focusDeviceId?: number;
   onChanged: () => Promise<void>;
   onOpenDevice: (deviceId: number) => void;
   permissions: string[];
@@ -16,6 +17,7 @@ type NotesViewProps = {
 export default function NotesView({
   csrfToken,
   devices,
+  focusDeviceId,
   onChanged,
   onOpenDevice,
   permissions,
@@ -28,6 +30,18 @@ export default function NotesView({
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const canUpdateDevices = hasPermission(permissions, "devices:update");
+
+  useEffect(() => {
+    if (!focusDeviceId || !devices.length) {
+      return;
+    }
+    const focusedDevice = devices.find((device) => device.id === focusDeviceId);
+    if (focusedDevice) {
+      setFilter("all");
+      setQuery(focusedDevice.name);
+      selectDevice(focusedDevice);
+    }
+  }, [devices, focusDeviceId]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const devicesWithNotes = devices.filter((device) => Boolean(device.notes?.trim())).length;

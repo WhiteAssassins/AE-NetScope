@@ -11,7 +11,7 @@ type UpdateViewProps = {
 
 const upgradeChecklist = [
   "Leer las release notes antes de actualizar.",
-  "Descargar un backup JSON desde Respaldos.",
+  "Descargar un backup JSON desde Datos.",
   "Guardar una copia de .env o variables globales de producción.",
   "Ejecutar migraciones de base de datos después de actualizar.",
   "Verificar Estado del sistema: API, base de datos y Redis.",

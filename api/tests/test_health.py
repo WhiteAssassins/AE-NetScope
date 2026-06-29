@@ -31,10 +31,10 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.1.4-alpha"
+    assert response.json()["version"] == "0.1.5-alpha"
     assert response.json()["release_channel"] == "alpha"
     assert response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
-    assert response.json()["release_notes_url"].endswith("/tag/v0.1.4-alpha")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.1.5-alpha")
 
 
 async def test_detailed_health_status_endpoint() -> None:
@@ -46,7 +46,7 @@ async def test_detailed_health_status_endpoint() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.1.4-alpha"
+    assert payload["version"] == "0.1.5-alpha"
     assert payload["release_channel"] == "alpha"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"

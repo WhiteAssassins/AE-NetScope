@@ -39,6 +39,7 @@ describe("ImportExportView", () => {
       />,
     );
 
+    await user.click(screen.getByRole("tab", { name: "Exportar CSV" }));
     await user.click(screen.getByRole("button", { name: "Dispositivos" }));
 
     expect(openMock).toHaveBeenCalledWith(
@@ -85,6 +86,7 @@ describe("ImportExportView", () => {
         permissions={["inventory:read", "settings:manage"]}
       />,
     );
+    await user.click(screen.getByRole("tab", { name: "Restaurar" }));
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
 
@@ -95,7 +97,7 @@ describe("ImportExportView", () => {
       }),
     );
 
-    expect(await screen.findByText("Preview de importación")).toBeInTheDocument();
+    expect(await screen.findByText("Preview de restauracion")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /reemplazar inventario/i }));
 

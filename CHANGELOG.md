@@ -2,6 +2,29 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.5-alpha - 2026-06-29
+
+### Added
+
+- Added a dedicated Profile view for account email changes, password-change access, role visibility, and active permission review.
+- Added keyboard-friendly global search behavior with `Ctrl K`, `Escape`, arrow navigation, and `Enter` selection.
+- Added search coverage for hardware metadata, technical notes, audit events, users, and app sections.
+
+### Changed
+
+- Unified backups, JSON restore, and CSV exports into a single Datos workflow.
+- Removed the duplicate Respaldos frontend view in favor of the unified Datos section.
+- Updated dashboard links so recent devices and audit entries open the specific target context.
+- Simplified Settings so it only handles local interface preferences and the Early Public Preview notice.
+- Kept version/release checks in the dedicated Actualizaciones view.
+- Reworked user-management row actions into a compact actions menu.
+- Improved the footer so Documentation opens the public README and Support opens the internal support page.
+
+### Verified
+
+- Frontend production build passes.
+- Frontend test suite passes.
+
 ## v0.1.4-alpha - 2026-06-25
 
 ### Added

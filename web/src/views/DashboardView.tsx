@@ -9,6 +9,8 @@ type DashboardViewProps = {
   dashboard: DashboardSummary | null;
   lastUpdatedAt: Date | null;
   onOpenAudit: () => void;
+  onOpenAuditEvent: (event: AuditEvent) => void;
+  onOpenDevice: (deviceId: number) => void;
   onOpenDevices: () => void;
   onOpenIpMacs: () => void;
   onOpenNetworks: () => void;
@@ -24,6 +26,8 @@ export default function DashboardView({
   dashboard,
   lastUpdatedAt,
   onOpenAudit,
+  onOpenAuditEvent,
+  onOpenDevice,
   onOpenDevices,
   onOpenIpMacs,
   onOpenNetworks,
@@ -102,7 +106,10 @@ export default function DashboardView({
                 {(dashboard?.recent_devices ?? []).map((device) => (
                   <tr key={device.id}>
                     <td>
-                      <button className="device-name row-action" onClick={onOpenDevices}>
+                      <button
+                        className="device-name row-action"
+                        onClick={() => onOpenDevice(device.id)}
+                      >
                         {device.name}
                       </button>
                     </td>
@@ -205,7 +212,7 @@ export default function DashboardView({
                     <FileText size={17} strokeWidth={2} />
                   </span>
                   <p>
-                    <button className="text-button" onClick={onOpenAudit}>
+                    <button className="text-button" onClick={() => onOpenAuditEvent(event)}>
                       {event.message}
                     </button>
                     <small>{event.actor_email ?? "Sistema"}</small>
