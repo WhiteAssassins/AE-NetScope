@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">AE NetScope icon</title>
+  <desc id="desc">Blue network topology mark for AE NetScope.</desc>
+  <defs>
+    <linearGradient id="ae-netscope-blue" x1="112" y1="96" x2="400" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="1" stop-color="#173cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#f8fbff"/>
+  <path
+    d="M256 125v106M174 352l82-121 82 121M174 352h164"
+    fill="none"
+    stroke="url(#ae-netscope-blue)"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="256" cy="125" r="42" fill="#f8fbff" stroke="url(#ae-netscope-blue)" stroke-width="28"/>
+  <circle cx="174" cy="352" r="42" fill="#f8fbff" stroke="url(#ae-netscope-blue)" stroke-width="28"/>
+  <circle cx="338" cy="352" r="42" fill="#f8fbff" stroke="url(#ae-netscope-blue)" stroke-width="28"/>
+</svg>
