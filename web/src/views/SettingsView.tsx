@@ -64,6 +64,7 @@ export default function SettingsView() {
             <option value="devices">Dispositivos</option>
             <option value="ipMacs">IPs y MACs</option>
             <option value="networks">Subredes</option>
+            <option value="topology">Topología</option>
             <option value="services">Servicios</option>
           </select>
         </div>

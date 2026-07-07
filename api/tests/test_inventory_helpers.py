@@ -81,6 +81,28 @@ async def test_empty_csv_export_still_has_valid_csv_response(empty_inventory_cli
     assert response.text == "\r\n"
 
 
+async def test_csv_export_neutralizes_spreadsheet_formulas(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+
+    created = await client.post(
+        "/api/inventory/devices",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "name": "=HYPERLINK(\"http://example.test\")",
+            "device_type": "@router",
+            "notes": "+formula-like-note",
+        },
+    )
+    assert created.status_code == 201
+
+    response = await client.get("/api/inventory/export/devices.csv")
+
+    assert response.status_code == 200
+    assert "'=HYPERLINK" in response.text
+    assert "'@router" in response.text
+    assert "'+formula-like-note" in response.text
+
+
 async def test_import_rejects_wrong_backup_shape(empty_inventory_client) -> None:
     client, csrf_token = empty_inventory_client
 

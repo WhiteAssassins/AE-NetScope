@@ -15,6 +15,7 @@ from app.core.security import (
 from app.models.session import UserSession
 from app.models.user import User
 from app.services.audit import write_audit_event
+from app.services.users import revoke_user_sessions
 
 
 class AuthError(Exception):
@@ -194,6 +195,7 @@ async def change_user_password(
     current_password: str,
     new_password: str,
     ip_address: str | None,
+    current_session_id: int | None = None,
 ) -> None:
     is_valid_password, _ = verify_password_and_update(current_password, user.password_hash)
     if not is_valid_password:
@@ -208,6 +210,7 @@ async def change_user_password(
 
     user.password_hash = hash_password(new_password)
     user.must_change_password = False
+    await revoke_user_sessions(session, user, except_session_id=current_session_id)
 
     await write_audit_event(
         session,

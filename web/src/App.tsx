@@ -76,6 +76,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { label: "Dispositivos", icon: Monitor },
       { label: "IPs y MACs", icon: Network },
       { label: "Subredes", icon: Route },
+      { label: "Topología", icon: Route },
       { label: "VLANs", icon: Cable },
       { label: "Servicios", icon: ShieldCheck },
       { label: "Hardware", icon: HardDrive },
@@ -116,6 +117,7 @@ const ServicesView = lazy(() => import("./views/ServicesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
 const SetupScreen = lazy(() => import("./views/SetupScreen"));
 const SupportView = lazy(() => import("./views/SupportView"));
+const TopologyView = lazy(() => import("./views/TopologyView"));
 const UpdateView = lazy(() => import("./views/UpdateView"));
 const UsersView = lazy(() => import("./views/UsersView"));
 const VlansView = lazy(() => import("./views/VlansView"));
@@ -173,13 +175,11 @@ function App() {
 
         const data = (await meResponse.json()) as { user: User };
         setUser(data.user);
-        const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
-        if (csrfResponse.ok) {
-          const csrfData = (await csrfResponse.json()) as { csrf_token: string };
-          setCsrfToken(csrfData.csrf_token);
-        }
+        await refreshCsrfToken().catch(() => setCsrfToken(""));
         if (!data.user.must_change_password) {
-          await refreshInventory();
+          await refreshInventory().catch(() => {
+            setSessionMessage("No se pudo cargar el inventario. Actualiza de nuevo en unos segundos.");
+          });
         }
       })
       .catch(() => {
@@ -219,6 +219,16 @@ function App() {
     setIpMacs(inventoryData.ipMacs);
     setInterfaces(inventoryData.interfaces);
     setLastUpdatedAt(new Date());
+  }
+
+  async function refreshCsrfToken() {
+    const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
+    if (csrfResponse.ok) {
+      const csrfData = (await csrfResponse.json()) as { csrf_token: string };
+      setCsrfToken(csrfData.csrf_token);
+      return;
+    }
+    setCsrfToken("");
   }
 
   async function refreshManagedUsers() {
@@ -336,6 +346,7 @@ function App() {
         })),
         ...[
           { title: "Dashboard", meta: "Resumen general de la red", view: "dashboard" },
+          { title: "Topologia", meta: "Mapa expandible de subredes, VLANs, IPs y dispositivos", view: "topology" },
           { title: "Datos", meta: "Backups, restauracion, JSON y CSV", view: "importExport" },
           { title: "Cambios", meta: "Auditoria e historial de actividad", view: "audit" },
           { title: "Usuarios", meta: "Roles, bloqueos y sesiones", view: "users" },
@@ -413,6 +424,7 @@ function App() {
       Dispositivos: "devices",
       "IPs y MACs": "ipMacs",
       Subredes: "networks",
+      Topología: "topology",
       VLANs: "vlans",
       Servicios: "services",
       Hardware: "hardware",
@@ -742,6 +754,7 @@ function App() {
             onOpenDevices={() => goToView("devices")}
             onOpenIpMacs={() => goToView("ipMacs")}
             onOpenNetworks={() => goToView("networks")}
+            onOpenTopology={() => goToView("topology")}
             onOpenServices={() => goToView("services")}
             onOpenVlans={() => goToView("vlans")}
             onRefresh={() => {
@@ -793,6 +806,21 @@ function App() {
             onChanged={refreshInventory}
             permissions={currentUser.permissions}
             vlans={vlans}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "topology") {
+      return (
+        <Suspense fallback={<div className="auth-loading">Cargando topología...</div>}>
+          <TopologyView
+            devices={devices}
+            ipMacs={ipMacs}
+            networks={networks}
+            onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
+            onOpenIp={(ipId) => goToView("ipMacs", { view: "ipMacs", id: ipId })}
+            onOpenNetwork={(networkId) => goToView("networks", { view: "networks", id: networkId })}
+            onOpenVlan={(vlanId) => goToView("vlans", { view: "vlans", id: vlanId })}
           />
         </Suspense>
       );
@@ -921,7 +949,11 @@ function App() {
     if (view === "updates") {
       return (
         <Suspense fallback={<div className="auth-loading">Cargando actualizaciones...</div>}>
-          <UpdateView initialVersionInfo={versionInfo} />
+          <UpdateView
+            csrfToken={csrfToken}
+            initialVersionInfo={versionInfo}
+            permissions={currentUser.permissions}
+          />
         </Suspense>
       );
     }
@@ -946,6 +978,7 @@ function isActiveNav(label: string, view: ViewName) {
     (label === "Dispositivos" && view === "devices") ||
     (label === "IPs y MACs" && view === "ipMacs") ||
     (label === "Subredes" && view === "networks") ||
+    (label === "Topología" && view === "topology") ||
     (label === "VLANs" && view === "vlans") ||
     (label === "Servicios" && view === "services") ||
     (label === "Hardware" && view === "hardware") ||

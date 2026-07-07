@@ -83,6 +83,7 @@ router = APIRouter(
 ExportResource = Literal["devices", "ip-addresses", "networks", "vlans", "services", "interfaces"]
 BACKUP_FORMAT = "ae-netscope.inventory.v1"
 BACKUP_KEYS = ("vlans", "networks", "devices", "interfaces", "ip_addresses", "services")
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
 async def require_import_size_limit(content_length: int | None = Header(default=None)) -> None:
@@ -151,7 +152,7 @@ async def export_inventory_csv(
     fieldnames = sorted({key for row in rows for key in row})
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows(sanitize_csv_rows(rows))
     await write_audit_event(
         session,
         "inventory.exported",
@@ -405,6 +406,18 @@ def validation_message(exc: Exception) -> str:
         location = ".".join(str(part) for part in first_error["loc"])
         return f"{location}: {first_error['msg']}"
     return str(exc)
+
+
+def sanitize_csv_cell(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    if value.startswith(CSV_FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
+
+
+def sanitize_csv_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [{key: sanitize_csv_cell(value) for key, value in row.items()} for row in rows]
 
 
 async def export_rows_for_resource(

@@ -5,7 +5,9 @@ import {
   fetchInventoryData,
   fetchHealthStatus,
   fetchLatestGitHubRelease,
+  fetchUpdateStatus,
   fetchVersionInfo,
+  startAutomaticUpdate,
 } from "./api";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -87,11 +89,11 @@ describe("api client", () => {
         Promise.resolve(
           jsonResponse({
             app_name: "AE NetScope",
-            version: "0.1.5-alpha",
+            version: "0.1.6-alpha",
             release_channel: "alpha",
             repository_url: "https://github.com/WhiteAssassins/AE-NetScope",
             releases_url: "https://github.com/WhiteAssassins/AE-NetScope/releases",
-            release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.5-alpha",
+            release_notes_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.6-alpha",
           }),
         ),
       ),
@@ -99,7 +101,7 @@ describe("api client", () => {
 
     await expect(fetchVersionInfo()).resolves.toMatchObject({
       app_name: "AE NetScope",
-      version: "0.1.5-alpha",
+      version: "0.1.6-alpha",
       release_channel: "alpha",
     });
   });
@@ -113,7 +115,7 @@ describe("api client", () => {
             status: "ready",
             service: "AE NetScope",
             environment: "local",
-            version: "0.1.5-alpha",
+            version: "0.1.6-alpha",
             release_channel: "alpha",
             checked_at: "2026-06-03T00:00:00Z",
             checks: {
@@ -128,7 +130,7 @@ describe("api client", () => {
 
     await expect(fetchHealthStatus()).resolves.toMatchObject({
       status: "ready",
-      version: "0.1.5-alpha",
+      version: "0.1.6-alpha",
       checks: expect.objectContaining({
         database: expect.objectContaining({ status: "ok" }),
       }),
@@ -143,9 +145,9 @@ describe("api client", () => {
           jsonResponse([
             { tag_name: "v0.2.0-alpha", draft: true },
             {
-              tag_name: "v0.1.5-alpha",
-              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.5-alpha",
-              name: "AE NetScope v0.1.5-alpha",
+              tag_name: "v0.1.6-alpha",
+              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.6-alpha",
+              name: "AE NetScope v0.1.6-alpha",
               prerelease: true,
               draft: false,
               published_at: "2026-06-03T00:00:00Z",
@@ -156,11 +158,93 @@ describe("api client", () => {
     );
 
     await expect(fetchLatestGitHubRelease()).resolves.toMatchObject({
-      tag_name: "v0.1.5-alpha",
+      tag_name: "v0.1.6-alpha",
       prerelease: true,
     });
     expect(fetch).toHaveBeenCalledWith(GITHUB_RELEASES_API_URL, {
       headers: { Accept: "application/vnd.github+json" },
     });
+  });
+
+  it("fetches update status with credentials", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            installed_version: "0.1.6-alpha",
+            installed_channel: "alpha",
+            target_channel: "prerelease",
+            update_available: false,
+            latest_release: null,
+            latest_prerelease: null,
+            selected_release: null,
+            update_capability: {
+              platform: "docker",
+              automatic_updates_enabled: false,
+              automatic_updates_supported: false,
+              reason: "Not configured.",
+            },
+          }),
+        ),
+      ),
+    );
+
+    await expect(fetchUpdateStatus()).resolves.toMatchObject({
+      installed_version: "0.1.6-alpha",
+      update_available: false,
+    });
+    expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/version/updates`, {
+      credentials: "include",
+    });
+  });
+
+  it("throws update status error when the endpoint fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+
+    await expect(fetchUpdateStatus()).rejects.toThrow("update-status-unavailable");
+  });
+
+  it("starts automatic updates with csrf and selected tag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            started: true,
+            message: "Update command started.",
+            tag_name: "v0.1.7-alpha",
+          }),
+        ),
+      ),
+    );
+
+    await expect(startAutomaticUpdate("v0.1.7-alpha", "csrf-token")).resolves.toMatchObject({
+      started: true,
+      tag_name: "v0.1.7-alpha",
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/version/update`,
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "csrf-token",
+        }),
+        body: JSON.stringify({ tag_name: "v0.1.7-alpha" }),
+      }),
+    );
+  });
+
+  it("uses server detail when automatic update fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(jsonResponse({ detail: "Automatic updates disabled." }, 409))),
+    );
+
+    await expect(startAutomaticUpdate("v0.1.7-alpha", "csrf-token")).rejects.toThrow(
+      "Automatic updates disabled.",
+    );
   });
 });

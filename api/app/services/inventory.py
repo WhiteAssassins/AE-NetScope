@@ -601,15 +601,41 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
         for name, count, status in service_rows.all()
     ]
 
-    network_rows = await session.execute(select(Network).order_by(Network.cidr).limit(3))
+    network_rows = await session.execute(
+        select(Network, Vlan).outerjoin(Vlan).order_by(Network.cidr).limit(4)
+    )
     networks: list[NetworkNode] = []
-    for network in network_rows.scalars():
+    for network, vlan in network_rows.all():
         device_count = await session.scalar(
             select(func.count(func.distinct(NetworkInterface.device_id)))
             .join(IpAddress, IpAddress.interface_id == NetworkInterface.id)
             .where(IpAddress.network_id == network.id)
         )
-        networks.append(NetworkNode(cidr=network.cidr, device_count=device_count or 0))
+        ip_count = await session.scalar(
+            select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
+        )
+        usable_hosts = network_usable_hosts(network.cidr)
+        utilization_percent = (
+            round(((ip_count or 0) / usable_hosts) * 100, 1) if usable_hosts else 0
+        )
+        networks.append(
+            NetworkNode(
+                cidr=network.cidr,
+                name=network.name,
+                device_count=device_count or 0,
+                ip_count=ip_count or 0,
+                usable_hosts=usable_hosts,
+                utilization_percent=utilization_percent,
+                vlan=VlanResponse(
+                    id=vlan.id,
+                    vlan_id=vlan.vlan_id,
+                    name=vlan.name,
+                    description=vlan.description,
+                )
+                if vlan
+                else None,
+            )
+        )
 
     return DashboardSummary(
         stats=stats,

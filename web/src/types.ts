@@ -62,7 +62,15 @@ export type DashboardSummary = {
     last_change: string;
   }>;
   services: Array<{ name: string; device_count: number; status: string }>;
-  networks: Array<{ cidr: string; device_count: number }>;
+  networks: Array<{
+    cidr: string;
+    name: string;
+    device_count: number;
+    ip_count: number;
+    usable_hosts: number;
+    utilization_percent: number;
+    vlan: VlanRecord | null;
+  }>;
 };
 
 export type DeviceRecord = {
@@ -181,6 +189,24 @@ export type GitHubReleaseInfo = {
   published_at: string | null;
 };
 
+export type UpdateCapability = {
+  platform: string;
+  automatic_updates_enabled: boolean;
+  automatic_updates_supported: boolean;
+  reason: string | null;
+};
+
+export type UpdateStatusInfo = {
+  installed_version: string;
+  installed_channel: string;
+  target_channel: string;
+  update_available: boolean;
+  latest_release: GitHubReleaseInfo | null;
+  latest_prerelease: GitHubReleaseInfo | null;
+  selected_release: GitHubReleaseInfo | null;
+  update_capability: UpdateCapability;
+};
+
 export type HealthCheckStatus = {
   status: "ok" | "error";
   required: boolean;
@@ -202,6 +228,7 @@ export type ViewName =
   | "devices"
   | "ipMacs"
   | "networks"
+  | "topology"
   | "vlans"
   | "services"
   | "hardware"

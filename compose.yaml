@@ -1,18 +1,24 @@
 services:
   ae-netscope:
-    image: ghcr.io/whiteassassins/ae-netscope:v0.1.5-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      APP_ENV: production
+      APP_ENV: docker
       APP_NAME: AE NetScope
+      DEPLOYMENT_PLATFORM: docker
       APP_URL: ${APP_URL:-http://127.0.0.1:8080}
       APP_WEB_DIST_DIR: /app/web
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://127.0.0.1:8080}
       DATABASE_URL: postgresql+asyncpg://ae_netscope:${POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/ae_netscope
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ae_netscope
+      POSTGRES_USER: ae_netscope
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
@@ -30,8 +36,14 @@ services:
       AUTH_FAILED_LOGIN_LIMIT: 10
       AUTH_LOCKOUT_MINUTES: 15
       AE_NETSCOPE_RUN_MIGRATIONS: true
+      AE_NETSCOPE_PRE_MIGRATION_BACKUP: ${AE_NETSCOPE_PRE_MIGRATION_BACKUP:-true}
+      AE_NETSCOPE_MIGRATION_BACKUP_DIR: /app/backups
+      AE_NETSCOPE_AUTO_UPDATE_ENABLED: ${AE_NETSCOPE_AUTO_UPDATE_ENABLED:-false}
+      AE_NETSCOPE_AUTO_UPDATE_COMMAND: ${AE_NETSCOPE_AUTO_UPDATE_COMMAND:-}
     ports:
       - "${AE_NETSCOPE_PORT:-8080}:8000"
+    volumes:
+      - ae_netscope_backups:/app/backups
     restart: unless-stopped
     healthcheck:
       test:
@@ -83,5 +95,6 @@ services:
       retries: 5
 
 volumes:
+  ae_netscope_backups:
   ae_netscope_postgres:
   ae_netscope_redis:

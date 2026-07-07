@@ -148,6 +148,49 @@ async def test_change_password_clears_required_flag(auth_client: AsyncClient) ->
     assert response.json()["user"]["must_change_password"] is False
 
 
+async def test_temporary_password_user_cannot_use_privileged_apis(
+    auth_client: AsyncClient,
+) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+
+    assert login_response.status_code == 200
+
+    response = await auth_client.get("/api/users")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Password change required."
+
+
+async def test_change_password_revokes_other_sessions(auth_client: AsyncClient) -> None:
+    first_login = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = first_login.json()["csrf_token"]
+
+    second_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    second_login = await second_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert second_login.status_code == 200
+    assert (await second_client.get("/api/auth/me")).status_code == 200
+
+    response = await auth_client.post(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"current_password": "correct-password", "new_password": "new-secure-password"},
+    )
+
+    assert response.status_code == 200
+    assert (await auth_client.get("/api/auth/me")).status_code == 200
+    assert (await second_client.get("/api/auth/me")).status_code == 401
+    await second_client.aclose()
+
+
 async def test_change_email_requires_csrf(auth_client: AsyncClient) -> None:
     login_response = await auth_client.post(
         "/api/auth/login",
@@ -208,6 +251,13 @@ async def test_change_email_rejects_duplicate_email(auth_client: AsyncClient) ->
         json={"email": "admin@example.com", "password": "correct-password"},
     )
     csrf_token = login_response.json()["csrf_token"]
+    password_response = await auth_client.post(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"current_password": "correct-password", "new_password": "new-secure-password"},
+    )
+    assert password_response.status_code == 200
+
     created_user = await auth_client.post(
         "/api/users",
         headers={"X-CSRF-Token": csrf_token},
@@ -218,7 +268,7 @@ async def test_change_email_rejects_duplicate_email(auth_client: AsyncClient) ->
     response = await auth_client.post(
         "/api/auth/email",
         headers={"X-CSRF-Token": csrf_token},
-        json={"current_password": "correct-password", "new_email": "operator@example.com"},
+        json={"current_password": "new-secure-password", "new_email": "operator@example.com"},
     )
 
     assert response.status_code == 409

@@ -12,7 +12,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.5-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.6-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -134,6 +134,7 @@ Important variables:
 ```text
 APP_ENV=production
 APP_NAME="AE NetScope"
+DEPLOYMENT_PLATFORM=docker
 APP_URL=https://netscope.example.com
 APP_WEB_DIST_DIR=/app/web
 API_CORS_ORIGINS=https://netscope.example.com
@@ -154,6 +155,10 @@ SECURITY_HSTS_MAX_AGE=31536000
 AE_NETSCOPE_RUN_MIGRATIONS=true
 AE_NETSCOPE_MIGRATION_ATTEMPTS=30
 AE_NETSCOPE_MIGRATION_RETRY_SECONDS=2
+AE_NETSCOPE_PRE_MIGRATION_BACKUP=true
+AE_NETSCOPE_MIGRATION_BACKUP_DIR=/app/backups
+AE_NETSCOPE_AUTO_UPDATE_ENABLED=false
+AE_NETSCOPE_AUTO_UPDATE_COMMAND=
 PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
@@ -175,10 +180,14 @@ AE NetScope includes an early production-style container path. The public image 
 
 This path is intended for local validation, public alpha testing, and future TrueNAS packaging work. It is still alpha software.
 
+Use `compose.yaml` for local HTTP container testing. Running the image directly with `docker run` uses the image defaults and requires explicit environment variables for the target deployment. For real HTTPS production, set `APP_ENV=production`, `APP_URL=https://...`, `SESSION_COOKIE_SECURE=true`, and `SECURITY_HSTS_ENABLED=true`.
+
+Before startup migrations run, the container creates a PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
+
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.5-alpha
+ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha
 ```
 
 From the project root:
@@ -196,12 +205,59 @@ Then open:
 http://127.0.0.1:8080
 ```
 
+Safe update path:
+
+```bat
+docker compose pull
+docker compose up -d
+```
+
+Do not use `docker compose down -v` unless you intentionally want to delete PostgreSQL, Redis, and migration-backup volumes.
+
+The admin update page checks GitHub releases from the app itself and shows both the latest stable release and the latest prerelease. Alpha installs follow the prerelease channel; stable installs follow stable releases.
+
+Automatic updates from the AE NetScope admin UI are disabled by default. For plain Docker or Docker Compose installs, they are only available when `DEPLOYMENT_PLATFORM=docker`, `AE_NETSCOPE_AUTO_UPDATE_ENABLED=true`, and `AE_NETSCOPE_AUTO_UPDATE_COMMAND` is configured by the server administrator. The command can include `{tag}`, which is replaced with the selected release tag. TrueNAS installs always keep this disabled and must be updated from the TrueNAS Apps interface.
+
 Health checks:
 
 ```text
 http://127.0.0.1:8080/api/health/live
 http://127.0.0.1:8080/api/health/status
 ```
+
+### Docker Smoke Checklist
+
+Before publishing a container release, verify the public image with:
+
+```bat
+docker compose -p ae-netscope-smoke down
+docker compose -p ae-netscope-smoke pull
+docker compose -p ae-netscope-smoke up -d
+```
+
+Then check:
+
+- `http://127.0.0.1:8080/api/health/live` returns `ok`.
+- `http://127.0.0.1:8080/api/health/status` shows API, database, and Redis.
+- First setup or login works.
+- Browser refresh keeps the session.
+- JSON export and at least one CSV export download correctly.
+- `docker compose -p ae-netscope-smoke restart ae-netscope` keeps PostgreSQL data.
+- `docker compose -p ae-netscope-smoke down` stops the stack without deleting volumes.
+
+Do not run `docker compose -p ae-netscope-smoke down -v` unless the smoke data should be deleted.
+
+### TrueNAS Smoke Checklist
+
+Before updating the TrueNAS catalog app, verify:
+
+- The app renders from `basic-values.yaml`.
+- A basic install reaches the web UI.
+- `/api/health/status` reports API, PostgreSQL, and Redis.
+- Login/setup works and survives browser refresh.
+- Restarting the app keeps inventory data.
+- The update page says TrueNAS updates must use the TrueNAS Apps interface.
+- Migration backups are mounted and writable.
 
 Stop the stack:
 
@@ -238,7 +294,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.5-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.
@@ -417,11 +473,15 @@ sudo -u ae-netscope env VITE_API_BASE_URL=/api npm --prefix web run build
 ## Backup and Restore Policy
 
 - Export a JSON backup before every upgrade, restore, or migration.
+- Docker and TrueNAS installs create a PostgreSQL backup automatically before startup migrations when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`.
+- Docker migration backups are stored in `/app/backups`, backed by the `ae_netscope_backups` Compose volume by default.
 - The restore UI validates the JSON first and shows a preview before replacing data.
 - A restore replaces inventory records only: devices, interfaces, IPs, subnets, VLANs, and services.
 - A restore does not modify users, sessions, password hashes, secrets, or environment variables.
 - Before a restore is applied, the API returns a pre-restore backup and the web UI downloads it automatically.
 - Keep production backups outside the repository and outside the web root.
+
+PostgreSQL migration backups are custom-format `pg_dump` files. Restore them with `pg_restore` into a prepared PostgreSQL database after stopping AE NetScope.
 
 ## SQLite Local to PostgreSQL Production
 

@@ -73,6 +73,11 @@ async def require_csrf(
 
 def require_permission(permission: str):
     async def dependency(current_user: CurrentUser) -> User:
+        if current_user.must_change_password:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password change required.",
+            )
         if not role_has_permission(current_user.role, permission):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied.")
         return current_user
@@ -82,6 +87,11 @@ def require_permission(permission: str):
 
 def require_role(*roles: str):
     async def dependency(current_user: CurrentUser) -> User:
+        if current_user.must_change_password:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password change required.",
+            )
         if current_user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied.")
         return current_user

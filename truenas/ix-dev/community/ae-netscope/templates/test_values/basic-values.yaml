@@ -29,12 +29,18 @@ network:
 
 ix_volumes:
   postgres_data: /opt/tests/mnt/ae-netscope/postgres_data
+  migration_backups: /opt/tests/mnt/ae-netscope/migration_backups
 
 storage:
   postgres_data:
     type: ix_volume
     ix_volume_config:
       dataset_name: postgres_data
+      create_host_path: true
+  migration_backups:
+    type: ix_volume
+    ix_volume_config:
+      dataset_name: migration_backups
       create_host_path: true
   additional_storage: []
 

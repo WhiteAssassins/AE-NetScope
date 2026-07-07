@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     app_name: str = "AE NetScope"
     app_web_dist_dir: str | None = None
+    deployment_platform: str = "local"
 
     api_cors_origins: str = "http://127.0.0.1:5173"
 
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
 
     crypto_policy_version: int = 1
     pqc_readiness_mode: str = "crypto-agile"
+
+    auto_update_enabled: bool = False
+    auto_update_command: str | None = Field(default=None, repr=False)
 
     @cached_property
     def cors_origins(self) -> list[str]:

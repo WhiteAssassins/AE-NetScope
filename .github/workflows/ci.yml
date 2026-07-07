@@ -5,11 +5,37 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  metadata:
+    name: Release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Validate release metadata
+        run: npm run release:check
+
+      - name: Validate Compose file
+        run: docker compose config --quiet
+
+      - name: Validate shell scripts
+        run: bash -n docker/entrypoint.sh
+
   security:
     name: Security checks
     runs-on: ubuntu-latest
@@ -55,13 +81,22 @@ jobs:
       - name: Lint API
         run: python -m ruff check api
 
+      - name: Check migrations
+        run: |
+          mkdir -p api/var
+          cd api
+          DATABASE_URL=sqlite+aiosqlite:///./var/ci-alembic-check.db python -m alembic upgrade head
+          DATABASE_URL=sqlite+aiosqlite:///./var/ci-alembic-check.db python -m alembic check
+
       - name: Test API
         run: |
           set -o pipefail
+          mkdir -p api/test-results
           python -m pytest api \
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:api/coverage.xml \
+            --junitxml=api/test-results/pytest-junit.xml \
             | tee api/test-report.txt
 
       - name: Add API test summary
@@ -73,7 +108,11 @@ jobs:
           echo "- Coverage XML: api/coverage.xml" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 45 api/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          if [ -f api/test-report.txt ]; then
+            tail -n 45 api/test-report.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "api/test-report.txt was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload API coverage report
@@ -84,7 +123,8 @@ jobs:
           path: |
             api/coverage.xml
             api/test-report.txt
-          if-no-files-found: error
+            api/test-results
+          if-no-files-found: warn
 
   web:
     name: Web
@@ -109,7 +149,8 @@ jobs:
       - name: Test web
         run: |
           set -o pipefail
-          npm run web:test:coverage | tee web/test-report.txt
+          mkdir -p web/test-results
+          npm --prefix web run test:coverage -- --reporter=default --reporter=junit --outputFile=test-results/vitest-junit.xml | tee web/test-report.txt
 
       - name: Build web
         run: npm run build
@@ -139,4 +180,28 @@ jobs:
           path: |
             web/coverage
             web/test-report.txt
+            web/test-results
           if-no-files-found: warn
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs:
+      - metadata
+      - api
+      - web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          platforms: linux/amd64
+          build-args: |
+            VITE_API_BASE_URL=/api

@@ -1,7 +1,7 @@
 {
   "name": "ae-netscope",
   "private": true,
-  "version": "0.1.5-alpha",
+  "version": "0.1.6-alpha",
   "scripts": {
     "dev": "npm --prefix web run dev -- --host 127.0.0.1 --port 5173 --strictPort",
     "dev:api": "api\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir api --host 127.0.0.1 --port 8000 --reload",
@@ -17,6 +17,7 @@
     "web:test:coverage": "npm --prefix web run test:coverage",
     "secrets:scan": "node scripts/scan-secrets.mjs",
     "tracked:check": "node scripts/check-tracked-artifacts.mjs",
+    "release:check": "node scripts/validate-release-metadata.mjs",
     "deps:audit": "npm --prefix web audit --audit-level=moderate && npm run api:audit"
   }
 }

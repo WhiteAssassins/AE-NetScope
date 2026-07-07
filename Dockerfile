@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="AE NetScope" \
     org.opencontainers.image.description="Open source LAN inventory and sysadmin network documentation web app." \
     org.opencontainers.image.source="https://github.com/WhiteAssassins/AE-NetScope" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.5-alpha"
+    org.opencontainers.image.version="0.1.6-alpha"
 
 WORKDIR /app
 
@@ -36,7 +36,11 @@ COPY VERSION /app/VERSION
 COPY --from=web-build /src/web/dist /app/web
 COPY docker/entrypoint.sh /entrypoint.sh
 
-RUN chmod +x /entrypoint.sh \
+RUN mkdir -p /app/backups \
+    && chmod +x /entrypoint.sh \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir /app/api \
     && chown -R ae-netscope:ae-netscope /app

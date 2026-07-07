@@ -283,7 +283,12 @@ class ServiceSummary(BaseModel):
 
 class NetworkNode(BaseModel):
     cidr: str
+    name: str
     device_count: int
+    ip_count: int
+    usable_hosts: int
+    utilization_percent: float
+    vlan: VlanResponse | None = None
 
 
 class DashboardSummary(BaseModel):

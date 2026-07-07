@@ -14,6 +14,7 @@ type DashboardViewProps = {
   onOpenDevices: () => void;
   onOpenIpMacs: () => void;
   onOpenNetworks: () => void;
+  onOpenTopology: () => void;
   onOpenServices: () => void;
   onOpenVlans: () => void;
   onRefresh: () => void;
@@ -31,6 +32,7 @@ export default function DashboardView({
   onOpenDevices,
   onOpenIpMacs,
   onOpenNetworks,
+  onOpenTopology,
   onOpenServices,
   onOpenVlans,
   onRefresh,
@@ -46,6 +48,11 @@ export default function DashboardView({
   });
   const chartData = buildChartData(dashboard);
   const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
+  const networks = dashboard?.networks ?? [];
+  const busiestNetwork = networks.reduce<(typeof networks)[number] | null>(
+    (current, network) => (!current || network.ip_count > current.ip_count ? network : current),
+    null,
+  );
 
   return (
     <>
@@ -167,21 +174,52 @@ export default function DashboardView({
           </button>
         </Card>
 
-        <Card className="span-4" title="Mapa de subredes">
+        <Card className="span-4 subnet-card" title="Mapa de subredes">
           <div className="subnet-map">
-            <div className="root-node">Inventario</div>
-            <div className="connector" />
-            <div className="branch">
-              {(dashboard?.networks ?? []).map((network) => (
-                <div className="subnet-node" key={network.cidr}>
-                  <strong>{network.cidr}</strong>
-                  <span>{network.device_count} dispositivos</span>
-                </div>
-              ))}
+            <div className="subnet-map-head">
+              <div>
+                <span>Subredes activas</span>
+                <strong>{dashboard?.stats.networks ?? 0}</strong>
+              </div>
+              <div>
+                <span>Más usada</span>
+                <strong>{busiestNetwork?.cidr ?? "-"}</strong>
+              </div>
+            </div>
+
+            <div className="subnet-list">
+              {networks.length ? (
+                networks.map((network) => (
+                  <button
+                    className="subnet-node"
+                    key={network.cidr}
+                    onClick={onOpenNetworks}
+                    type="button"
+                  >
+                    <span className="subnet-node-main">
+                      <strong>{network.name}</strong>
+                      <em>{network.cidr}</em>
+                    </span>
+                    <span className="subnet-node-meta">
+                      <span>{network.device_count} disp.</span>
+                      <span>{network.ip_count}/{network.usable_hosts || 0} IPs</span>
+                      {network.vlan && <span>VLAN {network.vlan.vlan_id}</span>}
+                    </span>
+                    <span className="subnet-usage" aria-label={`${network.utilization_percent}% usado`}>
+                      <span style={{ width: `${Math.min(network.utilization_percent, 100)}%` }} />
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <p className="muted-line">No hay subredes registradas.</p>
+              )}
             </div>
           </div>
           <button className="card-link lower-link text-button" onClick={onOpenNetworks}>
             Ver todas las subredes
+          </button>
+          <button className="card-link topology-link text-button" onClick={onOpenTopology}>
+            Abrir topología
           </button>
         </Card>
 
@@ -211,12 +249,12 @@ export default function DashboardView({
                   <span className={`change-icon ${eventTone(event.event_type)}`}>
                     <FileText size={17} strokeWidth={2} />
                   </span>
-                  <p>
+                  <div className="change-content">
                     <button className="text-button" onClick={() => onOpenAuditEvent(event)}>
                       {event.message}
                     </button>
                     <small>{event.actor_email ?? "Sistema"}</small>
-                  </p>
+                  </div>
                   <time>{new Date(event.created_at).toLocaleString()}</time>
                 </div>
               ))

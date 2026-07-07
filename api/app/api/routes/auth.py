@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUser, SessionCookie, SessionDep, require_csrf
+from app.api.deps import CurrentSession, CurrentUser, SessionCookie, SessionDep, require_csrf
 from app.core.config import settings
 from app.core.permissions import permissions_for_role
 from app.core.rate_limit import rate_limit
@@ -179,6 +179,7 @@ async def change_password(
     request: Request,
     session: SessionDep,
     current_user: CurrentUser,
+    current_session: CurrentSession,
 ) -> SessionResponse:
     try:
         await change_user_password(
@@ -187,6 +188,7 @@ async def change_password(
             current_password=payload.current_password,
             new_password=payload.new_password,
             ip_address=request.client.host if request.client else None,
+            current_session_id=current_session.id,
         )
     except AuthError as exc:
         await session.commit()

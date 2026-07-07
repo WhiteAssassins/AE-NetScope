@@ -2,6 +2,42 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.6-alpha - 2026-07-07
+
+### Added
+
+- Added a dedicated passive Topology view with expandable subnet cards, VLAN context, linked devices, linked IP records, unassigned-IP visibility, and navigation into the real inventory records.
+- Added Dashboard and Topology frontend tests for summary rendering, empty states, navigation callbacks, and expand/collapse behavior.
+- Added version-alignment tests across `VERSION`, root `package.json`, `web/package.json`, and `api/pyproject.toml`.
+- Added cached GitHub release checks for `/api/version/updates`, including graceful fallback when GitHub cannot be reached.
+- Added Docker and TrueNAS smoke checklists to the README.
+- Added CI migration validation with Alembic `upgrade head` and `alembic check`.
+
+### Changed
+
+- Updated all project version markers to `0.1.6-alpha`.
+- Improved Dashboard recent-activity layout so long audit entries do not overlap.
+- Improved the subnet map into a more useful topology workflow while keeping it passive.
+- Hardened automatic Docker update execution by validating release tags and running commands without shell execution.
+- Made CI coverage artifacts and test summaries more tolerant when a failing step prevents report files from being generated.
+- Documented safer Docker update behavior and warned against destructive `docker compose down -v` usage.
+- Kept TrueNAS installs on the TrueNAS-managed update path instead of in-app automatic updates.
+
+### Fixed
+
+- Fixed version/update tests that previously treated the installed release as a future update candidate.
+- Fixed session-refresh behavior for Docker/TrueNAS HTTP installs by keeping secure-cookie behavior environment-aware.
+- Fixed CSV export hardening for spreadsheet-formula values.
+- Fixed permission/session hardening around forced password changes and password-change session revocation.
+
+### Verified
+
+- API test suite passes.
+- Web test suite passes.
+- Frontend production build passes.
+- Web and API coverage runs pass.
+- Secret scan, tracked-artifact check, npm audit, pip-audit, Ruff, ESLint, and Alembic checks pass.
+
 ## v0.1.5-alpha - 2026-06-29
 
 ### Added

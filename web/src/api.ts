@@ -7,6 +7,7 @@ import type {
   ServiceRecord,
   GitHubReleaseInfo,
   HealthStatus,
+  UpdateStatusInfo,
   VersionInfo,
   VlanRecord,
 } from "./types";
@@ -79,4 +80,29 @@ export async function fetchLatestGitHubRelease() {
 
   const releases = (await response.json()) as GitHubReleaseInfo[];
   return releases.find((release) => !release.draft) ?? null;
+}
+
+export async function fetchUpdateStatus() {
+  const response = await fetch(`${API_BASE_URL}/version/updates`, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error("update-status-unavailable");
+  }
+  return (await response.json()) as UpdateStatusInfo;
+}
+
+export async function startAutomaticUpdate(tagName: string | null, csrfToken: string) {
+  const response = await fetch(`${API_BASE_URL}/version/update`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({ tag_name: tagName }),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail ?? "automatic-update-failed");
+  }
+  return response.json() as Promise<{ started: boolean; message: string; tag_name: string | null }>;
 }
