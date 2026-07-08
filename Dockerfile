@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="AE NetScope" \
     org.opencontainers.image.description="Open source LAN inventory and sysadmin network documentation web app." \
     org.opencontainers.image.source="https://github.com/WhiteAssassins/AE-NetScope" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.6-alpha"
+    org.opencontainers.image.version="0.1.6-alpha.1"
 
 WORKDIR /app
 
@@ -39,7 +39,15 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN mkdir -p /app/backups \
     && chmod +x /entrypoint.sh \
     && apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir /app/api \

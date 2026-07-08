@@ -29,7 +29,8 @@ function expectIncludes(label, haystack, needle) {
 }
 
 function normalizePythonVersion(value) {
-  return value.replace(/a0$/, "-alpha");
+  const match = value.match(/^(.*)a(\d+)$/);
+  return match ? `${match[1]}-alpha.${match[2]}` : value;
 }
 
 function matchFirst(label, text, pattern) {
