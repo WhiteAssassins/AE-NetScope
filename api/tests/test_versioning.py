@@ -4,7 +4,10 @@ from pathlib import Path
 
 
 def normalize_python_version(value: str) -> str:
-    return value.replace("a0", "-alpha")
+    if "a" not in value:
+        return value
+    base, alpha = value.rsplit("a", 1)
+    return f"{base}-alpha.{alpha}"
 
 
 def test_project_versions_are_aligned() -> None:
