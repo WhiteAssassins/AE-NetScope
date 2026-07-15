@@ -2,6 +2,44 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.7-alpha - 2026-07-12
+
+### Added
+
+- Added the first internationalization milestone using `i18next` and `react-i18next`.
+- Added canonical English and Spanish locale files with automatic locale discovery.
+- Added manual language selection in Settings with immediate preview and account persistence.
+- Added `preferred_language` to user accounts through a non-destructive Alembic migration and a CSRF-protected preference endpoint.
+- Added translation validation for key parity, empty values, interpolation variables, English fallback, UTF-8 integrity, mojibake, control characters, and suspicious invisible characters.
+- Added an upgrade test proving that the language migration preserves existing users and assigns English as their initial preference.
+- Added per-dependency latency, total diagnostic duration, and stable translatable message codes to the detailed health endpoint.
+- Added a more useful System status view with healthy-check counts, degraded dependency emphasis, runtime endpoints, retry handling, and optional 30-second auto-refresh.
+
+### Changed
+
+- Updated all project, API, web, Docker, Compose, release, and TrueNAS image markers to `0.1.7-alpha`.
+- Made English the primary, default, canonical, and fallback interface language.
+- Migrated initial setup, login, navigation, topbar menus, global search, footer, loading states, and Settings to translation keys.
+- Migrated System status and dependency health messages to the English/Spanish translation system.
+- Made user language preferences follow authenticated accounts across sessions and devices while retaining browser-local fallback behavior.
+- Documented the translation contribution workflow and the current incremental translation scope.
+
+### Fixed
+
+- Decoupled browser-local settings from account language persistence so local preferences still save when the API is unavailable.
+- Restored the persisted account language when a remote language update fails, preventing selector, interface, and storage state from diverging.
+- Aligned frontend, API, database, and migration locale-code capacity at 64 characters for community-provided locale files.
+- Made readiness depend only on required health checks so optional integrations cannot incorrectly degrade the application.
+- Corrected active public and TrueNAS checklists that still referenced the project's former license model.
+- Corrected the GHCR workflow OCI description so published images identify AE NetScope as open source software.
+- Strengthened fallback tests so they verify a genuinely missing translation key, not only an unsupported locale.
+
+### Verified
+
+- API and web test suites pass.
+- Translation-specific tests pass.
+- Ruff, ESLint, the production web build, Alembic upgrade/check, dependency audit, secret scan, and tracked-artifact checks pass.
+
 ## v0.1.6-alpha - 2026-07-07
 
 ### Added

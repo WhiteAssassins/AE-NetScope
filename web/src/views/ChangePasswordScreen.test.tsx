@@ -28,6 +28,7 @@ describe("ChangePasswordScreen", () => {
             role: "admin",
             permissions: ["inventory:read"],
             must_change_password: false,
+            preferred_language: "en",
           },
         }),
       ),

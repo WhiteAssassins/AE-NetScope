@@ -1,6 +1,7 @@
 import { Network, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { User } from "../types";
 
@@ -9,6 +10,7 @@ type SetupScreenProps = {
 };
 
 export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -21,7 +23,7 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
+      setError(t("setup.passwordMismatch"));
       return;
     }
 
@@ -35,18 +37,14 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
       });
 
       if (!response.ok) {
-        setError(
-          response.status === 409
-            ? "El primer usuario administrador ya fue creado."
-            : "No se pudo completar la configuración inicial.",
-        );
+        setError(response.status === 409 ? t("setup.alreadyCompleted") : t("setup.failed"));
         return;
       }
 
       const data = (await response.json()) as { user: User; csrf_token: string };
       onSetupComplete(data.user, data.csrf_token);
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -59,15 +57,15 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
           <span className="brand-mark">
             <Network size={31} strokeWidth={1.8} />
           </span>
-          <strong>AE NetScope</strong>
+          <strong>{t("common.appName")}</strong>
         </div>
         <div className="login-copy">
-          <h1>Primer setup</h1>
-          <p>Crea el administrador inicial para proteger esta instalación.</p>
+          <h1>{t("setup.title")}</h1>
+          <p>{t("setup.description")}</p>
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            Correo del admin
+            {t("setup.adminEmail")}
             <input
               autoComplete="username"
               onChange={(event) => setEmail(event.target.value)}
@@ -77,7 +75,7 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
             />
           </label>
           <label>
-            Usuario
+            {t("setup.username")}
             <input
               autoComplete="nickname"
               onChange={(event) => setUsername(event.target.value)}
@@ -87,7 +85,7 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
             />
           </label>
           <label>
-            Contraseña
+            {t("auth.password")}
             <input
               autoComplete="new-password"
               minLength={12}
@@ -98,7 +96,7 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
             />
           </label>
           <label>
-            Confirmar contraseña
+            {t("setup.confirmPassword")}
             <input
               autoComplete="new-password"
               minLength={12}
@@ -110,11 +108,11 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
           </label>
           <p className="setup-note">
             <ShieldCheck size={17} strokeWidth={1.9} />
-            Este flujo solo está disponible cuando no existe ningún usuario.
+            {t("setup.restrictedNotice")}
           </p>
           {error && <p className="login-error">{error}</p>}
           <button className="login-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Creando..." : "Crear administrador"}
+            {isSubmitting ? t("setup.creating") : t("setup.createAdministrator")}
           </button>
         </form>
       </section>

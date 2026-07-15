@@ -9,6 +9,7 @@ from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.auth import (
     ChangeEmailRequest,
+    ChangeLanguageRequest,
     ChangePasswordRequest,
     CsrfResponse,
     InitialSetupRequest,
@@ -39,6 +40,7 @@ def serialize_user(user: User) -> UserResponse:
         role=user.role,
         permissions=sorted(permissions_for_role(user.role)),
         must_change_password=user.must_change_password,
+        preferred_language=user.preferred_language,
     )
 
 
@@ -226,6 +228,21 @@ async def change_email(
         )
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
+    await session.commit()
+    return SessionResponse(user=serialize_user(current_user))
+
+
+@router.patch(
+    "/preferences/language",
+    response_model=SessionResponse,
+    dependencies=[Depends(require_csrf), Depends(rate_limit("auth.language", limit=30))],
+)
+async def change_language(
+    payload: ChangeLanguageRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> SessionResponse:
+    current_user.preferred_language = payload.language.lower()
     await session.commit()
     return SessionResponse(user=serialize_user(current_user))
 

@@ -1,4 +1,4 @@
-app_version: 0.1.6-alpha.1
+app_version: 0.1.7-alpha
 capabilities: []
 categories:
 - networking
@@ -44,4 +44,4 @@ sources:
 - https://github.com/users/WhiteAssassins/packages/container/package/ae-netscope
 title: AE NetScope
 train: community
-version: 1.0.0
+version: 1.0.1

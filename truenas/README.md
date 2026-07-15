@@ -6,8 +6,8 @@ The official TrueNAS catalog does not read app definitions from this repository.
 
 ## Current Target
 
-- AE NetScope image: `ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha.1`
-- App version: `0.1.6-alpha.1`
+- AE NetScope image: `ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha`
+- App version: `0.1.7-alpha`
 - TrueNAS train target: `community`
 - Runtime dependencies: PostgreSQL 18 and Redis 8
 - Default web port: `30080`

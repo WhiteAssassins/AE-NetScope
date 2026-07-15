@@ -8,6 +8,7 @@ import type {
   GitHubReleaseInfo,
   HealthStatus,
   UpdateStatusInfo,
+  User,
   VersionInfo,
   VlanRecord,
 } from "./types";
@@ -105,4 +106,20 @@ export async function startAutomaticUpdate(tagName: string | null, csrfToken: st
     throw new Error(payload?.detail ?? "automatic-update-failed");
   }
   return response.json() as Promise<{ started: boolean; message: string; tag_name: string | null }>;
+}
+
+export async function updatePreferredLanguage(language: string, csrfToken: string) {
+  const response = await fetch(`${API_BASE_URL}/auth/preferences/language`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({ language }),
+  });
+  if (!response.ok) {
+    throw new Error("language-update-failed");
+  }
+  return (await response.json()) as { user: User };
 }

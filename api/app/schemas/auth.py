@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     role: str
     permissions: list[str]
     must_change_password: bool
+    preferred_language: str
 
 
 class SessionResponse(BaseModel):
@@ -42,3 +43,11 @@ class ChangePasswordRequest(BaseModel):
 class ChangeEmailRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
     new_email: EmailStr
+
+
+class ChangeLanguageRequest(BaseModel):
+    language: str = Field(
+        min_length=2,
+        max_length=64,
+        pattern=r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$",
+    )

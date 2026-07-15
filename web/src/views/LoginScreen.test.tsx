@@ -29,6 +29,7 @@ describe("LoginScreen", () => {
             role: "admin",
             permissions: ["inventory:read"],
             must_change_password: false,
+            preferred_language: "en",
           },
         }),
       ),
@@ -37,9 +38,9 @@ describe("LoginScreen", () => {
 
     render(<LoginScreen onLogin={onLogin} />);
 
-    await user.type(screen.getByLabelText("Correo"), "admin@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "correct-password");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "correct-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
     expect(onLogin).toHaveBeenCalledWith(
@@ -66,13 +67,13 @@ describe("LoginScreen", () => {
 
     render(<LoginScreen onLogin={vi.fn()} />);
 
-    await user.type(screen.getByLabelText("Correo"), "admin@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "wrong-password");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
-    expect(await screen.findByText("Correo o contraseña inválidos.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrong-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByText("Invalid email or password.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
-    expect(await screen.findByText("La cuenta está bloqueada temporalmente.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByText("The account is temporarily locked.")).toBeInTheDocument();
   });
 
   it("shows a connection error when the API cannot be reached", async () => {
@@ -82,10 +83,10 @@ describe("LoginScreen", () => {
     render(<LoginScreen message="Sesión expirada" onLogin={vi.fn()} />);
 
     expect(screen.getByText("Sesión expirada")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Correo"), "admin@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "correct-password");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "correct-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("No se pudo conectar con la API.")).toBeInTheDocument();
+    expect(await screen.findByText("Could not connect to the API.")).toBeInTheDocument();
   });
 });

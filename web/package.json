@@ -1,7 +1,7 @@
 {
   "name": "ae-netscope-web",
   "private": true,
-  "version": "0.1.6-alpha.1",
+  "version": "0.1.7-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,13 +9,16 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:i18n": "vitest run src/i18n/i18n.test.ts",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "i18next": "^26.3.6",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.9",
     "recharts": "^3.8.1"
   },
   "devDependencies": {

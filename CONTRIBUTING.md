@@ -45,6 +45,7 @@ api\.venv\Scripts\python.exe -m pytest api
 api\.venv\Scripts\python.exe -m ruff check api
 npm run build
 npm run lint
+npm --prefix web run test:i18n
 ```
 
 If a check fails and you cannot fix it, mention it in the pull request.
@@ -64,6 +65,22 @@ If a check fails and you cannot fix it, mention it in the pull request.
 - Build real workflows, not placeholder screens.
 - Avoid exposing secrets or real infrastructure examples in UI text, seed data, or screenshots.
 - Use existing components and patterns before adding new abstractions.
+
+## Translations
+
+English in `web/src/i18n/locales/en.json` is the canonical language and runtime fallback.
+
+Add or change interface keys in `en.json` first, then update every bundled locale in the same pull request.
+
+To add a language:
+
+1. Copy `en.json` to `web/src/i18n/locales/<language-code>.json`.
+2. Keep every key and interpolation variable from the English file.
+3. Translate values only; do not translate keys, product names, or placeholders such as `{{name}}`.
+4. Save the file as UTF-8 without a byte-order mark.
+5. Run `npm --prefix web run test:i18n`.
+
+Language files are discovered automatically. The translation tests reject missing or extra keys, empty values, incompatible placeholders, malformed UTF-8, common mojibake, control characters, and suspicious invisible characters.
 
 ## Database and migrations
 

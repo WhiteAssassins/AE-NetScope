@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="AE NetScope" \
     org.opencontainers.image.description="Open source LAN inventory and sysadmin network documentation web app." \
     org.opencontainers.image.source="https://github.com/WhiteAssassins/AE-NetScope" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.6-alpha.1"
+    org.opencontainers.image.version="0.1.7-alpha"
 
 WORKDIR /app
 

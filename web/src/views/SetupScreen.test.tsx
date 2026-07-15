@@ -29,6 +29,7 @@ describe("SetupScreen", () => {
             role: "admin",
             permissions: ["inventory:read"],
             must_change_password: false,
+            preferred_language: "en",
           },
         }),
       ),
@@ -37,12 +38,12 @@ describe("SetupScreen", () => {
 
     render(<SetupScreen onSetupComplete={onSetupComplete} />);
 
-    await user.type(screen.getByLabelText("Correo del admin"), "owner@example.com");
-    await user.clear(screen.getByLabelText("Usuario"));
-    await user.type(screen.getByLabelText("Usuario"), "owner");
-    await user.type(screen.getByLabelText("Contraseña"), "first-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "first-secure-password");
-    await user.click(screen.getByRole("button", { name: "Crear administrador" }));
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.clear(screen.getByLabelText("Username"));
+    await user.type(screen.getByLabelText("Username"), "owner");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "first-secure-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
 
     await waitFor(() => expect(onSetupComplete).toHaveBeenCalledTimes(1));
     expect(onSetupComplete).toHaveBeenCalledWith(
@@ -70,12 +71,12 @@ describe("SetupScreen", () => {
 
     render(<SetupScreen onSetupComplete={vi.fn()} />);
 
-    await user.type(screen.getByLabelText("Correo del admin"), "owner@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "first-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "different-password");
-    await user.click(screen.getByRole("button", { name: "Crear administrador" }));
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "different-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
 
-    expect(screen.getByText("Las contraseñas no coinciden.")).toBeInTheDocument();
+    expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -85,11 +86,11 @@ describe("SetupScreen", () => {
 
     render(<SetupScreen onSetupComplete={vi.fn()} />);
 
-    await user.type(screen.getByLabelText("Correo del admin"), "owner@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "first-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "first-secure-password");
-    await user.click(screen.getByRole("button", { name: "Crear administrador" }));
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "first-secure-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
 
-    expect(await screen.findByText("El primer usuario administrador ya fue creado.")).toBeInTheDocument();
+    expect(await screen.findByText("The initial administrator has already been created.")).toBeInTheDocument();
   });
 });

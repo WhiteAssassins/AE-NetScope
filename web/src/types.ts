@@ -5,6 +5,7 @@ export type User = {
   role: string;
   permissions: string[];
   must_change_password: boolean;
+  preferred_language: string;
 };
 
 export type ManagedUser = {
@@ -211,6 +212,8 @@ export type HealthCheckStatus = {
   status: "ok" | "error";
   required: boolean;
   message: string;
+  message_code?: string;
+  latency_ms?: number | null;
 };
 
 export type HealthStatus = {
@@ -220,6 +223,7 @@ export type HealthStatus = {
   version: string;
   release_channel: string;
   checked_at: string;
+  duration_ms?: number;
   checks: Record<string, HealthCheckStatus>;
 };
 

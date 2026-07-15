@@ -6,13 +6,15 @@
 
 AE NetScope is a self-hosted web app for organizing LAN inventory data such as devices, IP addresses, MAC addresses, subnets, VLANs, services, hardware details, and technical notes.
 
+English is the primary, default, and fallback interface language. Spanish is bundled and can be selected per user from **Settings > Language**.
+
 ## Early Public Preview
 
 AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.6-alpha.1.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.7-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -33,6 +35,19 @@ Current alpha release notes are available in `RELEASE_NOTES_v0.1.6-alpha.1.md`. 
 - VLAN management with utilization summaries, duplicate protection, editing, and deletion.
 - Deletion flows for devices and subnets with reference cleanup for related IP records.
 - Service management with device association, ports, protocols, status filters, editing, and deletion.
+- Internationalization foundation with English as the primary, default, and fallback language.
+- Bundled Spanish translation, manual language selection, and per-user language persistence.
+- System status diagnostics with dependency latency, total check duration, degraded-state visibility, and optional 30-second auto-refresh.
+
+## Languages
+
+English is AE NetScope's canonical interface language, default language, and runtime fallback. Spanish is included and can be selected manually from **Settings > Language**.
+
+The selected language is stored in the authenticated user account so it follows the user across browsers and devices. A browser-local copy is also kept for unauthenticated screens and temporary fallback behavior. Existing accounts receive English as their initial preference when the language migration is applied and can switch to Spanish at any time.
+
+The current internationalization milestone covers initial setup, login, navigation, topbar menus, global search, footer, loading states, Settings, and System status. The remaining inventory and administration views are being migrated progressively; untranslated interface text falls back to English once it is moved into the translation system.
+
+Community translations live in `web/src/i18n/locales/`. Adding a locale requires one JSON file based on `en.json`; files are discovered automatically. Translation checks reject missing or extra keys, empty values, mismatched interpolation variables, malformed UTF-8, common mojibake, control characters, and suspicious invisible characters. See `CONTRIBUTING.md` for the contribution steps.
 
 ## Versioning
 
@@ -44,7 +59,7 @@ The API exposes the installed version at:
 /api/version
 ```
 
-The web UI shows the installed version in the footer and in **Actualizaciones**, where administrators can compare the installed version with the latest GitHub release.
+The web UI shows the installed version in the footer and in **Updates**, where administrators can compare the installed version with the latest GitHub release.
 
 ## Local Development
 
@@ -88,6 +103,12 @@ Coverage reports:
 npm run test:coverage
 ```
 
+Translation validation:
+
+```bat
+npm --prefix web run test:i18n
+```
+
 The API coverage XML is generated at `api/coverage.xml`. The web coverage report is generated under `web/coverage/`.
 
 GitHub Actions runs the same main checks on push and pull requests. The workflow summary includes a simple test and coverage report, and the full coverage artifacts are attached to the workflow run.
@@ -115,6 +136,7 @@ npm run deps:audit
 - React
 - TypeScript
 - Vite
+- i18next and react-i18next
 - FastAPI
 - SQLAlchemy
 - Alembic
@@ -187,7 +209,7 @@ Before startup migrations run, the container creates a PostgreSQL custom-format 
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha.1
+ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha
 ```
 
 From the project root:
@@ -294,7 +316,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.6-alpha.1 .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.

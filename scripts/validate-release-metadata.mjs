@@ -30,7 +30,10 @@ function expectIncludes(label, haystack, needle) {
 
 function normalizePythonVersion(value) {
   const match = value.match(/^(.*)a(\d+)$/);
-  return match ? `${match[1]}-alpha.${match[2]}` : value;
+  if (!match) {
+    return value;
+  }
+  return match[2] === "0" ? `${match[1]}-alpha` : `${match[1]}-alpha.${match[2]}`;
 }
 
 function matchFirst(label, text, pattern) {
@@ -65,6 +68,19 @@ expectEqual("api pyproject version", normalizePythonVersion(apiVersion), version
 
 const dockerfile = readText("Dockerfile");
 expectIncludes("Dockerfile OCI version label", dockerfile, `org.opencontainers.image.version="${version}"`);
+expectIncludes("Dockerfile OCI license label", dockerfile, 'org.opencontainers.image.licenses="MIT"');
+
+const publishWorkflow = readText(".github/workflows/publish-container.yml");
+expectIncludes(
+  "GHCR workflow open source description",
+  publishWorkflow,
+  "org.opencontainers.image.description=Open source LAN inventory",
+);
+expectIncludes(
+  "GHCR workflow MIT license label",
+  publishWorkflow,
+  "org.opencontainers.image.licenses=MIT",
+);
 
 const compose = readText("compose.yaml");
 expectIncludes("compose image tag", compose, `image: ${image}`);

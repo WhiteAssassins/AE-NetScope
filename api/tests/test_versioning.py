@@ -7,7 +7,7 @@ def normalize_python_version(value: str) -> str:
     if "a" not in value:
         return value
     base, alpha = value.rsplit("a", 1)
-    return f"{base}-alpha.{alpha}"
+    return f"{base}-alpha" if alpha == "0" else f"{base}-alpha.{alpha}"
 
 
 def test_project_versions_are_aligned() -> None:

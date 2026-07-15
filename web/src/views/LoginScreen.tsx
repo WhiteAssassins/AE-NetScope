@@ -1,8 +1,10 @@
 import { Network } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { User } from "../types";
+
 export default function LoginScreen({
   message,
   onLogin,
@@ -10,6 +12,7 @@ export default function LoginScreen({
   message?: string;
   onLogin: (user: User, csrfToken: string) => void;
 }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -29,18 +32,14 @@ export default function LoginScreen({
       });
 
       if (!response.ok) {
-        setError(
-          response.status === 423
-            ? "La cuenta está bloqueada temporalmente."
-            : "Correo o contraseña inválidos.",
-        );
+        setError(response.status === 423 ? t("auth.locked") : t("auth.invalidCredentials"));
         return;
       }
 
       const data = (await response.json()) as { user: User; csrf_token: string };
       onLogin(data.user, data.csrf_token);
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -53,15 +52,15 @@ export default function LoginScreen({
           <span className="brand-mark">
             <Network size={31} strokeWidth={1.8} />
           </span>
-          <strong>AE NetScope</strong>
+          <strong>{t("common.appName")}</strong>
         </div>
         <div className="login-copy">
-          <h1>Acceso seguro</h1>
-          <p>Inicia sesión para administrar el inventario de red.</p>
+          <h1>{t("auth.secureAccess")}</h1>
+          <p>{t("auth.loginDescription")}</p>
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            Correo
+            {t("auth.email")}
             <input
               autoComplete="username"
               onChange={(event) => setEmail(event.target.value)}
@@ -71,7 +70,7 @@ export default function LoginScreen({
             />
           </label>
           <label>
-            Contraseña
+            {t("auth.password")}
             <input
               autoComplete="current-password"
               autoFocus
@@ -84,11 +83,10 @@ export default function LoginScreen({
           {message && <p className="login-notice">{message}</p>}
           {error && <p className="login-error">{error}</p>}
           <button className="login-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Verificando..." : "Entrar"}
+            {isSubmitting ? t("auth.verifying") : t("auth.signIn")}
           </button>
         </form>
       </section>
     </main>
   );
 }
-

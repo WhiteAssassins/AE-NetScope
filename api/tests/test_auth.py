@@ -54,6 +54,7 @@ async def test_login_me_and_logout(auth_client: AsyncClient) -> None:
 
     assert login_response.status_code == 200
     assert login_response.json()["user"]["email"] == "admin@example.com"
+    assert login_response.json()["user"]["preferred_language"] == "en"
     assert login_response.json()["user"]["permissions"] == [
         "audit:read",
         "devices:create",
@@ -272,6 +273,55 @@ async def test_change_email_rejects_duplicate_email(auth_client: AsyncClient) ->
     )
 
     assert response.status_code == 409
+
+
+async def test_user_can_persist_preferred_language(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = login_response.json()["csrf_token"]
+
+    response = await auth_client.patch(
+        "/api/auth/preferences/language",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"language": "es"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["preferred_language"] == "es"
+    me_response = await auth_client.get("/api/auth/me")
+    assert me_response.json()["user"]["preferred_language"] == "es"
+
+    extended_locale = "en-abcdef12-abcdef12"
+    extended_response = await auth_client.patch(
+        "/api/auth/preferences/language",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"language": extended_locale},
+    )
+    assert extended_response.status_code == 200
+    assert extended_response.json()["user"]["preferred_language"] == extended_locale
+
+
+async def test_language_preference_requires_csrf_and_valid_locale(auth_client: AsyncClient) -> None:
+    login_response = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    csrf_token = login_response.json()["csrf_token"]
+
+    missing_csrf = await auth_client.patch(
+        "/api/auth/preferences/language",
+        json={"language": "es"},
+    )
+    invalid_locale = await auth_client.patch(
+        "/api/auth/preferences/language",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"language": "not a locale"},
+    )
+
+    assert missing_csrf.status_code == 403
+    assert invalid_locale.status_code == 422
 
 
 async def test_initial_setup_creates_first_admin_only_once() -> None:

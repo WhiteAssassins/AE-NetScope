@@ -8,6 +8,7 @@ import {
   fetchUpdateStatus,
   fetchVersionInfo,
   startAutomaticUpdate,
+  updatePreferredLanguage,
 } from "./api";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -245,6 +246,30 @@ describe("api client", () => {
 
     await expect(startAutomaticUpdate("v0.1.7-alpha", "csrf-token")).rejects.toThrow(
       "Automatic updates disabled.",
+    );
+  });
+
+  it("persists the preferred language with csrf protection", async () => {
+    const user = {
+      id: 1,
+      email: "admin@example.com",
+      username: "admin",
+      role: "admin",
+      permissions: [],
+      must_change_password: false,
+      preferred_language: "es",
+    };
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ user }))));
+
+    await expect(updatePreferredLanguage("es", "csrf-token")).resolves.toEqual({ user });
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/auth/preferences/language`,
+      expect.objectContaining({
+        method: "PATCH",
+        credentials: "include",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({ language: "es" }),
+      }),
     );
   });
 });

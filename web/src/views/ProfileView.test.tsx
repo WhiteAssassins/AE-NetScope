@@ -11,6 +11,7 @@ const currentUser: User = {
   role: "admin",
   permissions: ["inventory:read", "users:manage"],
   must_change_password: false,
+  preferred_language: "en",
 };
 
 function jsonResponse(payload: unknown, status = 200) {

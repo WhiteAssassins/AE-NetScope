@@ -23,8 +23,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL, fetchInventoryData, fetchVersionInfo } from "./api";
 import "./App.css";
+import { setLanguage } from "./i18n";
 import type {
   AuditEvent,
   DashboardSummary,
@@ -40,7 +42,7 @@ import type {
   VlanRecord,
 } from "./types";
 
-type NavItem = { label: string; icon: LucideIcon };
+type NavItem = { translationKey: string; icon: LucideIcon; view: ViewName };
 type TopbarMenu = "notifications" | "help" | "user" | null;
 type SearchTarget = { view: ViewName; id?: number; query?: string };
 type SearchResult = {
@@ -68,34 +70,39 @@ function readLocalSettings() {
   return { ...defaultLocalSettings, ...(JSON.parse(stored) as Partial<LocalSettings>) };
 }
 
-const navGroups: Array<{ label: string; items: NavItem[] }> = [
-  { label: "", items: [{ label: "Dashboard", icon: Home }] },
+const navGroups: Array<{ translationKey?: string; items: NavItem[] }> = [
   {
-    label: "Inventario",
+    items: [{ translationKey: "navigation.dashboard", icon: Home, view: "dashboard" }],
+  },
+  {
+    translationKey: "navigation.inventory",
     items: [
-      { label: "Dispositivos", icon: Monitor },
-      { label: "IPs y MACs", icon: Network },
-      { label: "Subredes", icon: Route },
-      { label: "Topología", icon: Route },
-      { label: "VLANs", icon: Cable },
-      { label: "Servicios", icon: ShieldCheck },
-      { label: "Hardware", icon: HardDrive },
-      { label: "Notas técnicas", icon: FileText },
+      { translationKey: "navigation.devices", icon: Monitor, view: "devices" },
+      { translationKey: "navigation.ipMacs", icon: Network, view: "ipMacs" },
+      { translationKey: "navigation.networks", icon: Route, view: "networks" },
+      { translationKey: "navigation.topology", icon: Route, view: "topology" },
+      { translationKey: "navigation.vlans", icon: Cable, view: "vlans" },
+      { translationKey: "navigation.services", icon: ShieldCheck, view: "services" },
+      { translationKey: "navigation.hardware", icon: HardDrive, view: "hardware" },
+      { translationKey: "navigation.notes", icon: FileText, view: "notes" },
     ],
   },
-  { label: "Historial", items: [{ label: "Cambios", icon: Clock3 }] },
   {
-    label: "Herramientas",
-    items: [{ label: "Datos", icon: Import }],
+    translationKey: "navigation.history",
+    items: [{ translationKey: "navigation.audit", icon: Clock3, view: "audit" }],
   },
   {
-    label: "Configuración",
+    translationKey: "navigation.tools",
+    items: [{ translationKey: "navigation.data", icon: Import, view: "importExport" }],
+  },
+  {
+    translationKey: "navigation.configuration",
     items: [
-      { label: "Usuarios", icon: UsersRound },
-      { label: "Roles y permisos", icon: ShieldCheck },
-      { label: "Estado", icon: HeartPulse },
-      { label: "Actualizaciones", icon: PackageCheck },
-      { label: "Ajustes", icon: Settings },
+      { translationKey: "navigation.users", icon: UsersRound, view: "users" },
+      { translationKey: "navigation.roles", icon: ShieldCheck, view: "roles" },
+      { translationKey: "navigation.health", icon: HeartPulse, view: "health" },
+      { translationKey: "navigation.updates", icon: PackageCheck, view: "updates" },
+      { translationKey: "navigation.settings", icon: Settings, view: "settings" },
     ],
   },
 ];
@@ -123,6 +130,7 @@ const UsersView = lazy(() => import("./views/UsersView"));
 const VlansView = lazy(() => import("./views/VlansView"));
 
 function App() {
+  const { i18n, t } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
@@ -168,26 +176,27 @@ function App() {
         if (!meResponse.ok) {
           setUser(null);
           if (meResponse.status === 401) {
-            setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
+            setSessionMessage(i18n.t("auth.sessionExpired"));
           }
           return;
         }
 
         const data = (await meResponse.json()) as { user: User };
+        await setLanguage(data.user.preferred_language);
         setUser(data.user);
         await refreshCsrfToken().catch(() => setCsrfToken(""));
         if (!data.user.must_change_password) {
           await refreshInventory().catch(() => {
-            setSessionMessage("No se pudo cargar el inventario. Actualiza de nuevo en unos segundos.");
+            setSessionMessage(i18n.t("auth.inventoryUnavailable"));
           });
         }
       })
       .catch(() => {
         setUser(null);
-        setSessionMessage("La sesión expiró. Inicia sesión nuevamente.");
+        setSessionMessage(i18n.t("auth.sessionExpired"));
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [i18n]);
 
   useEffect(() => {
     function syncSettings() {
@@ -264,8 +273,8 @@ function App() {
           title: device.name,
           meta: [
             device.device_type,
-            device.primary_ip ?? "sin IP",
-            device.primary_mac ?? "sin MAC",
+            device.primary_ip ?? t("search.withoutIp"),
+            device.primary_mac ?? t("search.withoutMac"),
             device.serial_number ? `SN ${device.serial_number}` : null,
             device.asset_tag ? `Asset ${device.asset_tag}` : null,
             device.owner,
@@ -292,7 +301,7 @@ function App() {
             ].some(Boolean),
           )
           .map((device) => ({
-            title: `Hardware: ${device.name}`,
+            title: t("search.hardwarePrefix", { name: device.name }),
             meta: [
               device.vendor,
               device.model,
@@ -308,28 +317,28 @@ function App() {
         ...devices
           .filter((device) => device.notes?.trim())
           .map((device) => ({
-            title: `Nota: ${device.name}`,
+            title: t("search.notePrefix", { name: device.name }),
             meta: device.notes ?? "",
             target: { view: "notes" as ViewName, id: device.id },
           })),
         ...ipMacs.map((record) => ({
           title: record.address,
-          meta: `${record.device_name ?? "Sin dispositivo"} - ${record.mac_address ?? "sin MAC"}`,
+          meta: `${record.device_name ?? t("search.withoutDevice")} - ${record.mac_address ?? t("search.withoutMac")}`,
           target: { view: "ipMacs" as ViewName, id: record.id },
         })),
         ...networks.map((network) => ({
           title: network.cidr,
-          meta: `${network.name} - ${network.location ?? "sin ubicacion"}`,
+          meta: `${network.name} - ${network.location ?? t("search.withoutLocation")}`,
           target: { view: "networks" as ViewName, id: network.id },
         })),
         ...vlans.map((vlan) => ({
           title: `VLAN ${vlan.vlan_id}`,
-          meta: `${vlan.name} - ${vlan.network_count} subredes`,
+          meta: `${vlan.name} - ${t("search.networkCount", { count: vlan.network_count })}`,
           target: { view: "vlans" as ViewName, id: vlan.id },
         })),
         ...services.map((service) => ({
           title: service.name,
-          meta: `${service.device_name} - ${service.port ?? "sin puerto"}/${service.protocol}`,
+          meta: `${service.device_name} - ${service.port ?? t("search.withoutPort")}/${service.protocol}`,
           target: { view: "services" as ViewName, id: service.id },
         })),
         ...managedUsers.map((managedUser) => ({
@@ -339,23 +348,23 @@ function App() {
         })),
         ...auditEvents.map((event) => ({
           title: event.message,
-          meta: `${event.event_type} - ${event.actor_email ?? "Sistema"} - ${new Date(
+          meta: `${event.event_type} - ${event.actor_email ?? t("common.system")} - ${new Date(
             event.created_at,
-          ).toLocaleString()}`,
+          ).toLocaleString(i18n.resolvedLanguage)}`,
           target: { view: "audit" as ViewName, query: event.message },
         })),
         ...[
-          { title: "Dashboard", meta: "Resumen general de la red", view: "dashboard" },
-          { title: "Topologia", meta: "Mapa expandible de subredes, VLANs, IPs y dispositivos", view: "topology" },
-          { title: "Datos", meta: "Backups, restauracion, JSON y CSV", view: "importExport" },
-          { title: "Cambios", meta: "Auditoria e historial de actividad", view: "audit" },
-          { title: "Usuarios", meta: "Roles, bloqueos y sesiones", view: "users" },
-          { title: "Perfil", meta: "Cuenta, correo, contrasena y permisos", view: "profile" },
-          { title: "Roles y permisos", meta: "Matriz de permisos", view: "roles" },
-          { title: "Estado", meta: "Health checks de API, base de datos y Redis", view: "health" },
-          { title: "Actualizaciones", meta: "Version instalada y releases", view: "updates" },
-          { title: "Ajustes", meta: "Preferencias locales y correo", view: "settings" },
-          { title: "Soporte", meta: "Contacto, web y GitHub", view: "support" },
+          { title: t("navigation.dashboard"), meta: t("search.pages.dashboard"), view: "dashboard" },
+          { title: t("navigation.topology"), meta: t("search.pages.topology"), view: "topology" },
+          { title: t("navigation.data"), meta: t("search.pages.data"), view: "importExport" },
+          { title: t("navigation.audit"), meta: t("search.pages.audit"), view: "audit" },
+          { title: t("navigation.users"), meta: t("search.pages.users"), view: "users" },
+          { title: t("topbar.profile"), meta: t("search.pages.profile"), view: "profile" },
+          { title: t("navigation.roles"), meta: t("search.pages.roles"), view: "roles" },
+          { title: t("navigation.health"), meta: t("search.pages.health"), view: "health" },
+          { title: t("navigation.updates"), meta: t("search.pages.updates"), view: "updates" },
+          { title: t("navigation.settings"), meta: t("search.pages.settings"), view: "settings" },
+          { title: t("topbar.support"), meta: t("search.pages.support"), view: "support" },
         ].map((item) => ({
           title: item.title,
           meta: item.meta,
@@ -418,28 +427,6 @@ function App() {
     }
   }
 
-  function navLabelToView(label: string): ViewName | null {
-    const map: Record<string, ViewName> = {
-      Dashboard: "dashboard",
-      Dispositivos: "devices",
-      "IPs y MACs": "ipMacs",
-      Subredes: "networks",
-      Topología: "topology",
-      VLANs: "vlans",
-      Servicios: "services",
-      Hardware: "hardware",
-      "Notas técnicas": "notes",
-      Cambios: "audit",
-      Datos: "importExport",
-      "Roles y permisos": "roles",
-      Usuarios: "users",
-      Estado: "health",
-      Actualizaciones: "updates",
-      Ajustes: "settings",
-    };
-    return map[label] ?? null;
-  }
-
   if (isLoading) {
     return <div className="auth-loading">AE NetScope</div>;
   }
@@ -449,6 +436,7 @@ function App() {
       <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
         <SetupScreen
           onSetupComplete={(nextUser, nextCsrfToken) => {
+            void setLanguage(nextUser.preferred_language);
             setSetupRequired(false);
             setUser(nextUser);
             setCsrfToken(nextCsrfToken);
@@ -465,6 +453,7 @@ function App() {
         <LoginScreen
           message={sessionMessage}
           onLogin={(nextUser, nextCsrfToken) => {
+            void setLanguage(nextUser.preferred_language);
             setUser(nextUser);
             setCsrfToken(nextCsrfToken);
             setSetupRequired(false);
@@ -518,26 +507,21 @@ function App() {
 
         <nav className="nav">
           {navGroups.map((group) => (
-            <div className="nav-group" key={group.label || "main"}>
-              {group.label && <p className="nav-label">{group.label}</p>}
+            <div className="nav-group" key={group.translationKey ?? "main"}>
+              {group.translationKey && <p className="nav-label">{t(group.translationKey)}</p>}
               {group.items.map((item) => {
-                const nextView = navLabelToView(item.label);
                 return (
                   <button
                     className={
-                      isActiveNav(item.label, view)
+                      isActiveNav(item.view, view)
                         ? "nav-item active button-reset"
                         : "nav-item button-reset"
                     }
-                    key={item.label}
-                    onClick={() => {
-                      if (nextView) {
-                        goToView(nextView);
-                      }
-                    }}
+                    key={item.translationKey}
+                    onClick={() => goToView(item.view)}
                   >
                     <item.icon size={19} strokeWidth={1.8} />
-                    <span>{item.label}</span>
+                    <span>{t(item.translationKey)}</span>
                   </button>
                 );
               })}
@@ -548,13 +532,13 @@ function App() {
         <div className="sidebar-footer">
           <button className="nav-item logout button-reset" onClick={handleLogout}>
             <LogOut size={18} strokeWidth={1.8} />
-            <span>Cerrar sesión</span>
+            <span>{t("auth.logout")}</span>
           </button>
           <button className="help-card button-reset" onClick={() => goToView("support")}>
             <CircleHelp size={20} strokeWidth={1.8} />
             <span>
-              ¿Necesitas ayuda?
-              <strong>Contáctanos</strong>
+              {t("sidebar.needHelp")}
+              <strong>{t("sidebar.contactUs")}</strong>
             </span>
           </button>
         </div>
@@ -564,7 +548,7 @@ function App() {
         <header className="topbar">
           <button
             className="icon-button"
-            aria-label={isSidebarCollapsed ? "Mostrar menú" : "Ocultar menú"}
+            aria-label={isSidebarCollapsed ? t("topbar.showMenu") : t("topbar.hideMenu")}
             onClick={() => setIsSidebarCollapsed((value) => !value)}
           >
             <Menu size={24} strokeWidth={1.7} />
@@ -580,7 +564,7 @@ function App() {
                 }}
                 onFocus={() => setActiveTopbarMenu(null)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Buscar dispositivos, IPs, VLANs, usuarios..."
+                placeholder={t("search.placeholder")}
                 ref={searchInputRef}
                 value={searchQuery}
               />
@@ -605,8 +589,8 @@ function App() {
                   ))
                 ) : (
                   <div className="topbar-empty">
-                    <strong>Sin resultados</strong>
-                    <span>No hay coincidencias en el inventario cargado.</span>
+                    <strong>{t("search.noResults")}</strong>
+                    <span>{t("search.noMatches")}</span>
                   </div>
                 )}
               </div>
@@ -618,7 +602,7 @@ function App() {
               <button
                 className="icon-button"
                 aria-expanded={activeTopbarMenu === "notifications"}
-                aria-label="Notificaciones"
+                aria-label={t("topbar.notifications")}
                 onClick={() => openTopbarMenu("notifications")}
               >
                 <Bell size={22} strokeWidth={1.7} />
@@ -633,13 +617,15 @@ function App() {
                         onClick={() => goToView("audit", { view: "audit", query: event.message })}
                       >
                         <strong>{event.message}</strong>
-                        <span>{new Date(event.created_at).toLocaleString()}</span>
+                        <span>
+                          {new Date(event.created_at).toLocaleString(i18n.resolvedLanguage)}
+                        </span>
                       </button>
                     ))
                   ) : (
                     <div className="topbar-empty">
-                      <strong>Sin notificaciones</strong>
-                      <span>Los eventos importantes aparecerán aquí.</span>
+                      <strong>{t("topbar.noNotifications")}</strong>
+                      <span>{t("topbar.notificationHint")}</span>
                     </div>
                   )}
                 </div>
@@ -650,7 +636,7 @@ function App() {
               <button
                 className="icon-button"
                 aria-expanded={activeTopbarMenu === "help"}
-                aria-label="Ayuda"
+                aria-label={t("topbar.help")}
                 onClick={() => openTopbarMenu("help")}
               >
                 <CircleHelp size={22} strokeWidth={1.7} />
@@ -658,16 +644,16 @@ function App() {
               {activeTopbarMenu === "help" && (
                 <div className="topbar-panel topbar-panel-right">
                   <button className="topbar-menu-item" onClick={() => goToView("support")}>
-                    <strong>Soporte</strong>
-                    <span>Correos, web oficial y GitHub.</span>
+                    <strong>{t("topbar.support")}</strong>
+                    <span>{t("topbar.supportDescription")}</span>
                   </button>
                   <button className="topbar-menu-item" onClick={() => goToView("importExport")}>
-                    <strong>Datos</strong>
-                    <span>Backups, restauracion y exportaciones.</span>
+                    <strong>{t("navigation.data")}</strong>
+                    <span>{t("topbar.dataDescription")}</span>
                   </button>
                   <button className="topbar-menu-item" onClick={() => goToView("audit")}>
-                    <strong>Historial de cambios</strong>
-                    <span>Auditoría y actividad reciente.</span>
+                    <strong>{t("topbar.changeHistory")}</strong>
+                    <span>{t("topbar.changeHistoryDescription")}</span>
                   </button>
                 </div>
               )}
@@ -689,8 +675,8 @@ function App() {
                     <small>{currentUser.role}</small>
                   </div>
                   <button className="topbar-menu-item" onClick={() => goToView("profile")}>
-                    <strong>Perfil</strong>
-                    <span>Cuenta, correo y permisos.</span>
+                    <strong>{t("topbar.profile")}</strong>
+                    <span>{t("topbar.profileDescription")}</span>
                   </button>
                   <button
                     className="topbar-menu-item"
@@ -699,18 +685,18 @@ function App() {
                       setUser({ ...currentUser, must_change_password: true });
                     }}
                   >
-                    <strong>Cambiar contraseña</strong>
-                    <span>Actualiza la clave de tu cuenta.</span>
+                    <strong>{t("auth.changePassword")}</strong>
+                    <span>{t("auth.changePasswordDescription")}</span>
                   </button>
                   {currentUser.permissions.includes("users:manage") && (
                     <button className="topbar-menu-item" onClick={() => goToView("users")}>
-                      <strong>Usuarios</strong>
-                      <span>Roles, bloqueos y sesiones.</span>
+                      <strong>{t("navigation.users")}</strong>
+                      <span>{t("topbar.usersDescription")}</span>
                     </button>
                   )}
                   <button className="topbar-menu-item danger-menu-item" onClick={handleLogout}>
-                    <strong>Cerrar sesión</strong>
-                    <span>Salir de AE NetScope.</span>
+                    <strong>{t("auth.logout")}</strong>
+                    <span>{t("auth.logoutDescription")}</span>
                   </button>
                 </div>
               )}
@@ -729,10 +715,10 @@ function App() {
               rel="noreferrer"
               target="_blank"
             >
-              <FileText size={17} /> Documentación
+              <FileText size={17} /> {t("footer.documentation")}
             </a>
             <button className="footer-link button-reset" onClick={() => goToView("support")}>
-              <CircleHelp size={17} /> Soporte
+              <CircleHelp size={17} /> {t("footer.support")}
             </button>
           </div>
         </footer>
@@ -743,7 +729,7 @@ function App() {
   function renderView() {
     if (view === "dashboard") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando dashboard...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.dashboard")}</div>}>
           <DashboardView
             auditEvents={auditEvents}
             dashboard={dashboard}
@@ -769,7 +755,7 @@ function App() {
     }
     if (view === "devices") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando dispositivos...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.devices")}</div>}>
           <DevicesView
             csrfToken={csrfToken}
             devices={devices}
@@ -783,7 +769,7 @@ function App() {
     }
     if (view === "ipMacs") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando IPs...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.ipMacs")}</div>}>
           <IpMacsView
             csrfToken={csrfToken}
             focusIpId={focusTarget?.view === "ipMacs" ? focusTarget.id : undefined}
@@ -798,7 +784,7 @@ function App() {
     }
     if (view === "networks") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando subredes...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.networks")}</div>}>
           <NetworksView
             csrfToken={csrfToken}
             focusNetworkId={focusTarget?.view === "networks" ? focusTarget.id : undefined}
@@ -812,7 +798,7 @@ function App() {
     }
     if (view === "topology") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando topología...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.topology")}</div>}>
           <TopologyView
             devices={devices}
             ipMacs={ipMacs}
@@ -827,7 +813,7 @@ function App() {
     }
     if (view === "vlans") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando VLANs...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.vlans")}</div>}>
           <VlansView
             csrfToken={csrfToken}
             focusVlanId={focusTarget?.view === "vlans" ? focusTarget.id : undefined}
@@ -840,7 +826,7 @@ function App() {
     }
     if (view === "services") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando servicios...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.services")}</div>}>
           <ServicesView
             csrfToken={csrfToken}
             devices={devices}
@@ -854,7 +840,7 @@ function App() {
     }
     if (view === "hardware") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando hardware...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.hardware")}</div>}>
           <HardwareView
             devices={devices}
             onOpenDevice={(deviceId) => goToView("devices", { view: "devices", id: deviceId })}
@@ -864,7 +850,7 @@ function App() {
     }
     if (view === "notes") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando notas...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.notes")}</div>}>
           <NotesView
             key={`notes-${focusTarget?.view === "notes" ? focusTarget.id ?? "all" : "all"}`}
             csrfToken={csrfToken}
@@ -879,7 +865,7 @@ function App() {
     }
     if (view === "audit") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando cambios...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.audit")}</div>}>
           <AuditView
             initialQuery={focusTarget?.view === "audit" ? focusTarget.query : undefined}
             permissions={currentUser.permissions}
@@ -889,7 +875,7 @@ function App() {
     }
     if (view === "backups") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando respaldos...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.data")}</div>}>
           <ImportExportView
             csrfToken={csrfToken}
             onImported={refreshInventory}
@@ -900,7 +886,7 @@ function App() {
     }
     if (view === "importExport") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando exportación...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.data")}</div>}>
           <ImportExportView
             csrfToken={csrfToken}
             onImported={refreshInventory}
@@ -911,14 +897,14 @@ function App() {
     }
     if (view === "roles") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando roles...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.roles")}</div>}>
           <RolesPermissionsView />
         </Suspense>
       );
     }
     if (view === "users") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando usuarios...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.users")}</div>}>
           <UsersView
             csrfToken={csrfToken}
             currentUser={currentUser}
@@ -929,7 +915,7 @@ function App() {
     }
     if (view === "profile") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando perfil...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.profile")}</div>}>
           <ProfileView
             csrfToken={csrfToken}
             onChangePassword={() => setUser({ ...currentUser, must_change_password: true })}
@@ -941,14 +927,14 @@ function App() {
     }
     if (view === "health") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando estado...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.health")}</div>}>
           <HealthView />
         </Suspense>
       );
     }
     if (view === "updates") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando actualizaciones...</div>}>
+        <Suspense fallback={<div className="auth-loading">{t("loading.updates")}</div>}>
           <UpdateView
             csrfToken={csrfToken}
             initialVersionInfo={versionInfo}
@@ -959,37 +945,23 @@ function App() {
     }
     if (view === "settings") {
       return (
-        <Suspense fallback={<div className="auth-loading">Cargando ajustes...</div>}>
-          <SettingsView />
+        <Suspense fallback={<div className="auth-loading">{t("loading.settings")}</div>}>
+          <SettingsView csrfToken={csrfToken} onUserChanged={setUser} user={currentUser} />
         </Suspense>
       );
     }
     return (
-      <Suspense fallback={<div className="auth-loading">Cargando soporte...</div>}>
+      <Suspense fallback={<div className="auth-loading">{t("loading.support")}</div>}>
         <SupportView />
       </Suspense>
     );
   }
 }
 
-function isActiveNav(label: string, view: ViewName) {
+function isActiveNav(navView: ViewName, currentView: ViewName) {
   return (
-    (label === "Dashboard" && view === "dashboard") ||
-    (label === "Dispositivos" && view === "devices") ||
-    (label === "IPs y MACs" && view === "ipMacs") ||
-    (label === "Subredes" && view === "networks") ||
-    (label === "Topología" && view === "topology") ||
-    (label === "VLANs" && view === "vlans") ||
-    (label === "Servicios" && view === "services") ||
-    (label === "Hardware" && view === "hardware") ||
-    (label === "Notas técnicas" && view === "notes") ||
-    (label === "Cambios" && view === "audit") ||
-    (label === "Datos" && (view === "importExport" || view === "backups")) ||
-    (label === "Roles y permisos" && view === "roles") ||
-    (label === "Usuarios" && view === "users") ||
-    (label === "Estado" && view === "health") ||
-    (label === "Actualizaciones" && view === "updates") ||
-    (label === "Ajustes" && view === "settings")
+    navView === currentView ||
+    (navView === "importExport" && currentView === "backups")
   );
 }
 

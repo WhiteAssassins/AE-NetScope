@@ -19,6 +19,7 @@ const user: User = {
   role: "admin",
   permissions: ["inventory:read"],
   must_change_password: false,
+  preferred_language: "en",
 };
 
 const dashboard: DashboardSummary = {

@@ -15,6 +15,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="admin")
+    preferred_language: Mapped[str] = mapped_column(String(64), nullable=False, default="en")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
