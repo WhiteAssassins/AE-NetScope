@@ -330,6 +330,11 @@ async def test_viewer_can_read_inventory_but_cannot_write() -> None:
         dashboard = await client.get("/api/inventory/dashboard")
         assert dashboard.status_code == 200
 
+        forbidden_json_export = await client.get("/api/inventory/export.json")
+        forbidden_csv_export = await client.get("/api/inventory/export/devices.csv")
+        assert forbidden_json_export.status_code == 403
+        assert forbidden_csv_export.status_code == 403
+
         forbidden_create = await client.post(
             "/api/inventory/vlans",
             headers={"X-CSRF-Token": login.json()["csrf_token"]},

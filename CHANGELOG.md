@@ -6,6 +6,12 @@ All notable changes to AE NetScope will be documented in this file.
 
 ### Added
 
+- Added atomic initial-setup ownership state and an installation-token requirement for fresh non-local deployments.
+- Added HMAC-SHA256 protection for persisted session and CSRF token hashes with transparent migration of legacy hashes.
+- Added bounded retention for expired sessions, revoked sessions, audit history, and pre-migration PostgreSQL backups.
+- Added request-body enforcement that counts streamed bytes even when `Content-Length` is absent.
+- Added PostgreSQL migration validation to CI in addition to SQLite migration tests.
+- Added security regression coverage for setup protection, export authorization, cache controls, legacy sessions, retention, request limits, SQLite foreign keys, and migration state.
 - Added the first internationalization milestone using `i18next` and `react-i18next`.
 - Added canonical English and Spanish locale files with automatic locale discovery.
 - Added manual language selection in Settings with immediate preview and account persistence.
@@ -17,6 +23,13 @@ All notable changes to AE NetScope will be documented in this file.
 
 ### Changed
 
+- Added a dedicated `inventory:export` permission for admins and operators; viewers remain read-only without bulk export access.
+- Built PostgreSQL URLs from structured connection components so reserved characters in passwords remain valid.
+- Enabled SQLite foreign-key enforcement to match production referential-integrity behavior.
+- Restricted detailed database and Redis health diagnostics to authenticated users and kept public readiness failures minimal.
+- Added explicit request, note, and description size limits plus `no-store` caching rules for sensitive API responses.
+- Made Argon2id explicit in code and removed unused configuration flags that implied unsupported cryptographic behavior.
+- Changed startup backups to run only before pending migrations, use restrictive permissions, and enforce retention.
 - Updated all project, API, web, Docker, Compose, release, and TrueNAS image markers to `0.1.7-alpha`.
 - Made English the primary, default, canonical, and fallback interface language.
 - Migrated initial setup, login, navigation, topbar menus, global search, footer, loading states, and Settings to translation keys.

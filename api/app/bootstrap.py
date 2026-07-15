@@ -8,6 +8,7 @@ from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.models.user import User
+from app.services.setup import ensure_app_state
 
 LOCAL_ADMIN_FILE = Path(".local-admin.txt")
 
@@ -27,6 +28,8 @@ async def ensure_local_admin() -> None:
         result = await session.execute(select(User).limit(1))
         existing_user = result.scalar_one_or_none()
         if existing_user is not None:
+            await ensure_app_state(session)
+            await session.commit()
             return
 
         password = generate_password()
@@ -39,6 +42,8 @@ async def ensure_local_admin() -> None:
             must_change_password=True,
         )
         session.add(admin)
+        await session.flush()
+        await ensure_app_state(session)
         await session.commit()
 
     LOCAL_ADMIN_FILE.write_text(

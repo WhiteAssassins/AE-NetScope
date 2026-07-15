@@ -147,6 +147,7 @@ function App() {
   const [csrfToken, setCsrfToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
+  const [setupTokenRequired, setSetupTokenRequired] = useState(false);
   const [sessionMessage, setSessionMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
@@ -164,7 +165,11 @@ function App() {
     fetch(`${API_BASE_URL}/auth/setup`, { credentials: "include" })
       .then(async (response) => {
         if (response.ok) {
-          const setupData = (await response.json()) as { setup_required: boolean };
+          const setupData = (await response.json()) as {
+            setup_required: boolean;
+            token_required: boolean;
+          };
+          setSetupTokenRequired(setupData.token_required);
           if (setupData.setup_required) {
             setSetupRequired(true);
             setUser(null);
@@ -435,6 +440,7 @@ function App() {
     return (
       <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
         <SetupScreen
+          tokenRequired={setupTokenRequired}
           onSetupComplete={(nextUser, nextCsrfToken) => {
             void setLanguage(nextUser.preferred_language);
             setSetupRequired(false);

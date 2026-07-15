@@ -4,6 +4,7 @@ from time import perf_counter
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 
+from app.api.deps import CurrentUser
 from app.core.config import settings
 from app.core.redis import redis_ping
 from app.core.version import project_version, release_channel
@@ -34,14 +35,14 @@ async def ready() -> dict[str, object]:
     if health_status["status"] != "ready":
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=health_status,
+            detail={"status": "not_ready"},
         )
 
-    return health_status
+    return {"status": "ready"}
 
 
 @router.get("/health/status")
-async def detailed_status() -> dict[str, object]:
+async def detailed_status(_: CurrentUser) -> dict[str, object]:
     return await collect_health_status()
 
 

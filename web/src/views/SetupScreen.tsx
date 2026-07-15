@@ -7,14 +7,16 @@ import type { User } from "../types";
 
 type SetupScreenProps = {
   onSetupComplete: (user: User, csrfToken: string) => void;
+  tokenRequired?: boolean;
 };
 
-export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
+export default function SetupScreen({ onSetupComplete, tokenRequired = false }: SetupScreenProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,7 +35,12 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({
+          email,
+          username,
+          password,
+          setup_token: setupToken || null,
+        }),
       });
 
       if (!response.ok) {
@@ -64,6 +71,19 @@ export default function SetupScreen({ onSetupComplete }: SetupScreenProps) {
           <p>{t("setup.description")}</p>
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
+          {tokenRequired && (
+            <label>
+              {t("setup.setupToken")}
+              <input
+                autoComplete="one-time-code"
+                minLength={16}
+                onChange={(event) => setSetupToken(event.target.value)}
+                required
+                type="password"
+                value={setupToken}
+              />
+            </label>
+          )}
           <label>
             {t("setup.adminEmail")}
             <input

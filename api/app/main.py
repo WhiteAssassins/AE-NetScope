@@ -1,3 +1,6 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,8 +9,23 @@ from starlette.responses import FileResponse
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.version import project_version
-from app.middleware.request_limits import request_size_limit_middleware
+from app.db.session import SessionLocal
+from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
+from app.services.maintenance import purge_expired_records
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        async with SessionLocal() as session:
+            await purge_expired_records(session)
+            await session.commit()
+    except Exception as exc:
+        logger.warning("Database retention cleanup failed: %s", exc.__class__.__name__)
+    yield
 
 
 def create_app() -> FastAPI:
@@ -16,6 +34,7 @@ def create_app() -> FastAPI:
         version=project_version(),
         docs_url="/docs" if settings.app_env != "production" else None,
         redoc_url=None,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -25,8 +44,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RequestSizeLimitMiddleware)
     app.middleware("http")(security_headers_middleware)
-    app.middleware("http")(request_size_limit_middleware)
 
     app.include_router(api_router, prefix="/api")
     mount_static_web(app)

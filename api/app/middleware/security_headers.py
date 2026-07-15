@@ -11,6 +11,13 @@ async def security_headers_middleware(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     response = await call_next(request)
+    sensitive_prefixes = ("/api/auth", "/api/users", "/api/inventory", "/api/audit")
+    sensitive_paths = {"/api/health/status"}
+    if request.url.path.startswith(sensitive_prefixes) or request.url.path in sensitive_paths:
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
+        response.headers.setdefault("Vary", "Cookie")
+
     if not settings.security_headers_enabled:
         return response
 

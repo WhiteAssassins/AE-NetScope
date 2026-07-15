@@ -1,5 +1,6 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, select
 
 from app.api.deps import CurrentSession, CurrentUser, SessionCookie, SessionDep, require_csrf
 from app.core.config import settings
@@ -28,6 +29,7 @@ from app.services.auth import (
     revoke_user_session,
     rotate_csrf_token,
 )
+from app.services.setup import claim_initial_setup, initial_setup_required
 
 router = APIRouter(prefix="/auth")
 
@@ -65,14 +67,12 @@ def clear_session_cookie(response: Response) -> None:
     )
 
 
-async def has_any_user(session: SessionDep) -> bool:
-    count = await session.scalar(select(func.count(User.id)))
-    return bool(count)
-
-
 @router.get("/setup", response_model=InitialSetupStatusResponse)
 async def setup_status(session: SessionDep) -> InitialSetupStatusResponse:
-    return InitialSetupStatusResponse(setup_required=not await has_any_user(session))
+    return InitialSetupStatusResponse(
+        setup_required=await initial_setup_required(session),
+        token_required=bool(settings.initial_setup_token) or settings.app_env != "local",
+    )
 
 
 @router.post(
@@ -86,7 +86,22 @@ async def initial_setup(
     response: Response,
     session: SessionDep,
 ) -> SessionResponse:
-    if await has_any_user(session):
+    expected_setup_token = settings.effective_initial_setup_token
+    if expected_setup_token is None and settings.app_env != "local":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Initial setup token is not configured.",
+        )
+    if expected_setup_token is not None and (
+        payload.setup_token is None
+        or not secrets.compare_digest(payload.setup_token, expected_setup_token)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid initial setup token.",
+        )
+
+    if not await claim_initial_setup(session):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Initial setup has already been completed.",

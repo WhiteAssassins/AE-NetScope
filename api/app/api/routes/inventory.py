@@ -4,13 +4,12 @@ from datetime import UTC, datetime
 from io import StringIO
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
-from app.core.config import settings
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.schemas.inventory import (
     DashboardSummary,
@@ -86,16 +85,6 @@ BACKUP_KEYS = ("vlans", "networks", "devices", "interfaces", "ip_addresses", "se
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
-async def require_import_size_limit(content_length: int | None = Header(default=None)) -> None:
-    if content_length is None:
-        return
-    if content_length > settings.max_import_json_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="Inventory import JSON is too large.",
-        )
-
-
 @router.get("/dashboard", response_model=DashboardSummary)
 async def dashboard(
     session: SessionDep,
@@ -104,7 +93,10 @@ async def dashboard(
     return await dashboard_summary(session)
 
 
-@router.get("/export.json")
+@router.get(
+    "/export.json",
+    dependencies=[Depends(require_permission("inventory:export"))],
+)
 async def export_inventory_json(
     session: SessionDep,
     current_user: CurrentUser,
@@ -125,7 +117,6 @@ async def export_inventory_json(
     dependencies=[
         Depends(require_csrf),
         Depends(require_permission("settings:manage")),
-        Depends(require_import_size_limit),
     ],
 )
 async def preview_inventory_import(
@@ -141,7 +132,10 @@ async def preview_inventory_import(
     }
 
 
-@router.get("/export/{resource}.csv")
+@router.get(
+    "/export/{resource}.csv",
+    dependencies=[Depends(require_permission("inventory:export"))],
+)
 async def export_inventory_csv(
     resource: ExportResource,
     session: SessionDep,
@@ -173,7 +167,6 @@ async def export_inventory_csv(
     dependencies=[
         Depends(require_csrf),
         Depends(require_permission("settings:manage")),
-        Depends(require_import_size_limit),
     ],
 )
 async def import_inventory_json(

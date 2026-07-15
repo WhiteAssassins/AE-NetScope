@@ -2,6 +2,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "admin": {
         "users:manage",
         "inventory:read",
+        "inventory:export",
         "devices:create",
         "devices:update",
         "devices:delete",
@@ -22,6 +23,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     },
     "operator": {
         "inventory:read",
+        "inventory:export",
         "devices:create",
         "devices:update",
         "ip_addresses:create",

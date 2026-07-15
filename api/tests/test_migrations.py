@@ -19,6 +19,7 @@ def test_alembic_has_single_head() -> None:
     script = ScriptDirectory.from_config(config)
 
     assert len(script.get_heads()) == 1
+    assert all(len(revision.revision) <= 32 for revision in script.walk_revisions())
 
 
 def test_alembic_upgrade_head_creates_core_tables(tmp_path, monkeypatch) -> None:
@@ -46,6 +47,7 @@ def test_alembic_upgrade_head_creates_core_tables(tmp_path, monkeypatch) -> None
         "networks",
         "vlans",
         "services",
+        "app_state",
         "alembic_version",
     }.issubset(tables)
 
@@ -105,3 +107,49 @@ def test_language_migration_preserves_existing_users(tmp_path, monkeypatch) -> N
     assert preferred_language_column["type"].length == 64
     assert user.email == "existing@example.com"
     assert user.preferred_language == "en"
+
+
+def test_security_migration_marks_existing_setup_complete(tmp_path, monkeypatch) -> None:
+    database_path = tmp_path / "security-migration-test.db"
+    async_url = f"sqlite+aiosqlite:///{database_path.as_posix()}"
+    sync_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", async_url)
+
+    config = migration_config(sync_url)
+    command.upgrade(config, "0004_user_preferred_language")
+    engine = create_engine(sync_url)
+    now = "2026-07-15 00:00:00+00:00"
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (
+                    email, username, password_hash, role, preferred_language,
+                    is_active, must_change_password, failed_login_count,
+                    created_at, updated_at
+                ) VALUES (
+                    'owner@example.com', 'owner', 'hash', 'admin', 'en',
+                    TRUE, FALSE, 0, :now, :now
+                )
+                """
+            ),
+            {"now": now},
+        )
+
+    command.upgrade(config, "head")
+
+    try:
+        inspector = inspect(engine)
+        session_indexes = {index["name"] for index in inspector.get_indexes("user_sessions")}
+        audit_indexes = {index["name"] for index in inspector.get_indexes("audit_events")}
+        with engine.connect() as connection:
+            state = connection.execute(
+                text("SELECT setup_completed, admin_guard FROM app_state WHERE id = 1")
+            ).one()
+    finally:
+        engine.dispose()
+
+    assert bool(state.setup_completed) is True
+    assert state.admin_guard == 0
+    assert "ix_user_sessions_expires_at" in session_indexes
+    assert "ix_audit_events_created_at" in audit_indexes

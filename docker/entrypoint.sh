@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 cd /app/api
 
@@ -22,13 +23,31 @@ run_pre_migration_backup() {
 
   export PGPASSWORD="${POSTGRES_PASSWORD:-}"
   echo "Creating pre-migration PostgreSQL backup at ${backup_file}..." >&2
-  pg_dump \
-    --host="${POSTGRES_HOST:-127.0.0.1}" \
-    --port="${POSTGRES_PORT:-5432}" \
-    --username="${POSTGRES_USER:-ae_netscope}" \
-    --dbname="${POSTGRES_DB:-ae_netscope}" \
-    --format=custom \
-    --file="$backup_file"
+  if ! pg_dump \
+      --host="${POSTGRES_HOST:-127.0.0.1}" \
+      --port="${POSTGRES_PORT:-5432}" \
+      --username="${POSTGRES_USER:-ae_netscope}" \
+      --dbname="${POSTGRES_DB:-ae_netscope}" \
+      --format=custom \
+      --file="$backup_file"; then
+    rm -f -- "$backup_file"
+    return 1
+  fi
+  chmod 600 "$backup_file"
+
+  retention_count="${AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT:-10}"
+  case "$retention_count" in
+    ''|*[!0-9]*) retention_count=10 ;;
+  esac
+  if [ "$retention_count" -gt 0 ]; then
+    find "$backup_dir" -maxdepth 1 -type f -name 'ae-netscope-pre-migration-*.dump' \
+      -printf '%f\n' \
+      | sort -r \
+      | awk -v keep="$retention_count" 'NR > keep' \
+      | while IFS= read -r expired_backup; do
+          rm -f -- "$backup_dir/$expired_backup"
+        done
+  fi
 }
 
 if [ "${AE_NETSCOPE_RUN_MIGRATIONS:-true}" = "true" ]; then
@@ -37,7 +56,10 @@ if [ "${AE_NETSCOPE_RUN_MIGRATIONS:-true}" = "true" ]; then
   count=1
   backup_done="false"
   until {
-    if [ "$backup_done" != "true" ]; then
+    if python -m alembic current --check-heads >/dev/null 2>&1; then
+      echo "Database schema is already at the migration head." >&2
+      true
+    elif [ "$backup_done" != "true" ]; then
       if ! run_pre_migration_backup; then
         false
       else

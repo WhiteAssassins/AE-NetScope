@@ -5,11 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import (
+    csrf_token_hash_candidates,
     generate_csrf_token,
     generate_session_token,
     hash_csrf_token,
     hash_password,
     hash_session_token,
+    session_token_hash_candidates,
     verify_password_and_update,
 )
 from app.models.session import UserSession
@@ -137,16 +139,24 @@ async def get_user_by_session_token(session: AsyncSession, token: str | None) ->
         return None
 
     result = await session.execute(
-        select(User)
+        select(User, UserSession)
         .join(UserSession, UserSession.user_id == User.id)
         .where(
-            UserSession.token_hash == hash_session_token(token),
+            UserSession.token_hash.in_(session_token_hash_candidates(token)),
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > _now(),
             User.is_active.is_(True),
         )
     )
-    return result.scalar_one_or_none()
+    row = result.first()
+    if row is None:
+        return None
+    user, user_session = row
+    current_hash = hash_session_token(token)
+    if user_session.token_hash != current_hash:
+        user_session.token_hash = current_hash
+        await session.flush()
+    return user
 
 
 async def rotate_csrf_token(session: AsyncSession, token: str | None) -> str | None:
@@ -155,7 +165,7 @@ async def rotate_csrf_token(session: AsyncSession, token: str | None) -> str | N
 
     result = await session.execute(
         select(UserSession).where(
-            UserSession.token_hash == hash_session_token(token),
+            UserSession.token_hash.in_(session_token_hash_candidates(token)),
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > _now(),
         )
@@ -165,6 +175,9 @@ async def rotate_csrf_token(session: AsyncSession, token: str | None) -> str | N
         return None
 
     csrf_token = generate_csrf_token()
+    current_session_hash = hash_session_token(token)
+    if user_session.token_hash != current_session_hash:
+        user_session.token_hash = current_session_hash
     user_session.csrf_token_hash = hash_csrf_token(csrf_token)
     return csrf_token
 
@@ -179,13 +192,23 @@ async def verify_csrf_token(
 
     result = await session.execute(
         select(UserSession).where(
-            UserSession.token_hash == hash_session_token(session_token),
-            UserSession.csrf_token_hash == hash_csrf_token(csrf_token),
+            UserSession.token_hash.in_(session_token_hash_candidates(session_token)),
+            UserSession.csrf_token_hash.in_(csrf_token_hash_candidates(csrf_token)),
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > _now(),
         )
     )
-    return result.scalar_one_or_none() is not None
+    user_session = result.scalar_one_or_none()
+    if user_session is None:
+        return False
+    current_session_hash = hash_session_token(session_token)
+    current_csrf_hash = hash_csrf_token(csrf_token)
+    if user_session.token_hash != current_session_hash:
+        user_session.token_hash = current_session_hash
+    if user_session.csrf_token_hash != current_csrf_hash:
+        user_session.csrf_token_hash = current_csrf_hash
+    await session.flush()
+    return True
 
 
 async def change_user_password(
@@ -272,7 +295,7 @@ async def revoke_user_session(session: AsyncSession, token: str | None) -> None:
 
     result = await session.execute(
         select(UserSession).where(
-            UserSession.token_hash == hash_session_token(token),
+            UserSession.token_hash.in_(session_token_hash_candidates(token)),
             UserSession.revoked_at.is_(None),
         )
     )

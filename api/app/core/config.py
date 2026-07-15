@@ -1,9 +1,10 @@
 from functools import cached_property
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
@@ -33,9 +34,16 @@ class Settings(BaseSettings):
     redis_password: str | None = Field(default=None, repr=False)
     redis_rate_limit_fail_open: bool = True
 
-    max_import_json_bytes: int = 2_000_000
+    max_import_json_bytes: int = Field(default=2_000_000, ge=1_024, le=100_000_000)
+    max_request_body_bytes: int = Field(default=1_000_000, ge=1_024, le=100_000_000)
 
     session_secret: str = Field(default="change-me", repr=False)
+    initial_setup_token: str | None = Field(
+        default=None,
+        min_length=16,
+        max_length=1_024,
+        repr=False,
+    )
     session_cookie_name: str = "ae_netscope_session"
     session_cookie_secure: bool | None = None
     session_cookie_samesite: str = "strict"
@@ -45,16 +53,22 @@ class Settings(BaseSettings):
     security_hsts_enabled: bool | None = None
     security_hsts_max_age: int = 31536000
 
-    password_hash_algorithm: str = "argon2id"
     auth_rate_limit_per_minute: int = 5
     auth_failed_login_limit: int = 10
     auth_lockout_minutes: int = 15
 
-    crypto_policy_version: int = 1
-    pqc_readiness_mode: str = "crypto-agile"
-
     auto_update_enabled: bool = False
     auto_update_command: str | None = Field(default=None, repr=False)
+
+    session_record_retention_days: int = Field(default=30, ge=0, le=3_650)
+    audit_retention_days: int = Field(default=365, ge=0, le=36_500)
+
+    @field_validator("initial_setup_token", mode="before")
+    @classmethod
+    def normalize_optional_setup_token(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @cached_property
     def cors_origins(self) -> list[str]:
@@ -70,16 +84,19 @@ class Settings(BaseSettings):
             database_path.parent.mkdir(exist_ok=True)
             return f"sqlite+aiosqlite:///{database_path.as_posix()}"
 
-        return (
-            "postgresql+asyncpg://"
-            f"{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+        return URL.create(
+            "postgresql+asyncpg",
+            username=self.postgres_user,
+            password=self.postgres_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        ).render_as_string(hide_password=False)
 
     @cached_property
     def redis_url(self) -> str:
         if self.redis_password:
-            password = quote_plus(self.redis_password)
+            password = quote(self.redis_password, safe="")
             return f"redis://default:{password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
@@ -88,6 +105,19 @@ class Settings(BaseSettings):
         if self.session_cookie_secure is not None:
             return self.session_cookie_secure
         return self.app_env == "production"
+
+    @property
+    def effective_initial_setup_token(self) -> str | None:
+        if self.initial_setup_token:
+            return self.initial_setup_token.strip()
+
+        session_secret = self.session_secret.strip()
+        unsafe_placeholder = session_secret == "change-me" or session_secret.startswith(
+            "change-me-"
+        )
+        if self.app_env != "local" and len(session_secret) >= 32 and not unsafe_placeholder:
+            return session_secret
+        return None
 
     @cached_property
     def effective_hsts_enabled(self) -> bool:

@@ -60,6 +60,20 @@ jobs:
   api:
     name: API
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: ae_netscope_ci
+          POSTGRES_USER: ae_netscope_ci
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ae_netscope_ci -d ae_netscope_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -81,12 +95,21 @@ jobs:
       - name: Lint API
         run: python -m ruff check api
 
-      - name: Check migrations
+      - name: Check SQLite migrations
         run: |
           mkdir -p api/var
           cd api
           DATABASE_URL=sqlite+aiosqlite:///./var/ci-alembic-check.db python -m alembic upgrade head
           DATABASE_URL=sqlite+aiosqlite:///./var/ci-alembic-check.db python -m alembic check
+
+      - name: Check PostgreSQL migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://ae_netscope_ci:ci-only-password@127.0.0.1:5432/ae_netscope_ci
+        run: |
+          cd api
+          python -m alembic upgrade head
+          python -m alembic current --check-heads
+          python -m alembic check
 
       - name: Test API
         run: |

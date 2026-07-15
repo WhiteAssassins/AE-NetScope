@@ -7,6 +7,7 @@ from app.core.security import generate_password, hash_password
 from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import ManagedUserCreate, ManagedUserUpdate
+from app.services.setup import acquire_admin_guard
 
 
 class LastAdminError(Exception):
@@ -52,6 +53,7 @@ async def would_remove_last_active_admin(
         return False
     if role == "admin" and is_active:
         return False
+    await acquire_admin_guard(session)
     return await active_admin_count(session) <= 1
 
 

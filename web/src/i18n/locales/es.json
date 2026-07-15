@@ -55,11 +55,12 @@
     "description": "Crea el administrador inicial para proteger esta instalación.",
     "adminEmail": "Correo del administrador",
     "username": "Usuario",
+    "setupToken": "Token de configuración inicial",
     "confirmPassword": "Confirmar contraseña",
     "passwordMismatch": "Las contraseñas no coinciden.",
     "alreadyCompleted": "El primer usuario administrador ya fue creado.",
     "failed": "No se pudo completar la configuración inicial.",
-    "restrictedNotice": "Este flujo solo está disponible cuando no existe ningún usuario.",
+    "restrictedNotice": "Este flujo solo está disponible cuando no existe ningún usuario y requiere el token de instalación cuando está configurado.",
     "creating": "Creando...",
     "createAdministrator": "Crear administrador"
   },

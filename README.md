@@ -160,13 +160,19 @@ DEPLOYMENT_PLATFORM=docker
 APP_URL=https://netscope.example.com
 APP_WEB_DIST_DIR=/app/web
 API_CORS_ORIGINS=https://netscope.example.com
-DATABASE_URL=postgresql+asyncpg://ae_netscope:CHANGE_ME@127.0.0.1:5432/ae_netscope
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=ae_netscope
+POSTGRES_USER=ae_netscope
+POSTGRES_PASSWORD=CHANGE_ME_DATABASE_PASSWORD
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
+MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
@@ -179,13 +185,13 @@ AE_NETSCOPE_MIGRATION_ATTEMPTS=30
 AE_NETSCOPE_MIGRATION_RETRY_SECONDS=2
 AE_NETSCOPE_PRE_MIGRATION_BACKUP=true
 AE_NETSCOPE_MIGRATION_BACKUP_DIR=/app/backups
+AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT=10
 AE_NETSCOPE_AUTO_UPDATE_ENABLED=false
 AE_NETSCOPE_AUTO_UPDATE_COMMAND=
-PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
-CRYPTO_POLICY_VERSION=1
-PQC_READINESS_MODE=crypto-agile
+SESSION_RECORD_RETENTION_DAYS=30
+AUDIT_RETENTION_DAYS=365
 ```
 
 For the production web build, set:
@@ -204,7 +210,7 @@ This path is intended for local validation, public alpha testing, and future Tru
 
 Use `compose.yaml` for local HTTP container testing. Running the image directly with `docker run` uses the image defaults and requires explicit environment variables for the target deployment. For real HTTPS production, set `APP_ENV=production`, `APP_URL=https://...`, `SESSION_COOKIE_SECURE=true`, and `SECURITY_HSTS_ENABLED=true`.
 
-Before startup migrations run, the container creates a PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
+Before a pending startup migration runs, the container creates a PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. It skips the backup when the schema is already current, creates files with mode `0600`, and retains the newest 10 by default. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
 
 Public image:
 
@@ -217,6 +223,7 @@ From the project root:
 ```bat
 set POSTGRES_PASSWORD=replace-with-local-postgres-password
 set SESSION_SECRET=replace-with-at-least-32-random-bytes
+set INITIAL_SETUP_TOKEN=replace-with-one-time-installation-token
 docker compose pull
 docker compose up -d
 ```
@@ -226,6 +233,8 @@ Then open:
 ```text
 http://127.0.0.1:8080
 ```
+
+On a fresh Docker installation, enter `INITIAL_SETUP_TOKEN` in the setup screen before creating the first administrator. Existing installations are marked as already configured by the migration and do not repeat setup. Managed installations that already provide a strong random `SESSION_SECRET` may use that value as the setup token when no dedicated installation token is available.
 
 Safe update path:
 
@@ -244,8 +253,10 @@ Health checks:
 
 ```text
 http://127.0.0.1:8080/api/health/live
-http://127.0.0.1:8080/api/health/status
+http://127.0.0.1:8080/api/health/ready
 ```
+
+`/api/health/live` and `/api/health/ready` are intentionally minimal and public. Detailed database and Redis diagnostics under `/api/health/status` require an authenticated user.
 
 ### Docker Smoke Checklist
 
@@ -417,13 +428,19 @@ APP_ENV=production
 APP_NAME="AE NetScope"
 APP_URL=https://netscope.example.com
 API_CORS_ORIGINS=https://netscope.example.com
-DATABASE_URL=postgresql+asyncpg://ae_netscope:CHANGE_ME_DATABASE_PASSWORD@127.0.0.1:5432/ae_netscope
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=ae_netscope
+POSTGRES_USER=ae_netscope
+POSTGRES_PASSWORD=CHANGE_ME_DATABASE_PASSWORD
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
+MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
@@ -431,11 +448,10 @@ SESSION_TTL_SECONDS=28800
 SECURITY_HEADERS_ENABLED=true
 SECURITY_HSTS_ENABLED=true
 SECURITY_HSTS_MAX_AGE=31536000
-PASSWORD_HASH_ALGORITHM=argon2id
 AUTH_RATE_LIMIT_PER_MINUTE=5
 AUTH_LOCKOUT_MINUTES=15
-CRYPTO_POLICY_VERSION=1
-PQC_READINESS_MODE=crypto-agile
+SESSION_RECORD_RETENTION_DAYS=30
+AUDIT_RETENTION_DAYS=365
 ```
 
 Secure the file:
@@ -497,11 +513,13 @@ sudo -u ae-netscope env VITE_API_BASE_URL=/api npm --prefix web run build
 - Export a JSON backup before every upgrade, restore, or migration.
 - Docker and TrueNAS installs create a PostgreSQL backup automatically before startup migrations when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`.
 - Docker migration backups are stored in `/app/backups`, backed by the `ae_netscope_backups` Compose volume by default.
+- Migration backups are created only when the schema is behind, use mode `0600`, and retain the newest 10 files by default. Change this with `AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT`.
 - The restore UI validates the JSON first and shows a preview before replacing data.
 - A restore replaces inventory records only: devices, interfaces, IPs, subnets, VLANs, and services.
 - A restore does not modify users, sessions, password hashes, secrets, or environment variables.
 - Before a restore is applied, the API returns a pre-restore backup and the web UI downloads it automatically.
 - Keep production backups outside the repository and outside the web root.
+- PostgreSQL dump files are not encrypted by the application. Store `/app/backups` on an encrypted dataset or encrypted host volume and restrict host access.
 
 PostgreSQL migration backups are custom-format `pg_dump` files. Restore them with `pg_restore` into a prepared PostgreSQL database after stopping AE NetScope.
 

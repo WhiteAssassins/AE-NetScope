@@ -8,12 +8,14 @@ class LoginRequest(BaseModel):
 
 class InitialSetupStatusResponse(BaseModel):
     setup_required: bool
+    token_required: bool
 
 
 class InitialSetupRequest(BaseModel):
     email: EmailStr
     username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=12, max_length=1024)
+    setup_token: str | None = Field(default=None, min_length=16, max_length=1024)
 
 
 class UserResponse(BaseModel):

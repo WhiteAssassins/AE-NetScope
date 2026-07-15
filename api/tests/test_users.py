@@ -1,5 +1,8 @@
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401
@@ -8,6 +11,8 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
 from app.models.user import User
+from app.schemas.users import ManagedUserUpdate
+from app.services.users import LastAdminError, update_managed_user
 
 
 @pytest.fixture()
@@ -141,3 +146,51 @@ async def test_admin_cannot_remove_last_active_admin(users_client) -> None:
         headers={"X-CSRF-Token": csrf_token},
     )
     assert deactivate.status_code == 409
+
+
+async def test_concurrent_admin_demotions_preserve_one_active_admin(tmp_path) -> None:
+    database_path = tmp_path / "concurrent-admin-update.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path.as_posix()}")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async with session_factory() as session:
+        first_admin = User(
+            email="first-admin@example.com",
+            username="first-admin",
+            password_hash=hash_password("correct-password"),
+            role="admin",
+        )
+        second_admin = User(
+            email="second-admin@example.com",
+            username="second-admin",
+            password_hash=hash_password("correct-password"),
+            role="admin",
+        )
+        session.add_all([first_admin, second_admin])
+        await session.commit()
+        admin_ids = (first_admin.id, second_admin.id)
+
+    async def demote(user_id: int) -> bool:
+        async with session_factory() as session:
+            user = await session.get(User, user_id)
+            assert user is not None
+            try:
+                await update_managed_user(session, user, ManagedUserUpdate(role="viewer"))
+                await session.commit()
+                return True
+            except LastAdminError:
+                await session.rollback()
+                return False
+
+    results = await asyncio.gather(*(demote(user_id) for user_id in admin_ids))
+
+    async with session_factory() as session:
+        active_admins = await session.scalar(
+            select(func.count(User.id)).where(User.role == "admin", User.is_active.is_(True))
+        )
+
+    assert sorted(results) == [False, True]
+    assert active_admins == 1
+    await engine.dispose()

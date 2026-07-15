@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.permissions import role_has_permission
-from app.core.security import hash_session_token
+from app.core.security import hash_session_token, session_token_hash_candidates
 from app.db.session import get_session
 from app.models.session import UserSession
 from app.models.user import User
@@ -45,7 +45,7 @@ async def get_current_session(
         )
     result = await session.execute(
         select(UserSession).where(
-            UserSession.token_hash == hash_session_token(session_token),
+            UserSession.token_hash.in_(session_token_hash_candidates(session_token)),
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > datetime.now(UTC),
         )
@@ -56,6 +56,10 @@ async def get_current_session(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required.",
         )
+    current_hash = hash_session_token(session_token)
+    if user_session.token_hash != current_hash:
+        user_session.token_hash = current_hash
+        await session.flush()
     return user_session
 
 

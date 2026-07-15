@@ -1,8 +1,12 @@
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401
+from app.core.config import settings
 from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_session
@@ -60,6 +64,7 @@ async def test_login_me_and_logout(auth_client: AsyncClient) -> None:
         "devices:create",
         "devices:delete",
         "devices:update",
+        "inventory:export",
         "inventory:read",
         "ip_addresses:create",
         "ip_addresses:delete",
@@ -344,6 +349,7 @@ async def test_initial_setup_creates_first_admin_only_once() -> None:
         status_response = await client.get("/api/auth/setup")
         assert status_response.status_code == 200
         assert status_response.json()["setup_required"] is True
+        assert status_response.json()["token_required"] is False
 
         setup_response = await client.post(
             "/api/auth/setup",
@@ -371,5 +377,170 @@ async def test_initial_setup_creates_first_admin_only_once() -> None:
         final_status = await client.get("/api/auth/setup")
         assert final_status.json()["setup_required"] is False
 
+        async with session_factory() as session:
+            await session.execute(delete(User))
+            await session.commit()
+
+        tampered_status = await client.get("/api/auth/setup")
+        assert tampered_status.json()["setup_required"] is False
+
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+async def test_initial_setup_rejects_invalid_installation_token(monkeypatch) -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async def override_session():
+        async with session_factory() as session:
+            yield session
+
+    monkeypatch.setattr(settings, "initial_setup_token", "correct-install-token")
+    app.dependency_overrides[get_session] = override_session
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        status_response = await client.get("/api/auth/setup")
+        assert status_response.json()["token_required"] is True
+
+        rejected = await client.post(
+            "/api/auth/setup",
+            json={
+                "email": "owner@example.com",
+                "username": "owner",
+                "password": "first-secure-password",
+                "setup_token": "wrong-install-token",
+            },
+        )
+        accepted = await client.post(
+            "/api/auth/setup",
+            json={
+                "email": "owner@example.com",
+                "username": "owner",
+                "password": "first-secure-password",
+                "setup_token": "correct-install-token",
+            },
+        )
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+async def test_managed_setup_uses_secure_session_secret_as_fallback(monkeypatch) -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async def override_session():
+        async with session_factory() as session:
+            yield session
+
+    setup_secret = "managed-installation-secret-at-least-32-bytes"
+    monkeypatch.setattr(settings, "app_env", "truenas")
+    monkeypatch.setattr(settings, "initial_setup_token", None)
+    monkeypatch.setattr(settings, "session_secret", setup_secret)
+    app.dependency_overrides[get_session] = override_session
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        setup_status = await client.get("/api/auth/setup")
+        setup_response = await client.post(
+            "/api/auth/setup",
+            json={
+                "email": "owner@example.com",
+                "username": "owner",
+                "password": "first-secure-password",
+                "setup_token": setup_secret,
+            },
+        )
+
+    assert setup_status.json()["token_required"] is True
+    assert setup_response.status_code == 200
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+async def test_managed_setup_refuses_unsafe_placeholder_secret(monkeypatch) -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async def override_session():
+        async with session_factory() as session:
+            yield session
+
+    monkeypatch.setattr(settings, "app_env", "docker")
+    monkeypatch.setattr(settings, "initial_setup_token", None)
+    monkeypatch.setattr(
+        settings,
+        "session_secret",
+        "change-me-at-least-32-random-bytes-local-only",
+    )
+    app.dependency_overrides[get_session] = override_session
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/api/auth/setup",
+            json={
+                "email": "owner@example.com",
+                "username": "owner",
+                "password": "first-secure-password",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Initial setup token is not configured."
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+async def test_concurrent_initial_setup_creates_exactly_one_admin(tmp_path, monkeypatch) -> None:
+    database_path = tmp_path / "concurrent-setup.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path.as_posix()}")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async def override_session():
+        async with session_factory() as session:
+            yield session
+
+    monkeypatch.setattr(settings, "app_env", "local")
+    monkeypatch.setattr(settings, "initial_setup_token", None)
+    app.dependency_overrides[get_session] = override_session
+    first_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    second_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    try:
+        first_response, second_response = await asyncio.gather(
+            first_client.post(
+                "/api/auth/setup",
+                json={
+                    "email": "first@example.com",
+                    "username": "first",
+                    "password": "first-secure-password",
+                },
+            ),
+            second_client.post(
+                "/api/auth/setup",
+                json={
+                    "email": "second@example.com",
+                    "username": "second",
+                    "password": "second-secure-password",
+                },
+            ),
+        )
+    finally:
+        await first_client.aclose()
+        await second_client.aclose()
+
+    async with session_factory() as session:
+        user_count = await session.scalar(select(func.count(User.id)))
+
+    assert sorted([first_response.status_code, second_response.status_code]) == [200, 409]
+    assert user_count == 1
     app.dependency_overrides.clear()
     await engine.dispose()

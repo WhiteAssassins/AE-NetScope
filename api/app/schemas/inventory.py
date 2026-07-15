@@ -4,22 +4,27 @@ import re
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 MAC_PATTERN = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
+DESCRIPTION_MAX_LENGTH = 16_384
+NOTES_MAX_LENGTH = 65_536
 
 
 class VlanCreate(BaseModel):
     vlan_id: int = Field(ge=1, le=4094)
     name: str = Field(min_length=1, max_length=120)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
 
 
 class VlanUpdate(BaseModel):
     vlan_id: int | None = Field(default=None, ge=1, le=4094)
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
 
 
-class VlanResponse(VlanCreate):
+class VlanResponse(BaseModel):
     id: int
+    vlan_id: int
+    name: str
+    description: str | None
 
 
 class VlanSummaryResponse(VlanResponse):
@@ -107,7 +112,7 @@ class DeviceCreate(BaseModel):
     owner: str | None = Field(default=None, max_length=120)
     rack_position: str | None = Field(default=None, max_length=120)
     location: str | None = Field(default=None, max_length=120)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
 
 
 class DeviceUpdate(BaseModel):
@@ -127,7 +132,7 @@ class DeviceUpdate(BaseModel):
     owner: str | None = Field(default=None, max_length=120)
     rack_position: str | None = Field(default=None, max_length=120)
     location: str | None = Field(default=None, max_length=120)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
 
 
 class InterfaceCreate(BaseModel):
@@ -158,8 +163,25 @@ class DeviceWithInterfaceCreate(DeviceCreate):
     interface: InterfaceCreate | None = None
 
 
-class DeviceResponse(DeviceCreate):
+class DeviceResponse(BaseModel):
     id: int
+    name: str
+    device_type: str
+    status: str
+    vendor: str | None
+    model: str | None
+    serial_number: str | None
+    asset_tag: str | None
+    operating_system: str | None
+    firmware_version: str | None
+    cpu: str | None
+    memory: str | None
+    storage: str | None
+    warranty_expires: str | None
+    owner: str | None
+    rack_position: str | None
+    location: str | None
+    notes: str | None
     primary_ip: str | None = None
     primary_mac: str | None = None
 

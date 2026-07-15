@@ -206,8 +206,9 @@ async def test_detailed_health_status_endpoint() -> None:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/health/status")
 
-    assert response.status_code == 200
-    payload = response.json()
+    assert response.status_code == 401
+
+    payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
     assert payload["version"] == "0.1.7-alpha"
     assert payload["release_channel"] == "alpha"
@@ -220,3 +221,19 @@ async def test_detailed_health_status_endpoint() -> None:
     assert isinstance(payload["checks"]["database"]["latency_ms"], float)
     assert isinstance(payload["checks"]["redis"]["latency_ms"], float)
     assert isinstance(payload["duration_ms"], float)
+
+
+async def test_readiness_failure_does_not_expose_dependency_details(monkeypatch) -> None:
+    async def degraded_status():
+        return {
+            "status": "degraded",
+            "checks": {"database": {"message": "sensitive internal failure"}},
+        }
+
+    monkeypatch.setattr(health_route, "collect_health_status", degraded_status)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": {"status": "not_ready"}}
+    assert "sensitive internal failure" not in response.text
