@@ -1,7 +1,7 @@
 {
   "name": "ae-netscope-web",
   "private": true,
-  "version": "0.1.7-alpha",
+  "version": "0.1.8-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,10 +16,13 @@
     "clsx": "^2.1.1",
     "i18next": "^26.3.6",
     "lucide-react": "^1.17.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-i18next": "^17.0.9",
-    "recharts": "^3.8.1"
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
