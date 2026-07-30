@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import generate_password, hash_password
+from app.models.security import WebAuthnCredential
 from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import ManagedUserCreate, ManagedUserUpdate
@@ -27,6 +28,27 @@ def _as_aware(value: datetime) -> datetime:
 async def list_users(session: AsyncSession) -> list[User]:
     result = await session.execute(select(User).order_by(User.created_at.desc(), User.id.desc()))
     return list(result.scalars())
+
+
+async def user_management_counts(
+    session: AsyncSession,
+) -> tuple[dict[int, int], dict[int, int]]:
+    now = _now()
+    session_rows = (
+        await session.execute(
+            select(UserSession.user_id, func.count(UserSession.id))
+            .where(UserSession.revoked_at.is_(None), UserSession.expires_at > now)
+            .group_by(UserSession.user_id)
+        )
+    ).all()
+    passkey_rows = (
+        await session.execute(
+            select(WebAuthnCredential.user_id, func.count(WebAuthnCredential.id)).group_by(
+                WebAuthnCredential.user_id
+            )
+        )
+    ).all()
+    return dict(session_rows), dict(passkey_rows)
 
 
 async def get_user(session: AsyncSession, user_id: int) -> User | None:
@@ -92,6 +114,8 @@ async def update_managed_user(
 
     if payload.username is not None:
         user.username = payload.username
+    if payload.email is not None:
+        user.email = str(payload.email).lower()
     if payload.role is not None:
         user.role = payload.role
     if payload.is_active is not None:

@@ -1,5 +1,4 @@
 import {
-  Bell,
   Cable,
   ChevronDown,
   CircleHelp,
@@ -9,6 +8,8 @@ import {
   HeartPulse,
   Home,
   Import,
+  Info,
+  ListChecks,
   LogOut,
   Menu,
   Monitor,
@@ -19,28 +20,51 @@ import {
   Settings,
   ShieldCheck,
   UsersRound,
+  Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE_URL, fetchInventoryData, fetchVersionInfo } from "./api";
+import {
+  API_BASE_URL,
+  fetchHealthStatus,
+  fetchInventoryData,
+  fetchMaintenanceStatus,
+  fetchSearchIndexingPolicy,
+  fetchUpdateStatus,
+  fetchVersionInfo,
+} from "./api";
 import "./App.css";
+import { auditEventMessage } from "./auditMessages";
+import GitHubButton from "./components/GitHubButton";
+import NotificationCenter from "./components/NotificationCenter";
+import TopbarSystemStatus from "./components/TopbarSystemStatus";
+import { formatDateTime, storeRegionalPreferences } from "./dateTime";
 import { setLanguage } from "./i18n";
+import { readLocalSettings } from "./settings";
+import type { LocalSettings } from "./settings";
+import { applySearchIndexingPolicy } from "./searchIndexing";
 import type {
   AuditEvent,
   DashboardSummary,
   DeviceRecord,
   InterfaceRecord,
+  HealthStatus,
   IpMacRecord,
+  InventoryQualityIssue,
+  InventoryQualityReport,
   ManagedUser,
+  MaintenanceStatus,
   NetworkRecord,
   ServiceRecord,
   User,
+  UpdateStatusInfo,
   VersionInfo,
   ViewName,
   VlanRecord,
 } from "./types";
+import { deviceTypeLabel, roleLabel } from "./utils";
 
 type NavItem = { translationKey: string; icon: LucideIcon; view: ViewName };
 type TopbarMenu = "notifications" | "help" | "user" | null;
@@ -50,26 +74,6 @@ type SearchResult = {
   meta: string;
   target: SearchTarget;
 };
-type LocalSettings = {
-  compactTables: boolean;
-  defaultView: string;
-  showPreviewNotice: boolean;
-};
-
-const defaultLocalSettings: LocalSettings = {
-  compactTables: false,
-  defaultView: "dashboard",
-  showPreviewNotice: true,
-};
-
-function readLocalSettings() {
-  const stored = window.localStorage.getItem("ae-netscope-settings");
-  if (!stored) {
-    return defaultLocalSettings;
-  }
-  return { ...defaultLocalSettings, ...(JSON.parse(stored) as Partial<LocalSettings>) };
-}
-
 const navGroups: Array<{ translationKey?: string; items: NavItem[] }> = [
   {
     items: [{ translationKey: "navigation.dashboard", icon: Home, view: "dashboard" }],
@@ -81,6 +85,7 @@ const navGroups: Array<{ translationKey?: string; items: NavItem[] }> = [
       { translationKey: "navigation.ipMacs", icon: Network, view: "ipMacs" },
       { translationKey: "navigation.networks", icon: Route, view: "networks" },
       { translationKey: "navigation.topology", icon: Route, view: "topology" },
+      { translationKey: "navigation.quality", icon: ListChecks, view: "quality" },
       { translationKey: "navigation.vlans", icon: Cable, view: "vlans" },
       { translationKey: "navigation.services", icon: ShieldCheck, view: "services" },
       { translationKey: "navigation.hardware", icon: HardDrive, view: "hardware" },
@@ -108,6 +113,7 @@ const navGroups: Array<{ translationKey?: string; items: NavItem[] }> = [
 ];
 
 const DashboardView = lazy(() => import("./views/DashboardView"));
+const AboutView = lazy(() => import("./views/AboutView"));
 const AuditView = lazy(() => import("./views/AuditView"));
 const ChangePasswordScreen = lazy(() => import("./views/ChangePasswordScreen"));
 const DevicesView = lazy(() => import("./views/DevicesView"));
@@ -119,6 +125,7 @@ const LoginScreen = lazy(() => import("./views/LoginScreen"));
 const NetworksView = lazy(() => import("./views/NetworksView"));
 const NotesView = lazy(() => import("./views/NotesView"));
 const ProfileView = lazy(() => import("./views/ProfileView"));
+const QualityView = lazy(() => import("./views/QualityView"));
 const RolesPermissionsView = lazy(() => import("./views/RolesPermissionsView"));
 const ServicesView = lazy(() => import("./views/ServicesView"));
 const SettingsView = lazy(() => import("./views/SettingsView"));
@@ -139,10 +146,11 @@ function App() {
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [ipMacs, setIpMacs] = useState<IpMacRecord[]>([]);
   const [interfaces, setInterfaces] = useState<InterfaceRecord[]>([]);
+  const [quality, setQuality] = useState<InventoryQualityReport | null>(null);
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [localSettings, setLocalSettings] = useState<LocalSettings>(readLocalSettings);
-  const [view, setView] = useState<ViewName>(() => localSettings.defaultView as ViewName);
+  const [view, setView] = useState<ViewName>(() => localSettings.defaultView);
   const [focusTarget, setFocusTarget] = useState<SearchTarget | null>(null);
   const [csrfToken, setCsrfToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -152,14 +160,25 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [activeTopbarMenu, setActiveTopbarMenu] = useState<TopbarMenu>(null);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    localSettings.startSidebarCollapsed,
+  );
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+  const [topbarHealth, setTopbarHealth] = useState<HealthStatus | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatusInfo | null>(null);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<MaintenanceStatus | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchVersionInfo()
       .then(setVersionInfo)
+      .catch(() => undefined);
+    fetchMaintenanceStatus().then(setMaintenanceStatus).catch(() => undefined);
+    fetchSearchIndexingPolicy()
+      .then(({ allow_indexing: allowIndexing }) => {
+        applySearchIndexingPolicy(allowIndexing);
+      })
       .catch(() => undefined);
 
     fetch(`${API_BASE_URL}/auth/setup`, { credentials: "include" })
@@ -188,6 +207,11 @@ function App() {
 
         const data = (await meResponse.json()) as { user: User };
         await setLanguage(data.user.preferred_language);
+        storeRegionalPreferences({
+          timezone: data.user.timezone ?? "UTC",
+          date_format: data.user.date_format ?? "locale",
+          hour_format: data.user.hour_format ?? "24",
+        });
         setUser(data.user);
         await refreshCsrfToken().catch(() => setCsrfToken(""));
         if (!data.user.must_change_password) {
@@ -204,8 +228,17 @@ function App() {
   }, [i18n]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      fetchMaintenanceStatus().then(setMaintenanceStatus).catch(() => undefined);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     function syncSettings() {
-      setLocalSettings(readLocalSettings());
+      const nextSettings = readLocalSettings();
+      setLocalSettings(nextSettings);
+      setIsSidebarCollapsed(nextSettings.startSidebarCollapsed);
     }
     window.addEventListener("ae-netscope-settings-changed", syncSettings);
     return () => window.removeEventListener("ae-netscope-settings-changed", syncSettings);
@@ -223,6 +256,53 @@ function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user || user.must_change_password || !user.permissions.includes("audit:read")) {
+      return;
+    }
+    const auditTimer = window.setInterval(() => {
+      refreshAuditEvents().catch(() => undefined);
+    }, 60_000);
+    return () => window.clearInterval(auditTimer);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.must_change_password) {
+      return;
+    }
+    let active = true;
+
+    function refreshHealth() {
+      fetchHealthStatus()
+        .then((status) => {
+          if (active) setTopbarHealth(status);
+        })
+        .catch(() => {
+          if (active) setTopbarHealth(null);
+        });
+    }
+
+    function refreshUpdates() {
+      fetchUpdateStatus()
+        .then((status) => {
+          if (active) setUpdateStatus(status);
+        })
+        .catch(() => {
+          if (active) setUpdateStatus(null);
+        });
+    }
+
+    refreshHealth();
+    refreshUpdates();
+    const healthTimer = window.setInterval(refreshHealth, 60_000);
+    const updateTimer = window.setInterval(refreshUpdates, 600_000);
+    return () => {
+      active = false;
+      window.clearInterval(healthTimer);
+      window.clearInterval(updateTimer);
+    };
+  }, [user]);
+
   async function refreshInventory() {
     const inventoryData = await fetchInventoryData();
     setDashboard(inventoryData.dashboard);
@@ -232,6 +312,7 @@ function App() {
     setServices(inventoryData.services);
     setIpMacs(inventoryData.ipMacs);
     setInterfaces(inventoryData.interfaces);
+    setQuality(inventoryData.quality);
     setLastUpdatedAt(new Date());
   }
 
@@ -277,11 +358,13 @@ function App() {
         ...devices.map((device) => ({
           title: device.name,
           meta: [
-            device.device_type,
+            deviceTypeLabel(device.device_type, t),
             device.primary_ip ?? t("search.withoutIp"),
             device.primary_mac ?? t("search.withoutMac"),
-            device.serial_number ? `SN ${device.serial_number}` : null,
-            device.asset_tag ? `Asset ${device.asset_tag}` : null,
+            device.serial_number
+              ? t("search.serialNumber", { value: device.serial_number })
+              : null,
+            device.asset_tag ? t("search.assetTag", { value: device.asset_tag }) : null,
             device.owner,
             device.rack_position,
           ]
@@ -310,8 +393,10 @@ function App() {
             meta: [
               device.vendor,
               device.model,
-              device.serial_number ? `SN ${device.serial_number}` : null,
-              device.asset_tag ? `Asset ${device.asset_tag}` : null,
+              device.serial_number
+                ? t("search.serialNumber", { value: device.serial_number })
+                : null,
+              device.asset_tag ? t("search.assetTag", { value: device.asset_tag }) : null,
               device.operating_system,
               device.location,
             ]
@@ -348,19 +433,21 @@ function App() {
         })),
         ...managedUsers.map((managedUser) => ({
           title: managedUser.email,
-          meta: `${managedUser.username} - ${managedUser.role}`,
+          meta: `${managedUser.username} - ${roleLabel(managedUser.role, t)}`,
           target: { view: "users" as ViewName, id: managedUser.id },
         })),
         ...auditEvents.map((event) => ({
-          title: event.message,
-          meta: `${event.event_type} - ${event.actor_email ?? t("common.system")} - ${new Date(
+          title: auditEventMessage(event, t),
+          meta: `${event.event_type} - ${event.actor_email ?? t("common.system")} - ${formatDateTime(
             event.created_at,
-          ).toLocaleString(i18n.resolvedLanguage)}`,
+            i18n.resolvedLanguage,
+          )}`,
           target: { view: "audit" as ViewName, query: event.message },
         })),
         ...[
           { title: t("navigation.dashboard"), meta: t("search.pages.dashboard"), view: "dashboard" },
           { title: t("navigation.topology"), meta: t("search.pages.topology"), view: "topology" },
+          { title: t("navigation.quality"), meta: t("search.pages.quality"), view: "quality" },
           { title: t("navigation.data"), meta: t("search.pages.data"), view: "importExport" },
           { title: t("navigation.audit"), meta: t("search.pages.audit"), view: "audit" },
           { title: t("navigation.users"), meta: t("search.pages.users"), view: "users" },
@@ -369,6 +456,7 @@ function App() {
           { title: t("navigation.health"), meta: t("search.pages.health"), view: "health" },
           { title: t("navigation.updates"), meta: t("search.pages.updates"), view: "updates" },
           { title: t("navigation.settings"), meta: t("search.pages.settings"), view: "settings" },
+          { title: t("about.title"), meta: t("search.pages.about"), view: "about" },
           { title: t("topbar.support"), meta: t("search.pages.support"), view: "support" },
         ].map((item) => ({
           title: item.title,
@@ -407,6 +495,17 @@ function App() {
     setFocusTarget(target ?? null);
     setSearchQuery("");
     setActiveTopbarMenu(null);
+  }
+
+  function openQualityIssue(issue: InventoryQualityIssue) {
+    const targetByResource: Record<InventoryQualityIssue["resource_type"], ViewName> = {
+      device: "devices",
+      ip_address: "ipMacs",
+      network: "networks",
+      vlan: "vlans",
+    };
+    const targetView = targetByResource[issue.resource_type];
+    goToView(targetView, { view: targetView, id: issue.resource_id });
   }
 
   function openSearchResult(result: SearchResult) {
@@ -460,6 +559,11 @@ function App() {
           message={sessionMessage}
           onLogin={(nextUser, nextCsrfToken) => {
             void setLanguage(nextUser.preferred_language);
+            storeRegionalPreferences({
+              timezone: nextUser.timezone ?? "UTC",
+              date_format: nextUser.date_format ?? "locale",
+              hour_format: nextUser.hour_format ?? "24",
+            });
             setUser(nextUser);
             setCsrfToken(nextCsrfToken);
             setSetupRequired(false);
@@ -495,6 +599,7 @@ function App() {
         "app-shell",
         isSidebarCollapsed ? "sidebar-collapsed" : "",
         localSettings.compactTables ? "compact-tables" : "",
+        localSettings.reducedMotion ? "reduced-motion" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -604,39 +709,35 @@ function App() {
           </div>
 
           <div className="top-actions">
-            <div className="top-action-wrap">
-              <button
-                className="icon-button"
-                aria-expanded={activeTopbarMenu === "notifications"}
-                aria-label={t("topbar.notifications")}
-                onClick={() => openTopbarMenu("notifications")}
-              >
-                <Bell size={22} strokeWidth={1.7} />
-              </button>
-              {activeTopbarMenu === "notifications" && (
-                <div className="topbar-panel topbar-panel-right">
-                  {auditEvents.length ? (
-                    auditEvents.slice(0, 5).map((event) => (
-                      <button
-                        className="topbar-menu-item"
-                        key={event.id}
-                        onClick={() => goToView("audit", { view: "audit", query: event.message })}
-                      >
-                        <strong>{event.message}</strong>
-                        <span>
-                          {new Date(event.created_at).toLocaleString(i18n.resolvedLanguage)}
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="topbar-empty">
-                      <strong>{t("topbar.noNotifications")}</strong>
-                      <span>{t("topbar.notificationHint")}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {localSettings.showSystemStatus && (
+              <TopbarSystemStatus
+                health={topbarHealth}
+                onOpenHealth={() => goToView("health")}
+                onOpenUpdates={() => goToView("updates")}
+                updateStatus={updateStatus}
+                version={versionInfo}
+              />
+            )}
+            {localSettings.showGitHubButton && <GitHubButton />}
+            <NotificationCenter
+              auditEvents={auditEvents}
+              health={topbarHealth}
+              isOpen={activeTopbarMenu === "notifications"}
+              onOpenAudit={() => goToView("audit")}
+              onOpenAuditEvent={(event) =>
+                goToView("audit", { view: "audit", query: event.message })
+              }
+              onOpenHealth={() => goToView("health")}
+              onOpenUpdates={() => goToView("updates")}
+              onToggle={() => {
+                if (activeTopbarMenu !== "notifications") {
+                  refreshAuditEvents().catch(() => undefined);
+                }
+                openTopbarMenu("notifications");
+              }}
+              updateStatus={updateStatus}
+              userId={currentUser.id}
+            />
 
             <div className="top-action-wrap">
               <button
@@ -652,6 +753,10 @@ function App() {
                   <button className="topbar-menu-item" onClick={() => goToView("support")}>
                     <strong>{t("topbar.support")}</strong>
                     <span>{t("topbar.supportDescription")}</span>
+                  </button>
+                  <button className="topbar-menu-item" onClick={() => goToView("about")}>
+                    <strong>{t("about.title")}</strong>
+                    <span>{t("topbar.aboutDescription")}</span>
                   </button>
                   <button className="topbar-menu-item" onClick={() => goToView("importExport")}>
                     <strong>{t("navigation.data")}</strong>
@@ -678,7 +783,7 @@ function App() {
                   <div className="user-panel-header">
                     <strong>{currentUser.username}</strong>
                     <span>{currentUser.email}</span>
-                    <small>{currentUser.role}</small>
+                    <small>{roleLabel(currentUser.role, t)}</small>
                   </div>
                   <button className="topbar-menu-item" onClick={() => goToView("profile")}>
                     <strong>{t("topbar.profile")}</strong>
@@ -710,9 +815,16 @@ function App() {
           </div>
         </header>
 
+        {maintenanceStatus?.enabled && (
+          <div className="maintenance-banner" role="status">
+            <Wrench size={18} />
+            <strong>{t("settings.admin.maintenanceMode")}</strong>
+            <span>{maintenanceStatus.message}</span>
+          </div>
+        )}
         <section className="content">{renderView()}</section>
 
-        <footer className="footer">
+        {localSettings.showFooter && <footer className="footer">
           <span>AE NetScope {versionInfo ? `v${versionInfo.version}` : ""}</span>
           <div>
             <a
@@ -726,8 +838,11 @@ function App() {
             <button className="footer-link button-reset" onClick={() => goToView("support")}>
               <CircleHelp size={17} /> {t("footer.support")}
             </button>
+            <button className="footer-link button-reset" onClick={() => goToView("about")}>
+              <Info size={17} /> {t("footer.about")}
+            </button>
           </div>
-        </footer>
+        </footer>}
       </main>
     </div>
   );
@@ -813,6 +928,17 @@ function App() {
             onOpenIp={(ipId) => goToView("ipMacs", { view: "ipMacs", id: ipId })}
             onOpenNetwork={(networkId) => goToView("networks", { view: "networks", id: networkId })}
             onOpenVlan={(vlanId) => goToView("vlans", { view: "vlans", id: vlanId })}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "quality") {
+      return (
+        <Suspense fallback={<div className="auth-loading">{t("loading.quality")}</div>}>
+          <QualityView
+            onOpenIssue={openQualityIssue}
+            onRefresh={refreshInventory}
+            quality={quality}
           />
         </Suspense>
       );
@@ -956,9 +1082,21 @@ function App() {
         </Suspense>
       );
     }
+    if (view === "about") {
+      return (
+        <Suspense fallback={<div className="auth-loading">{t("loading.about")}</div>}>
+          <AboutView
+            onOpenSupport={() => goToView("support")}
+            onOpenUpdates={() => goToView("updates")}
+            updateStatus={updateStatus}
+            versionInfo={versionInfo}
+          />
+        </Suspense>
+      );
+    }
     return (
       <Suspense fallback={<div className="auth-loading">{t("loading.support")}</div>}>
-        <SupportView />
+        <SupportView onOpenAbout={() => goToView("about")} />
       </Suspense>
     );
   }

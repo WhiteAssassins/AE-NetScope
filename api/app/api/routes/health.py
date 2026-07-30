@@ -41,6 +41,11 @@ async def ready() -> dict[str, object]:
     return {"status": "ready"}
 
 
+@router.get("/health/summary")
+async def public_summary() -> dict[str, object]:
+    return sanitize_health_status(await collect_health_status())
+
+
 @router.get("/health/status")
 async def detailed_status(_: CurrentUser) -> dict[str, object]:
     return await collect_health_status()
@@ -127,3 +132,25 @@ def required_checks_are_healthy(checks: dict[str, dict[str, object]]) -> bool:
         for item in checks.values()
         if bool(item.get("required", True))
     )
+
+
+def sanitize_health_status(health_status: dict[str, object]) -> dict[str, object]:
+    checks = health_status.get("checks", {})
+    public_checks: dict[str, dict[str, object]] = {}
+    if isinstance(checks, dict):
+        for name, raw_check in checks.items():
+            if not isinstance(raw_check, dict):
+                continue
+            check_status = raw_check.get("status", "error")
+            public_checks[str(name)] = {
+                "status": check_status,
+                "required": bool(raw_check.get("required", True)),
+                "message": (
+                    "Operational check succeeded."
+                    if check_status == "ok"
+                    else "Operational check failed."
+                ),
+                "message_code": raw_check.get("message_code"),
+                "latency_ms": raw_check.get("latency_ms"),
+            }
+    return {**health_status, "checks": public_checks}

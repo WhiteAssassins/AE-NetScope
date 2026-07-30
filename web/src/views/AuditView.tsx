@@ -1,6 +1,9 @@
 import { Clock3, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
+import { auditEventMessage } from "../auditMessages";
+import { formatDateTime } from "../dateTime";
 import type { AuditEvent } from "../types";
 import { hasPermission } from "../utils";
 
@@ -9,14 +12,10 @@ type AuditViewProps = {
   permissions: string[];
 };
 
-const eventGroups = [
-  { value: "all", label: "Todos" },
-  { value: "auth", label: "Auth" },
-  { value: "users", label: "Usuarios" },
-  { value: "inventory", label: "Inventario" },
-];
+const eventGroups = ["all", "auth", "users", "inventory"] as const;
 
 export default function AuditView({ initialQuery, permissions }: AuditViewProps) {
+  const { i18n, t } = useTranslation();
   const canReadAudit = hasPermission(permissions, "audit:read");
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [query, setQuery] = useState("");
@@ -28,8 +27,8 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
     if (!canReadAudit) {
       return;
     }
-    loadEvents().catch(() => setError("No se pudo cargar el historial de cambios."));
-  }, [canReadAudit]);
+    loadEvents().catch(() => setError(t("audit.loadError")));
+  }, [canReadAudit, t]);
 
   useEffect(() => {
     if (initialQuery) {
@@ -50,6 +49,7 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
       return [
         event.event_type,
         event.message,
+        auditEventMessage(event, t),
         event.actor_email,
         event.actor_username,
         event.ip_address,
@@ -57,7 +57,7 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalizedQuery));
     });
-  }, [events, eventGroup, query]);
+  }, [events, eventGroup, query, t]);
 
   async function loadEvents() {
     setIsLoading(true);
@@ -75,8 +75,8 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
   if (!canReadAudit) {
     return (
       <div className="page-title">
-        <h1>Cambios</h1>
-        <p>No tienes permisos para ver el historial de auditoría.</p>
+        <h1>{t("audit.title")}</h1>
+        <p>{t("audit.forbidden")}</p>
       </div>
     );
   }
@@ -85,12 +85,12 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Cambios</h1>
-          <p>Historial de auditoría de sesiones, usuarios e inventario.</p>
+          <h1>{t("audit.title")}</h1>
+          <p>{t("audit.description")}</p>
         </div>
         <button className="primary-action" onClick={() => loadEvents().catch(() => undefined)}>
           <Clock3 size={18} strokeWidth={2} />
-          Actualizar
+          {t("audit.refresh")}
         </button>
       </div>
 
@@ -100,7 +100,7 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
             <Search size={18} strokeWidth={1.8} />
             <input
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por evento, usuario, IP o mensaje..."
+              placeholder={t("audit.searchPlaceholder")}
               value={query}
             />
           </label>
@@ -110,34 +110,34 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
             value={eventGroup}
           >
             {eventGroups.map((group) => (
-              <option key={group.value} value={group.value}>
-                {group.label}
+              <option key={group} value={group}>
+                {t(`audit.groups.${group}`)}
               </option>
             ))}
           </select>
-          <span>{filteredEvents.length} eventos</span>
+          <span>{t("audit.eventCount", { count: filteredEvents.length })}</span>
         </div>
 
         {error && <p className="login-error">{error}</p>}
         {isLoading ? (
-          <p className="muted-line">Cargando historial...</p>
+          <p className="muted-line">{t("audit.loading")}</p>
         ) : (
           <div className="audit-list">
             {filteredEvents.map((event) => (
               <article className="audit-row" key={event.id}>
                 <div className={`audit-dot ${event.event_type.split(".")[0]}`} />
                 <div>
-                  <strong>{event.message}</strong>
+                  <strong>{auditEventMessage(event, t)}</strong>
                   <span>{event.event_type}</span>
                 </div>
                 <div>
-                  <p>{event.actor_email ?? "Sistema"}</p>
-                  <small>{event.ip_address ?? "Sin IP"}</small>
+                  <p>{event.actor_email ?? t("common.system")}</p>
+                  <small>{event.ip_address ?? t("audit.withoutIp")}</small>
                 </div>
-                <time>{new Date(event.created_at).toLocaleString()}</time>
+                <time>{formatDateTime(event.created_at, i18n.resolvedLanguage)}</time>
               </article>
             ))}
-            {!filteredEvents.length && <p className="muted-line">No hay eventos para mostrar.</p>}
+            {!filteredEvents.length && <p className="muted-line">{t("audit.empty")}</p>}
           </div>
         )}
       </section>

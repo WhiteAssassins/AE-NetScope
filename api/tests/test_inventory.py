@@ -294,6 +294,117 @@ async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     assert deleted_vlan.status_code == 204
 
 
+async def test_inventory_quality_reports_complete_relationships(inventory_client) -> None:
+    client, csrf_token = inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+
+    empty_report = await client.get("/api/inventory/quality")
+    assert empty_report.status_code == 200
+    assert empty_report.json()["status"] == "empty"
+    assert empty_report.json()["score"] == 0
+
+    vlan = await client.post(
+        "/api/inventory/vlans",
+        headers=headers,
+        json={"vlan_id": 20, "name": "Servers"},
+    )
+    network = await client.post(
+        "/api/inventory/networks",
+        headers=headers,
+        json={
+            "cidr": "10.20.0.0/24",
+            "name": "Server LAN",
+            "gateway": "10.20.0.1",
+            "vlan_id": vlan.json()["id"],
+        },
+    )
+    await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={
+            "name": "SRV-QUALITY-01",
+            "device_type": "server",
+            "vendor": "Example",
+            "model": "Q1",
+            "location": "Rack A",
+            "serial_number": "SERIAL-Q1",
+            "asset_tag": "ASSET-Q1",
+            "interface": {
+                "name": "eth0",
+                "mac_address": "00:11:22:33:aa:01",
+                "ip_address": "10.20.0.10",
+                "network_id": network.json()["id"],
+            },
+        },
+    )
+
+    response = await client.get("/api/inventory/quality")
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["status"] == "excellent"
+    assert report["score"] == 100
+    assert report["issues"] == []
+    assert report["relationships"] == {
+        "device_ip_links": 1,
+        "ip_network_links": 1,
+        "network_vlan_links": 1,
+        "disconnected_devices": 0,
+        "unassigned_ips": 0,
+    }
+
+
+async def test_inventory_quality_detects_conflicts_and_incomplete_records(
+    inventory_client,
+) -> None:
+    client, csrf_token = inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+
+    await client.post(
+        "/api/inventory/vlans",
+        headers=headers,
+        json={"vlan_id": 30, "name": "Unused"},
+    )
+    await client.post(
+        "/api/inventory/networks",
+        headers=headers,
+        json={"cidr": "10.30.0.0/24", "name": "Primary"},
+    )
+    await client.post(
+        "/api/inventory/networks",
+        headers=headers,
+        json={"cidr": "10.30.0.0/25", "name": "Overlapping"},
+    )
+    for name in ("SW-QUALITY-01", "SW-QUALITY-02"):
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={
+                "name": name,
+                "device_type": "switch",
+                "serial_number": "DUPLICATE-SERIAL",
+            },
+        )
+
+    response = await client.get("/api/inventory/quality")
+
+    assert response.status_code == 200
+    report = response.json()
+    codes = {issue["code"] for issue in report["issues"]}
+    assert report["status"] == "critical"
+    assert report["issue_counts"]["critical"] == 1
+    assert report["relationships"]["disconnected_devices"] == 2
+    assert {
+        "network_overlap",
+        "device_no_interface",
+        "device_no_ip",
+        "device_missing_documentation",
+        "duplicate_serial_number",
+        "network_no_gateway",
+        "vlan_no_network",
+    } <= codes
+
+
 async def test_viewer_can_read_inventory_but_cannot_write() -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -329,6 +440,8 @@ async def test_viewer_can_read_inventory_but_cannot_write() -> None:
 
         dashboard = await client.get("/api/inventory/dashboard")
         assert dashboard.status_code == 200
+        quality = await client.get("/api/inventory/quality")
+        assert quality.status_code == 200
 
         forbidden_json_export = await client.get("/api/inventory/export.json")
         forbidden_csv_export = await client.get("/api/inventory/export/devices.csv")

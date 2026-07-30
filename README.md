@@ -14,7 +14,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.7-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.8-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -38,6 +38,9 @@ Current alpha release notes are available in `RELEASE_NOTES_v0.1.7-alpha.md`. Se
 - Internationalization foundation with English as the primary, default, and fallback language.
 - Bundled Spanish translation, manual language selection, and per-user language persistence.
 - System status diagnostics with dependency latency, total check duration, degraded-state visibility, and optional 30-second auto-refresh.
+- Passive inventory-quality checks for incomplete records, duplicate device identifiers, overlapping subnets, unclassified IPs, and missing relationships.
+- Inventory-quality scoring with direct navigation from each finding to the affected record.
+- Floating GitHub repository link with a backend-cached star count.
 
 ## Languages
 
@@ -172,6 +175,8 @@ REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
 MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+MFA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_MFA_KEY
+MFA_DECRYPTION_FALLBACK_KEYS=
 INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
@@ -186,6 +191,8 @@ AE_NETSCOPE_MIGRATION_RETRY_SECONDS=2
 AE_NETSCOPE_PRE_MIGRATION_BACKUP=true
 AE_NETSCOPE_MIGRATION_BACKUP_DIR=/app/backups
 AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT=10
+INVENTORY_BACKUP_DIR=/app/backups
+INVENTORY_BACKUP_RETENTION_COUNT=10
 AE_NETSCOPE_AUTO_UPDATE_ENABLED=false
 AE_NETSCOPE_AUTO_UPDATE_COMMAND=
 AUTH_RATE_LIMIT_PER_MINUTE=5
@@ -210,12 +217,16 @@ This path is intended for local validation, public alpha testing, and future Tru
 
 Use `compose.yaml` for local HTTP container testing. Running the image directly with `docker run` uses the image defaults and requires explicit environment variables for the target deployment. For real HTTPS production, set `APP_ENV=production`, `APP_URL=https://...`, `SESSION_COOKIE_SECURE=true`, and `SECURITY_HSTS_ENABLED=true`.
 
+Passkeys are available when the deployment defines `WEBAUTHN_RP_ID` as the public hostname and `WEBAUTHN_ORIGIN` as the exact public origin, for example `netscope.example.com` and `https://netscope.example.com`. Production passkeys require HTTPS. TOTP remains available without these WebAuthn variables.
+
+Keep `SESSION_SECRET` stable across upgrades and container replacements. Changing it intentionally invalidates active sessions. Set a separate, stable `MFA_ENCRYPTION_KEY` before enrolling TOTP accounts so MFA secrets do not depend on the session key. Existing TOTP secrets encrypted with `SESSION_SECRET` remain readable and are migrated at startup when the dedicated key is introduced. During later MFA-key rotations, list previous keys temporarily in `MFA_DECRYPTION_FALLBACK_KEYS` until startup migration completes.
+
 Before a pending startup migration runs, the container creates a PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. It skips the backup when the schema is already current, creates files with mode `0600`, and retains the newest 10 by default. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
 
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha
+ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha
 ```
 
 From the project root:
@@ -327,7 +338,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.
@@ -440,6 +451,8 @@ REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
 MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+MFA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_MFA_KEY
+MFA_DECRYPTION_FALLBACK_KEYS=
 INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
 SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
@@ -517,7 +530,8 @@ sudo -u ae-netscope env VITE_API_BASE_URL=/api npm --prefix web run build
 - The restore UI validates the JSON first and shows a preview before replacing data.
 - A restore replaces inventory records only: devices, interfaces, IPs, subnets, VLANs, and services.
 - A restore does not modify users, sessions, password hashes, secrets, or environment variables.
-- Before a restore is applied, the API returns a pre-restore backup and the web UI downloads it automatically.
+- Before a restore is applied, the API persists a pre-restore JSON backup in `/app/backups` and the web UI also downloads it automatically.
+- Restore backups use mode `0600` where supported and retain the newest 10 files by default. Change this with `INVENTORY_BACKUP_RETENTION_COUNT`.
 - Keep production backups outside the repository and outside the web root.
 - PostgreSQL dump files are not encrypted by the application. Store `/app/backups` on an encrypted dataset or encrypted host volume and restrict host access.
 

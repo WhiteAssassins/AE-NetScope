@@ -1,18 +1,22 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse
+from starlette.responses import HTMLResponse, PlainTextResponse
 
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.version import project_version
 from app.db.session import SessionLocal
+from app.middleware.maintenance_mode import maintenance_mode_middleware
 from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
-from app.services.maintenance import purge_expired_records
+from app.services import search_indexing
+from app.services.maintenance import purge_expired_records, reconcile_interrupted_updates
+from app.services.mfa import migrate_totp_secrets_to_primary_key
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,8 @@ async def lifespan(_app: FastAPI):
     try:
         async with SessionLocal() as session:
             await purge_expired_records(session)
+            await reconcile_interrupted_updates(session)
+            await migrate_totp_secrets_to_primary_key(session)
             await session.commit()
     except Exception as exc:
         logger.warning("Database retention cleanup failed: %s", exc.__class__.__name__)
@@ -45,9 +51,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestSizeLimitMiddleware)
+    app.middleware("http")(maintenance_mode_middleware)
     app.middleware("http")(security_headers_middleware)
 
     app.include_router(api_router, prefix="/api")
+
+    @app.get("/robots.txt", include_in_schema=False)
+    async def robots_txt() -> PlainTextResponse:
+        allowed = await search_indexing.is_search_engine_indexing_allowed()
+        directive = "Allow: /" if allowed else "Disallow: /"
+        return PlainTextResponse(
+            f"User-agent: *\n{directive}\n",
+            headers={"Cache-Control": "public, max-age=30"},
+        )
+
     mount_static_web(app)
     return app
 
@@ -62,8 +79,15 @@ def mount_static_web(app: FastAPI) -> None:
     app.mount("/assets", StaticFiles(directory=f"{static_dir.rstrip('/')}/assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
-    async def spa_fallback(path: str) -> FileResponse:
-        return FileResponse(index_file)
+    async def spa_fallback(path: str) -> HTMLResponse:
+        html = Path(index_file).read_text(encoding="utf-8")
+        if await search_indexing.is_search_engine_indexing_allowed():
+            html = html.replace(
+                'content="noindex, nofollow, noarchive"',
+                'content="index, follow"',
+                1,
+            )
+        return HTMLResponse(html)
 
 
 app = create_app()

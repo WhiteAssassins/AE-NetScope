@@ -1,6 +1,6 @@
 services:
   ae-netscope:
-    image: ghcr.io/whiteassassins/ae-netscope:v0.1.7-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,6 +23,8 @@ services:
       REDIS_DB: 0
       REDIS_PASSWORD: ${REDIS_PASSWORD:-change-me-redis-local-only}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-at-least-32-random-bytes-local-only}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
+      MFA_DECRYPTION_FALLBACK_KEYS: ${MFA_DECRYPTION_FALLBACK_KEYS:-}
       INITIAL_SETUP_TOKEN: ${INITIAL_SETUP_TOKEN:-}
       SESSION_COOKIE_NAME: ae_netscope_session
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
@@ -40,10 +42,15 @@ services:
       AE_NETSCOPE_PRE_MIGRATION_BACKUP: ${AE_NETSCOPE_PRE_MIGRATION_BACKUP:-true}
       AE_NETSCOPE_MIGRATION_BACKUP_DIR: /app/backups
       AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT: ${AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT:-10}
+      INVENTORY_BACKUP_DIR: /app/backups
+      INVENTORY_BACKUP_RETENTION_COUNT: ${INVENTORY_BACKUP_RETENTION_COUNT:-10}
       SESSION_RECORD_RETENTION_DAYS: ${SESSION_RECORD_RETENTION_DAYS:-30}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
       AE_NETSCOPE_AUTO_UPDATE_ENABLED: ${AE_NETSCOPE_AUTO_UPDATE_ENABLED:-false}
       AE_NETSCOPE_AUTO_UPDATE_COMMAND: ${AE_NETSCOPE_AUTO_UPDATE_COMMAND:-}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-AE NetScope}
     ports:
       - "${AE_NETSCOPE_PORT:-8080}:8000"
     volumes:

@@ -75,8 +75,8 @@ describe("NotesView", () => {
       />,
     );
 
-    expect(screen.getAllByText("Con notas")).toHaveLength(2);
-    expect(screen.getAllByText("Sin notas")).toHaveLength(2);
+    expect(screen.getAllByText("With notes")).toHaveLength(2);
+    expect(screen.getAllByText("Without notes")).toHaveLength(2);
     expect(screen.getByText("SRV-APP-01")).toBeInTheDocument();
     expect(screen.queryByText("CAM-DOOR-01")).not.toBeInTheDocument();
 
@@ -99,7 +99,7 @@ describe("NotesView", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Abrir dispositivo" }));
+    await user.click(screen.getByRole("button", { name: "Open device" }));
     expect(onOpenDevice).toHaveBeenCalledWith(1);
   });
 
@@ -120,9 +120,9 @@ describe("NotesView", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /SRV-APP-01/i }));
-    await user.clear(screen.getByLabelText("Nota técnica"));
-    await user.type(screen.getByLabelText("Nota técnica"), "Nueva nota técnica");
-    await user.click(screen.getByRole("button", { name: "Guardar nota" }));
+    await user.clear(screen.getByLabelText("Technical note"));
+    await user.type(screen.getByLabelText("Technical note"), "Nueva nota técnica");
+    await user.click(screen.getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -134,7 +134,7 @@ describe("NotesView", () => {
         body: JSON.stringify({ notes: "Nueva nota técnica" }),
       }),
     );
-    expect(screen.getByText("Nota actualizada: SRV-APP-01")).toBeInTheDocument();
+    expect(screen.getByText("Note updated: SRV-APP-01")).toBeInTheDocument();
   });
 
   it("keeps the editor read-only without update permission", async () => {
@@ -152,7 +152,7 @@ describe("NotesView", () => {
 
     await user.click(screen.getByRole("button", { name: /SRV-APP-01/i }));
 
-    expect(screen.getByLabelText("Nota técnica")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Guardar nota" })).toBeDisabled();
+    expect(screen.getByLabelText("Technical note")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeDisabled();
   });
 });

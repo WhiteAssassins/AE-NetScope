@@ -10,6 +10,11 @@ class ReleaseInfo(BaseModel):
     published_at: str | None = None
 
 
+class ReleaseDetails(ReleaseInfo):
+    body: str | None = None
+    body_truncated: bool = False
+
+
 class UpdateCapability(BaseModel):
     platform: str
     automatic_updates_enabled: bool
@@ -36,3 +41,10 @@ class UpdateStartResponse(BaseModel):
     started: bool
     message: str
     tag_name: str | None = None
+
+
+class RepositoryInfo(BaseModel):
+    html_url: str
+    stargazers_count: int
+    forks_count: int
+    open_issues_count: int

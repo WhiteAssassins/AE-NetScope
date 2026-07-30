@@ -1,6 +1,7 @@
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { VlanRecord } from "../types";
 import { hasPermission } from "../utils";
@@ -17,6 +18,7 @@ export default function VlansView({
   onChanged: () => Promise<void>;
   permissions: string[];
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [selectedVlan, setSelectedVlan] = useState<VlanRecord | null>(null);
@@ -109,15 +111,15 @@ export default function VlansView({
       });
 
       if (!response.ok) {
-        setError("No se pudo guardar la VLAN. Revisa ID duplicado o campos inválidos.");
+        setError(t("vlans.errors.save"));
         return;
       }
 
-      setMessage(selectedVlan ? "VLAN actualizada." : "VLAN creada.");
+      setMessage(t(selectedVlan ? "vlans.updated" : "vlans.created"));
       resetForm();
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +130,7 @@ export default function VlansView({
       return;
     }
     const confirmed = window.confirm(
-      `Eliminar la VLAN "${selectedVlan.vlan_id} - ${selectedVlan.name}"? Esta acción no se puede deshacer.`,
+      t("vlans.confirmDelete", { id: selectedVlan.vlan_id, name: selectedVlan.name }),
     );
     if (!confirmed) {
       return;
@@ -144,16 +146,16 @@ export default function VlansView({
       });
 
       if (!response.ok) {
-        setError("No se pudo eliminar la VLAN.");
+        setError(t("vlans.errors.delete"));
         return;
       }
 
-      setMessage("VLAN eliminada.");
+      setMessage(t("vlans.deleted"));
       resetForm();
       setShowForm(false);
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     }
   }
 
@@ -161,8 +163,8 @@ export default function VlansView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>VLANs</h1>
-          <p>Segmentos lógicos, subredes asociadas y capacidad por VLAN.</p>
+          <h1>{t("vlans.title")}</h1>
+          <p>{t("vlans.description")}</p>
         </div>
         {canCreate && (
           <button
@@ -175,27 +177,27 @@ export default function VlansView({
             }}
           >
             <Plus size={18} strokeWidth={2} />
-            {showForm ? "Ocultar formulario" : "Nueva VLAN"}
+            {showForm ? t("common.hideForm") : t("vlans.new")}
           </button>
         )}
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de VLANs">
+      <section className="ip-summary-grid" aria-label={t("vlans.summaryLabel")}>
         <article className="mini-stat">
           <strong>{vlans.length}</strong>
           <span>VLANs</span>
         </article>
         <article className="mini-stat green">
           <strong>{totalNetworks}</strong>
-          <span>Subredes asociadas</span>
+          <span>{t("vlans.associatedNetworks")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{totalIps}</strong>
-          <span>IPs usadas</span>
+          <span>{t("networks.usedIps")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{totalCapacity}</strong>
-          <span>Capacidad útil</span>
+          <span>{t("networks.capacity")}</span>
         </article>
       </section>
 
@@ -206,23 +208,23 @@ export default function VlansView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por ID, nombre o descripcion..."
+                placeholder={t("vlans.searchPlaceholder")}
                 value={query}
               />
             </label>
-            <span>{filteredVlans.length} VLANs</span>
+            <span>{t("vlans.count", { count: filteredVlans.length })}</span>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Nombre</th>
-                  <th>Descripción</th>
-                  <th>Subredes</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("vlans.fields.description")}</th>
+                  <th>{t("networks.title")}</th>
                   <th>IPs</th>
-                  <th>Capacidad</th>
-                  <th>Uso</th>
+                  <th>{t("networks.capacity")}</th>
+                  <th>{t("networks.usage")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,7 +255,7 @@ export default function VlansView({
 
       {showForm && (selectedVlan ? canUpdate : canCreate) && (
           <article className="panel device-form-panel">
-            <h2>{selectedVlan ? "Editar VLAN" : "Nueva VLAN"}</h2>
+            <h2>{t(selectedVlan ? "vlans.edit" : "vlans.new")}</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
               <label>
                 ID VLAN
@@ -267,7 +269,7 @@ export default function VlansView({
                 />
               </label>
               <label>
-                Nombre
+                {t("common.name")}
                 <input
                   onChange={(event) => updateField("name", event.target.value)}
                   required
@@ -275,7 +277,7 @@ export default function VlansView({
                 />
               </label>
               <label className="form-wide">
-                Descripción
+                {t("vlans.fields.description")}
                 <textarea
                   onChange={(event) => updateField("description", event.target.value)}
                   value={form.description}
@@ -284,12 +286,14 @@ export default function VlansView({
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Guardando..." : selectedVlan ? "Guardar VLAN" : "Crear VLAN"}
+                {isSubmitting
+                  ? t("common.saving")
+                  : t(selectedVlan ? "vlans.save" : "vlans.create")}
               </button>
             </form>
             {selectedVlan && canDelete && (
               <button className="danger-action panel-action" onClick={deleteSelectedVlan}>
-                Eliminar VLAN
+                {t("vlans.delete")}
               </button>
             )}
           </article>

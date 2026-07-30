@@ -1,9 +1,10 @@
 import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { DeviceDetail, DeviceRecord, NetworkRecord } from "../types";
-import { hasPermission, titleCase, typeTone } from "../utils";
+import { deviceTypeLabel, hasPermission, stateLabel, typeTone } from "../utils";
 
 const deviceTypes = [
   "Equipo",
@@ -74,6 +75,7 @@ export default function DevicesView({
   onCreated: () => Promise<void>;
   permissions: string[];
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<CreateForm>(emptyCreateForm);
@@ -93,12 +95,6 @@ export default function DevicesView({
   const canCreate = hasPermission(permissions, "devices:create");
   const canUpdate = hasPermission(permissions, "devices:update");
   const canDelete = hasPermission(permissions, "devices:delete");
-
-  useEffect(() => {
-    if (focusDeviceId) {
-      loadDeviceDetail(focusDeviceId).catch(() => undefined);
-    }
-  }, [focusDeviceId]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredDevices = devices.filter((device) => {
@@ -163,13 +159,13 @@ export default function DevicesView({
     };
   }
 
-  async function loadDeviceDetail(deviceId: number) {
+  const loadDeviceDetail = useCallback(async (deviceId: number) => {
     setDetailError("");
     const response = await fetch(`${API_BASE_URL}/inventory/devices/${deviceId}`, {
       credentials: "include",
     });
     if (!response.ok) {
-      setDetailError("No se pudo cargar el dispositivo.");
+      setDetailError(t("devices.errors.load"));
       return;
     }
     const device = (await response.json()) as DeviceDetail;
@@ -193,7 +189,13 @@ export default function DevicesView({
       location: device.location ?? "",
       notes: device.notes ?? "",
     });
-  }
+  }, [t]);
+
+  useEffect(() => {
+    if (focusDeviceId) {
+      queueMicrotask(() => loadDeviceDetail(focusDeviceId).catch(() => undefined));
+    }
+  }, [focusDeviceId, loadDeviceDetail]);
 
   async function saveDeviceChanges(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -212,7 +214,7 @@ export default function DevicesView({
       body: JSON.stringify(devicePayload(editForm)),
     });
     if (!response.ok) {
-      setDetailError("No se pudo guardar. Revisa nombres duplicados o campos inválidos.");
+      setDetailError(t("devices.errors.save"));
       return;
     }
     setSelectedDevice((await response.json()) as DeviceDetail);
@@ -244,7 +246,7 @@ export default function DevicesView({
       },
     );
     if (!response.ok) {
-      setDetailError("No se pudo agregar la interfaz. Revisa duplicados o formato.");
+      setDetailError(t("devices.errors.interface"));
       return;
     }
     setInterfaceForm({ name: "eth1", mac_address: "", ip_address: "", network_id: "" });
@@ -266,7 +268,7 @@ export default function DevicesView({
       },
     );
     if (!response.ok) {
-      setDetailError("No se pudo desactivar el dispositivo.");
+      setDetailError(t("devices.errors.deactivate"));
       return;
     }
     setSelectedDevice((await response.json()) as DeviceDetail);
@@ -278,7 +280,7 @@ export default function DevicesView({
       return;
     }
     const confirmed = window.confirm(
-      `Eliminar el dispositivo "${selectedDevice.name}"? Esta acción no se puede deshacer.`,
+      t("devices.confirmDelete", { name: selectedDevice.name }),
     );
     if (!confirmed) {
       return;
@@ -290,7 +292,7 @@ export default function DevicesView({
       headers: { "X-CSRF-Token": csrfToken },
     });
     if (!response.ok) {
-      setDetailError("No se pudo eliminar el dispositivo.");
+      setDetailError(t("devices.errors.delete"));
       return;
     }
     setSelectedDevice(null);
@@ -331,15 +333,15 @@ export default function DevicesView({
       });
 
       if (!response.ok) {
-        setError("No se pudo crear el dispositivo. Revisa campos duplicados o inválidos.");
+        setError(t("devices.errors.create"));
         return;
       }
 
-      setMessage("Dispositivo creado.");
+      setMessage(t("devices.created"));
       setForm(emptyCreateForm);
       await onCreated();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -349,13 +351,13 @@ export default function DevicesView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Dispositivos</h1>
-          <p>Inventario operativo de hosts, equipos de red y servidores.</p>
+          <h1>{t("devices.title")}</h1>
+          <p>{t("devices.description")}</p>
         </div>
         {canCreate && (
           <button className="primary-action" onClick={() => setShowForm((value) => !value)}>
             <Plus size={18} strokeWidth={2} />
-            {showForm ? "Ocultar formulario" : "Nuevo dispositivo"}
+            {showForm ? t("common.hideForm") : t("devices.new")}
           </button>
         )}
       </div>
@@ -367,24 +369,24 @@ export default function DevicesView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nombre, IP, MAC, serial, asset tag..."
+                placeholder={t("devices.searchPlaceholder")}
                 value={query}
               />
             </label>
-            <span>{filteredDevices.length} dispositivos</span>
+            <span>{t("devices.count", { count: filteredDevices.length })}</span>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Tipo</th>
-                  <th>IP principal</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("common.type")}</th>
+                  <th>{t("dashboard.primaryIp")}</th>
                   <th>MAC</th>
-                  <th>Fabricante</th>
-                  <th>Serial</th>
-                  <th>Ubicación</th>
-                  <th>Estado</th>
+                  <th>{t("devices.fields.vendor")}</th>
+                  <th>{t("devices.fields.serial")}</th>
+                  <th>{t("devices.fields.location")}</th>
+                  <th>{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -400,7 +402,7 @@ export default function DevicesView({
                     </td>
                     <td>
                       <span className={`pill ${typeTone(device.device_type)}`}>
-                        {device.device_type}
+                        {deviceTypeLabel(device.device_type, t)}
                       </span>
                     </td>
                     <td>{device.primary_ip ?? "-"}</td>
@@ -409,7 +411,7 @@ export default function DevicesView({
                     <td>{device.serial_number ?? "-"}</td>
                     <td>{device.location ?? "-"}</td>
                     <td>
-                      <span className="status-dot" /> {titleCase(device.status)}
+                      <span className="status-dot" /> {stateLabel(device.status, t)}
                     </td>
                   </tr>
                 ))}
@@ -420,11 +422,11 @@ export default function DevicesView({
 
         {showForm && canCreate && (
           <article className="panel device-form-panel">
-            <h2>Nuevo dispositivo</h2>
+            <h2>{t("devices.new")}</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
               <DeviceFields mode="create" values={form} onChange={updateField} />
               <label>
-                Interfaz
+                {t("devices.interface")}
                 <input
                   onChange={(event) => updateField("interface_name", event.target.value)}
                   value={form.interface_name}
@@ -454,7 +456,7 @@ export default function DevicesView({
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Guardando..." : "Crear dispositivo"}
+                {isSubmitting ? t("common.saving") : t("devices.create")}
               </button>
             </form>
           </article>
@@ -465,10 +467,10 @@ export default function DevicesView({
             <div className="detail-heading">
               <div>
                 <h2>{selectedDevice.name}</h2>
-                <p>{selectedDevice.primary_ip ?? "Sin IP principal"}</p>
+                <p>{selectedDevice.primary_ip ?? t("devices.withoutPrimaryIp")}</p>
               </div>
               <button className="text-button" onClick={() => setSelectedDevice(null)}>
-                Cerrar
+                {t("common.close")}
               </button>
             </div>
 
@@ -478,22 +480,22 @@ export default function DevicesView({
               <form className="inventory-form" onSubmit={saveDeviceChanges}>
                 <DeviceFields mode="edit" values={editForm} onChange={updateEditField} />
                 <button className="login-button form-wide" type="submit">
-                  Guardar cambios
+                  {t("common.saveChanges")}
                 </button>
               </form>
             )}
 
             <div className="detail-section">
-              <h3>Interfaces</h3>
+              <h3>{t("devices.interfaces")}</h3>
               <div className="interface-list">
                 {selectedDevice.interfaces.map((item) => (
                   <div className="interface-row" key={item.id}>
                     <strong>{item.name}</strong>
-                    <span>{item.mac_address ?? "Sin MAC"}</span>
+                    <span>{item.mac_address ?? t("devices.withoutMac")}</span>
                     <small>
                       {item.ip_addresses.length
                         ? item.ip_addresses.map((ip) => ip.address).join(", ")
-                        : "Sin IP"}
+                        : t("audit.withoutIp")}
                     </small>
                   </div>
                 ))}
@@ -502,9 +504,9 @@ export default function DevicesView({
 
             {canUpdate && (
               <form className="inventory-form detail-section" onSubmit={addInterface}>
-                <h3 className="form-wide">Agregar interfaz</h3>
+                <h3 className="form-wide">{t("devices.addInterface")}</h3>
                 <label>
-                  Nombre
+                  {t("common.name")}
                   <input
                     onChange={(event) => updateInterfaceField("name", event.target.value)}
                     required
@@ -533,19 +535,19 @@ export default function DevicesView({
                   value={interfaceForm.network_id}
                 />
                 <button className="login-button form-wide" type="submit">
-                  Agregar interfaz
+                  {t("devices.addInterface")}
                 </button>
               </form>
             )}
 
             {canUpdate && (
               <button className="danger-action" onClick={deactivateSelectedDevice}>
-                Desactivar dispositivo
+                {t("devices.deactivate")}
               </button>
             )}
             {canDelete && (
               <button className="danger-action" onClick={deleteSelectedDevice}>
-                Eliminar dispositivo
+                {t("devices.delete")}
               </button>
             )}
           </article>
@@ -564,67 +566,69 @@ function DeviceFields({
   onChange: (field: keyof DeviceForm, value: string) => void;
   values: DeviceForm;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <label>
-        Nombre
+        {t("common.name")}
         <input onChange={(event) => onChange("name", event.target.value)} required value={values.name} />
       </label>
       <label>
-        Tipo
+        {t("common.type")}
         <select onChange={(event) => onChange("device_type", event.target.value)} value={values.device_type}>
           {deviceTypes.map((type) => (
-            <option key={type}>{type}</option>
+            <option key={type} value={type}>{deviceTypeLabel(type, t)}</option>
           ))}
         </select>
       </label>
       {mode === "edit" && (
         <label>
-          Estado
+          {t("common.status")}
           <select onChange={(event) => onChange("status", event.target.value)} value={values.status}>
-            <option value="active">Activo</option>
-            <option value="inactive">Inactivo</option>
-            <option value="reserved">Reservado</option>
-            <option value="unknown">Desconocido</option>
+            {(["active", "inactive", "reserved", "unknown"] as const).map((status) => (
+              <option key={status} value={status}>
+                {stateLabel(status, t)}
+              </option>
+            ))}
           </select>
         </label>
       )}
-      <TextField field="vendor" label="Fabricante" onChange={onChange} value={values.vendor} />
-      <TextField field="model" label="Modelo" onChange={onChange} value={values.model} />
-      <TextField field="serial_number" label="Serial" onChange={onChange} value={values.serial_number} />
-      <TextField field="asset_tag" label="Asset tag" onChange={onChange} value={values.asset_tag} />
+      <TextField field="vendor" label={t("devices.fields.vendor")} onChange={onChange} value={values.vendor} />
+      <TextField field="model" label={t("devices.fields.model")} onChange={onChange} value={values.model} />
+      <TextField field="serial_number" label={t("devices.fields.serial")} onChange={onChange} value={values.serial_number} />
+      <TextField field="asset_tag" label={t("devices.fields.assetTag")} onChange={onChange} value={values.asset_tag} />
       <TextField
         field="operating_system"
-        label="Sistema operativo"
+        label={t("devices.fields.operatingSystem")}
         onChange={onChange}
         value={values.operating_system}
       />
       <TextField
         field="firmware_version"
-        label="Firmware"
+        label={t("devices.fields.firmware")}
         onChange={onChange}
         value={values.firmware_version}
       />
       <TextField field="cpu" label="CPU" onChange={onChange} value={values.cpu} />
       <TextField field="memory" label="RAM" onChange={onChange} value={values.memory} />
-      <TextField field="storage" label="Almacenamiento" onChange={onChange} value={values.storage} />
+      <TextField field="storage" label={t("devices.fields.storage")} onChange={onChange} value={values.storage} />
       <TextField
         field="warranty_expires"
-        label="Garantía"
+        label={t("devices.fields.warranty")}
         onChange={onChange}
         placeholder="2028-12-31"
         value={values.warranty_expires}
       />
-      <TextField field="owner" label="Responsable" onChange={onChange} value={values.owner} />
+      <TextField field="owner" label={t("devices.fields.owner")} onChange={onChange} value={values.owner} />
       <TextField
         field="rack_position"
-        label="Rack / posición"
+        label={t("devices.fields.rackPosition")}
         onChange={onChange}
         value={values.rack_position}
       />
-      <TextField field="location" label="Ubicación" onChange={onChange} value={values.location} />
+      <TextField field="location" label={t("devices.fields.location")} onChange={onChange} value={values.location} />
       <label className="form-wide">
-        Notas
+        {t("devices.fields.notes")}
         <textarea onChange={(event) => onChange("notes", event.target.value)} value={values.notes} />
       </label>
     </>
@@ -665,11 +669,12 @@ function NetworkSelect({
   onChange: (value: string) => void;
   value: string;
 }) {
+  const { t } = useTranslation();
   return (
     <label>
-      Subred
+      {t("navigation.networks")}
       <select onChange={(event) => onChange(event.target.value)} value={value}>
-        <option value="">Sin subred</option>
+        <option value="">{t("devices.withoutSubnet")}</option>
         {networks.map((network) => (
           <option key={network.id} value={network.id}>
             {network.cidr} - {network.name}

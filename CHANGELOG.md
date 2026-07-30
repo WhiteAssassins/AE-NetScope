@@ -2,6 +2,51 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.8-alpha - 2026-07-20
+
+### Added
+
+- Added passive inventory-quality checks with documentation scoring, categorized findings, relationship summaries, and navigation to affected records.
+- Added an About page with project, creator, company, license, repository, support, and installed-version information.
+- Added repository statistics, system health, installed-version visibility, update state, and improved notifications to the top bar.
+- Added regional preferences for time zone, date format, and 12/24-hour display.
+- Added account-session management, TOTP authentication, WebAuthn/passkey support, maintenance mode, and update-attempt history.
+- Added richer user-management details, editable account identity and roles, activation controls, MFA/passkey visibility, session counts, and individual session revocation.
+- Added release-history and changelog browsing to the Updates view.
+- Added an administrative search-engine visibility policy backed by dynamic `robots.txt`, `X-Robots-Tag`, and HTML robots metadata.
+- Added Alembic migrations `0006` through `0008` for regional/security settings, language capacity alignment, and the search-indexing policy.
+- Added regression tests for account security, maintenance behavior, user administration, updates, repository information, About, quality checks, notifications, and crawler policy behavior.
+
+### Changed
+
+- Expanded English and Spanish translation coverage across inventory, administration, support, quality, updates, and account workflows.
+- Improved Settings organization with browser-local interface preferences and permission-gated administrative controls.
+- Improved the Users view for repeated administrative work and clearer high-risk account actions.
+- Improved the Updates view with cached GitHub release data and graceful behavior when GitHub is temporarily unavailable.
+- Improved footer and top-bar navigation while keeping version and project information visible without obstructing the workspace.
+- Updated all project, API, web, Docker, Compose, release, and staged TrueNAS image markers to `0.1.8-alpha`.
+
+### Security
+
+- Kept search-engine indexing blocked by default and fail-closed if the policy cannot be loaded.
+- Added encrypted TOTP secret storage and CSRF-protected account-security operations.
+- Added cache controls and permission checks around administrative, session, and user-management responses.
+- Kept TrueNAS-managed installations on their platform update path and limited in-app automatic updates to explicitly configured Docker deployments.
+- Updated `brace-expansion`, `postcss`, and `nanoid` to patched releases after dependency security advisories.
+
+### Fixed
+
+- Fixed long activity text and management controls that could overlap or lose clarity at narrower widths.
+- Fixed stale installed-version references across runtime metadata, tests, container tags, documentation, and staged TrueNAS metadata.
+- Fixed the active document robots directive so it changes immediately after an administrator updates the crawler policy.
+
+### Verified
+
+- API suite passes with `96` tests.
+- Web suite passes with `102` tests.
+- Ruff, ESLint, the production web build, Alembic upgrade/check, release metadata validation, and local crawler-policy checks pass.
+- npm and Python dependency audits report no known vulnerabilities.
+
 ## v0.1.7-alpha - 2026-07-12
 
 ### Added

@@ -52,7 +52,55 @@ describe("LoginScreen", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "include",
-        body: JSON.stringify({ email: "admin@example.com", password: "correct-password" }),
+        body: JSON.stringify({
+          email: "admin@example.com",
+          password: "correct-password",
+          totp_code: null,
+        }),
+      }),
+    );
+  });
+
+  it("requests and submits a TOTP code when the account requires one", async () => {
+    const user = userEvent.setup();
+    const onLogin = vi.fn();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ detail: { code: "totp_required", message: "Code required" } }, 428),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          csrf_token: "csrf-token",
+          user: {
+            id: 1,
+            email: "admin@example.com",
+            username: "admin",
+            role: "admin",
+            permissions: [],
+            must_change_password: false,
+            preferred_language: "en",
+            totp_enabled: true,
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "correct-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          email: "admin@example.com",
+          password: "correct-password",
+          totp_code: "123456",
+        }),
       }),
     );
   });

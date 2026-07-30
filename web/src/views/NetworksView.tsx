@@ -1,6 +1,7 @@
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { NetworkRecord, VlanRecord } from "../types";
 import { hasPermission, stateLabel, stateTone } from "../utils";
@@ -19,6 +20,7 @@ export default function NetworksView({
   onChanged: () => Promise<void>;
   permissions: string[];
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -138,15 +140,15 @@ export default function NetworksView({
       });
 
       if (!response.ok) {
-        setError("No se pudo guardar la subred. Revisa CIDR, gateway, VLAN o duplicados.");
+        setError(t("networks.errors.save"));
         return;
       }
 
-      setMessage(selectedNetwork ? "Subred actualizada." : "Subred creada.");
+      setMessage(t(selectedNetwork ? "networks.updated" : "networks.created"));
       resetForm();
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -157,7 +159,7 @@ export default function NetworksView({
       return;
     }
     const confirmed = window.confirm(
-      `Eliminar la subred "${selectedNetwork.cidr}"? Esta acción no se puede deshacer.`,
+      t("networks.confirmDelete", { cidr: selectedNetwork.cidr }),
     );
     if (!confirmed) {
       return;
@@ -173,16 +175,16 @@ export default function NetworksView({
       });
 
       if (!response.ok) {
-        setError("No se pudo eliminar la subred.");
+        setError(t("networks.errors.delete"));
         return;
       }
 
-      setMessage("Subred eliminada.");
+      setMessage(t("networks.deleted"));
       resetForm();
       setShowForm(false);
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     }
   }
 
@@ -190,8 +192,8 @@ export default function NetworksView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Subredes</h1>
-          <p>Rangos CIDR, gateways, VLANs y ocupación de direcciones.</p>
+          <h1>{t("networks.title")}</h1>
+          <p>{t("networks.description")}</p>
         </div>
         {canCreate && (
           <button
@@ -204,27 +206,27 @@ export default function NetworksView({
             }}
           >
             <Plus size={18} strokeWidth={2} />
-            {showForm ? "Ocultar formulario" : "Nueva subred"}
+            {showForm ? t("common.hideForm") : t("networks.new")}
           </button>
         )}
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de subredes">
+      <section className="ip-summary-grid" aria-label={t("networks.summaryLabel")}>
         <article className="mini-stat">
           <strong>{networks.length}</strong>
-          <span>Subredes</span>
+          <span>{t("networks.title")}</span>
         </article>
         <article className="mini-stat green">
           <strong>{totalIps}</strong>
-          <span>IPs usadas</span>
+          <span>{t("networks.usedIps")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{totalCapacity}</strong>
-          <span>Capacidad útil</span>
+          <span>{t("networks.capacity")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{averageUsage}%</strong>
-          <span>Uso promedio</span>
+          <span>{t("networks.averageUsage")}</span>
         </article>
       </section>
 
@@ -235,7 +237,7 @@ export default function NetworksView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por CIDR, VLAN, gateway, ubicacion..."
+                placeholder={t("networks.searchPlaceholder")}
                 value={query}
               />
             </label>
@@ -244,24 +246,24 @@ export default function NetworksView({
               onChange={(event) => setStatusFilter(event.target.value)}
               value={statusFilter}
             >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activas</option>
-              <option value="inactive">Inactivas</option>
-              <option value="reserved">Reservadas</option>
+              <option value="all">{t("networks.allStates")}</option>
+              <option value="active">{t("values.states.active")}</option>
+              <option value="inactive">{t("values.states.inactive")}</option>
+              <option value="reserved">{t("values.states.reserved")}</option>
             </select>
-            <span>{filteredNetworks.length} subredes</span>
+            <span>{t("networks.count", { count: filteredNetworks.length })}</span>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>CIDR</th>
-                  <th>Nombre</th>
-                  <th>Gateway</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("common.gateway")}</th>
                   <th>VLAN</th>
-                  <th>Ubicación</th>
-                  <th>Uso</th>
-                  <th>Estado</th>
+                  <th>{t("devices.fields.location")}</th>
+                  <th>{t("networks.usage")}</th>
+                  <th>{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -298,7 +300,7 @@ export default function NetworksView({
                     </td>
                     <td>
                       <span className={`mini-pill ${stateTone(network.status)}`}>
-                        {stateLabel(network.status)}
+                        {stateLabel(network.status, t)}
                       </span>
                     </td>
                   </tr>
@@ -310,7 +312,7 @@ export default function NetworksView({
 
       {showForm && (selectedNetwork ? canUpdate : canCreate) && (
           <article className="panel device-form-panel">
-            <h2>{selectedNetwork ? "Editar subred" : "Nueva subred"}</h2>
+            <h2>{t(selectedNetwork ? "networks.edit" : "networks.new")}</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
               <label>
                 CIDR
@@ -322,7 +324,7 @@ export default function NetworksView({
                 />
               </label>
               <label>
-                Nombre
+                {t("common.name")}
                 <input
                   onChange={(event) => updateField("name", event.target.value)}
                   required
@@ -338,14 +340,14 @@ export default function NetworksView({
                 />
               </label>
               <label>
-                Estado
+                {t("common.status")}
                 <select
                   onChange={(event) => updateField("status", event.target.value)}
                   value={form.status}
                 >
-                  <option value="active">Activa</option>
-                  <option value="inactive">Inactiva</option>
-                  <option value="reserved">Reservada</option>
+                  <option value="active">{t("values.states.active")}</option>
+                  <option value="inactive">{t("values.states.inactive")}</option>
+                  <option value="reserved">{t("values.states.reserved")}</option>
                 </select>
               </label>
               <label>
@@ -354,7 +356,7 @@ export default function NetworksView({
                   onChange={(event) => updateField("vlan_id", event.target.value)}
                   value={form.vlan_id}
                 >
-                  <option value="">Sin VLAN</option>
+                  <option value="">{t("networks.withoutVlan")}</option>
                   {vlans.map((vlan) => (
                     <option key={vlan.id} value={vlan.id}>
                       {vlan.vlan_id} - {vlan.name}
@@ -363,7 +365,7 @@ export default function NetworksView({
                 </select>
               </label>
               <label>
-                Ubicación
+                {t("devices.fields.location")}
                 <input
                   onChange={(event) => updateField("location", event.target.value)}
                   value={form.location}
@@ -373,15 +375,15 @@ export default function NetworksView({
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
                 {isSubmitting
-                  ? "Guardando..."
+                  ? t("common.saving")
                   : selectedNetwork
-                    ? "Guardar subred"
-                    : "Crear subred"}
+                    ? t("networks.save")
+                    : t("networks.create")}
               </button>
             </form>
             {selectedNetwork && canDelete && (
               <button className="danger-action panel-action" onClick={deleteSelectedNetwork}>
-                Eliminar subred
+                {t("networks.delete")}
               </button>
             )}
           </article>

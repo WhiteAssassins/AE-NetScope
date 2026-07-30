@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     max_request_body_bytes: int = Field(default=1_000_000, ge=1_024, le=100_000_000)
 
     session_secret: str = Field(default="change-me", repr=False)
+    mfa_encryption_key: str | None = Field(default=None, repr=False)
+    mfa_decryption_fallback_keys: str = Field(default="", repr=False)
     initial_setup_token: str | None = Field(
         default=None,
         min_length=16,
@@ -60,15 +62,35 @@ class Settings(BaseSettings):
     auto_update_enabled: bool = False
     auto_update_command: str | None = Field(default=None, repr=False)
 
+    inventory_backup_dir: str | None = None
+    inventory_backup_retention_count: int = Field(default=10, ge=1, le=100)
+
+    webauthn_rp_id: str | None = None
+    webauthn_origin: str | None = None
+    webauthn_rp_name: str = "AE NetScope"
+
     session_record_retention_days: int = Field(default=30, ge=0, le=3_650)
     audit_retention_days: int = Field(default=365, ge=0, le=36_500)
 
-    @field_validator("initial_setup_token", mode="before")
+    @field_validator(
+        "initial_setup_token",
+        "mfa_encryption_key",
+        "inventory_backup_dir",
+        mode="before",
+    )
     @classmethod
     def normalize_optional_setup_token(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @property
+    def effective_inventory_backup_dir(self) -> Path:
+        if self.inventory_backup_dir:
+            return Path(self.inventory_backup_dir).expanduser()
+        if self.app_env == "local":
+            return Path(__file__).resolve().parents[2] / "var" / "backups"
+        return Path("/app/backups")
 
     @cached_property
     def cors_origins(self) -> list[str]:

@@ -119,21 +119,21 @@ describe("TopologyView", () => {
   it("renders topology stats, networks, devices, IPs, and unassigned IP notice", () => {
     renderTopology();
 
-    expect(screen.getByRole("heading", { name: "Topología" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Topology" })).toBeInTheDocument();
     expect(screen.getByText("Core network")).toBeInTheDocument();
     expect(screen.getAllByText("SW-Core-01").length).toBeGreaterThan(0);
     expect(screen.getByText("10.0.0.2")).toBeInTheDocument();
-    expect(screen.getByText("IPs sin subred")).toBeInTheDocument();
+    expect(screen.getByText("IPs without a subnet")).toBeInTheDocument();
   });
 
   it("expands and collapses network details", async () => {
     const testUser = userEvent.setup();
     renderTopology();
 
-    await testUser.click(screen.getByRole("button", { name: "Colapsar" }));
+    await testUser.click(screen.getByRole("button", { name: "Collapse" }));
     expect(screen.queryByText("SW-Core-01")).not.toBeInTheDocument();
 
-    await testUser.click(screen.getByRole("button", { name: "Expandir todo" }));
+    await testUser.click(screen.getByRole("button", { name: "Expand all" }));
     expect(screen.getAllByText("SW-Core-01").length).toBeGreaterThan(0);
   });
 
@@ -164,7 +164,7 @@ describe("TopologyView", () => {
   it("renders an empty topology state", () => {
     renderTopology({ devices: [], ipMacs: [], networks: [] });
 
-    expect(screen.getByText("No hay subredes para dibujar todavía.")).toBeInTheDocument();
-    expect(screen.queryByText("IPs sin subred")).not.toBeInTheDocument();
+    expect(screen.getByText("There are no subnets to draw yet.")).toBeInTheDocument();
+    expect(screen.queryByText("IPs without a subnet")).not.toBeInTheDocument();
   });
 });

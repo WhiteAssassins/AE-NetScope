@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import ipaddress
 from datetime import UTC, datetime
@@ -20,6 +21,7 @@ from app.schemas.inventory import (
     InterfaceCreate,
     InterfaceRecordResponse,
     InterfaceResponse,
+    InventoryQualityReport,
     IpAddressCreate,
     IpAddressRecordResponse,
     IpAddressUpdate,
@@ -34,6 +36,7 @@ from app.schemas.inventory import (
     VlanUpdate,
 )
 from app.services.audit import write_audit_event
+from app.services.backups import persist_inventory_backup
 from app.services.inventory import (
     add_device_interface,
     count_rows,
@@ -56,6 +59,7 @@ from app.services.inventory import (
     get_network,
     get_service,
     get_vlan,
+    inventory_quality_report,
     ip_address_to_response,
     ip_belongs_to_network,
     list_devices,
@@ -91,6 +95,14 @@ async def dashboard(
     _: CurrentUser,
 ) -> DashboardSummary:
     return await dashboard_summary(session)
+
+
+@router.get("/quality", response_model=InventoryQualityReport)
+async def quality(
+    session: SessionDep,
+    _: CurrentUser,
+) -> InventoryQualityReport:
+    return await inventory_quality_report(session)
 
 
 @router.get(
@@ -181,8 +193,23 @@ async def import_inventory_json(
             detail={"message": "Invalid inventory backup.", "errors": analysis["errors"]},
         )
 
+    previous_backup = await export_inventory_payload(session)
+    previous_backup_filename = (
+        f"ae-netscope-before-restore-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}.json"
+    )
     try:
-        previous_backup = await export_inventory_payload(session)
+        await asyncio.to_thread(
+            persist_inventory_backup,
+            previous_backup,
+            previous_backup_filename,
+        )
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The pre-restore backup could not be persisted. Inventory was not changed.",
+        ) from exc
+
+    try:
         counts = await restore_inventory_from_payload(session, payload)
     except (KeyError, TypeError, ValueError) as exc:
         await session.rollback()
@@ -211,9 +238,8 @@ async def import_inventory_json(
         "status": "imported",
         "counts": counts,
         "previous_backup": previous_backup,
-        "previous_backup_filename": (
-            f"ae-netscope-before-restore-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.json"
-        ),
+        "previous_backup_filename": previous_backup_filename,
+        "previous_backup_persisted": True,
     }
 
 

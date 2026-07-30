@@ -1,9 +1,10 @@
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord, ServiceRecord } from "../types";
-import { hasPermission, stateLabel, stateTone } from "../utils";
+import { deviceTypeLabel, hasPermission, stateLabel, stateTone } from "../utils";
 export default function ServicesView({
   csrfToken,
   focusServiceId,
@@ -19,6 +20,7 @@ export default function ServicesView({
   onChanged: () => Promise<void>;
   permissions: string[];
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -127,15 +129,15 @@ export default function ServicesView({
       });
 
       if (!response.ok) {
-        setError("No se pudo guardar el servicio. Revisa dispositivo, puerto o campos.");
+        setError(t("services.errors.save"));
         return;
       }
 
-      setMessage(selectedService ? "Servicio actualizado." : "Servicio creado.");
+      setMessage(t(selectedService ? "services.updated" : "services.created"));
       resetForm();
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -146,7 +148,10 @@ export default function ServicesView({
       return;
     }
     const confirmed = window.confirm(
-      `Eliminar el servicio "${selectedService.name}" de "${selectedService.device_name}"? Esta acción no se puede deshacer.`,
+      t("services.confirmDelete", {
+        name: selectedService.name,
+        device: selectedService.device_name,
+      }),
     );
     if (!confirmed) {
       return;
@@ -162,16 +167,16 @@ export default function ServicesView({
       });
 
       if (!response.ok) {
-        setError("No se pudo eliminar el servicio.");
+        setError(t("services.errors.delete"));
         return;
       }
 
-      setMessage("Servicio eliminado.");
+      setMessage(t("services.deleted"));
       resetForm();
       setShowForm(false);
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     }
   }
 
@@ -179,8 +184,8 @@ export default function ServicesView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Servicios</h1>
-          <p>Puertos, protocolos y servicios activos por dispositivo.</p>
+          <h1>{t("services.title")}</h1>
+          <p>{t("services.description")}</p>
         </div>
         {canCreate && (
           <button
@@ -193,27 +198,27 @@ export default function ServicesView({
             }}
           >
             <Plus size={18} strokeWidth={2} />
-            {showForm ? "Ocultar formulario" : "Nuevo servicio"}
+            {showForm ? t("common.hideForm") : t("services.new")}
           </button>
         )}
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de servicios">
+      <section className="ip-summary-grid" aria-label={t("services.summaryLabel")}>
         <article className="mini-stat">
           <strong>{services.length}</strong>
-          <span>Servicios</span>
+          <span>{t("services.title")}</span>
         </article>
         <article className="mini-stat green">
           <strong>{activeCount}</strong>
-          <span>Activos</span>
+          <span>{t("values.states.active")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{warningCount}</strong>
-          <span>Advertencias</span>
+          <span>{t("values.states.warning")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{inactiveCount}</strong>
-          <span>Inactivos</span>
+          <span>{t("values.states.inactive")}</span>
         </article>
       </section>
 
@@ -224,7 +229,7 @@ export default function ServicesView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por servicio, puerto, dispositivo, IP..."
+                placeholder={t("services.searchPlaceholder")}
                 value={query}
               />
             </label>
@@ -233,23 +238,23 @@ export default function ServicesView({
               onChange={(event) => setStatusFilter(event.target.value)}
               value={statusFilter}
             >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activos</option>
-              <option value="warning">Advertencias</option>
-              <option value="inactive">Inactivos</option>
+              <option value="all">{t("services.allStates")}</option>
+              <option value="active">{t("values.states.active")}</option>
+              <option value="warning">{t("values.states.warning")}</option>
+              <option value="inactive">{t("values.states.inactive")}</option>
             </select>
-            <span>{filteredServices.length} servicios</span>
+            <span>{t("services.count", { count: filteredServices.length })}</span>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Servicio</th>
-                  <th>Dispositivo</th>
+                  <th>{t("services.service")}</th>
+                  <th>{t("ipMacs.device")}</th>
                   <th>IP</th>
-                  <th>Puerto</th>
-                  <th>Protocolo</th>
-                  <th>Estado</th>
+                  <th>{t("services.port")}</th>
+                  <th>{t("services.protocol")}</th>
+                  <th>{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,7 +274,7 @@ export default function ServicesView({
                     <td>{service.protocol.toUpperCase()}</td>
                     <td>
                       <span className={`mini-pill ${stateTone(service.status)}`}>
-                        {stateLabel(service.status)}
+                        {stateLabel(service.status, t)}
                       </span>
                     </td>
                   </tr>
@@ -281,25 +286,25 @@ export default function ServicesView({
 
       {showForm && (selectedService ? canUpdate : canCreate) && (
           <article className="panel device-form-panel">
-            <h2>{selectedService ? "Editar servicio" : "Nuevo servicio"}</h2>
+            <h2>{t(selectedService ? "services.edit" : "services.new")}</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
               <label className="form-wide">
-                Dispositivo
+                {t("ipMacs.device")}
                 <select
                   onChange={(event) => updateField("device_id", event.target.value)}
                   required
                   value={form.device_id}
                 >
-                  <option value="">Selecciona un dispositivo</option>
+                  <option value="">{t("services.selectDevice")}</option>
                   {devices.map((device) => (
                     <option key={device.id} value={device.id}>
-                      {device.name} - {device.device_type}
+                      {device.name} - {deviceTypeLabel(device.device_type, t)}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Servicio
+                {t("services.service")}
                 <input
                   onChange={(event) => updateField("name", event.target.value)}
                   placeholder="SSH"
@@ -308,7 +313,7 @@ export default function ServicesView({
                 />
               </label>
               <label>
-                Puerto
+                {t("services.port")}
                 <input
                   max={65535}
                   min={1}
@@ -319,7 +324,7 @@ export default function ServicesView({
                 />
               </label>
               <label>
-                Protocolo
+                {t("services.protocol")}
                 <select
                   onChange={(event) => updateField("protocol", event.target.value)}
                   value={form.protocol}
@@ -327,33 +332,33 @@ export default function ServicesView({
                   <option value="tcp">TCP</option>
                   <option value="udp">UDP</option>
                   <option value="icmp">ICMP</option>
-                  <option value="other">Otro</option>
+                  <option value="other">{t("services.otherProtocol")}</option>
                 </select>
               </label>
               <label>
-                Estado
+                {t("common.status")}
                 <select
                   onChange={(event) => updateField("status", event.target.value)}
                   value={form.status}
                 >
-                  <option value="active">Activo</option>
-                  <option value="warning">Advertencia</option>
-                  <option value="inactive">Inactivo</option>
+                  <option value="active">{t("values.states.active")}</option>
+                  <option value="warning">{t("values.states.warning")}</option>
+                  <option value="inactive">{t("values.states.inactive")}</option>
                 </select>
               </label>
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
                 {isSubmitting
-                  ? "Guardando..."
+                  ? t("common.saving")
                   : selectedService
-                    ? "Guardar servicio"
-                    : "Crear servicio"}
+                    ? t("services.save")
+                    : t("services.create")}
               </button>
             </form>
             {selectedService && canDelete && (
               <button className="danger-action panel-action" onClick={deleteSelectedService}>
-                Eliminar servicio
+                {t("services.delete")}
               </button>
             )}
           </article>

@@ -1,8 +1,12 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentSession, CurrentUser, SessionDep, require_csrf, require_permission
 from app.core.rate_limit import rate_limit
+from app.models.security import WebAuthnCredential
 from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import (
@@ -24,6 +28,7 @@ from app.services.users import (
     reset_managed_user_password,
     revoke_user_sessions,
     update_managed_user,
+    user_management_counts,
 )
 
 router = APIRouter(
@@ -35,7 +40,12 @@ router = APIRouter(
 )
 
 
-def serialize_managed_user(user: User) -> ManagedUserResponse:
+def serialize_managed_user(
+    user: User,
+    *,
+    active_session_count: int = 0,
+    passkey_count: int = 0,
+) -> ManagedUserResponse:
     return ManagedUserResponse(
         id=user.id,
         email=user.email,
@@ -46,6 +56,9 @@ def serialize_managed_user(user: User) -> ManagedUserResponse:
         locked_until=user.locked_until,
         last_login_at=user.last_login_at,
         created_at=user.created_at,
+        active_session_count=active_session_count,
+        totp_enabled=user.totp_enabled,
+        passkey_count=passkey_count,
     )
 
 
@@ -68,7 +81,16 @@ def serialize_user_session(
 
 @router.get("", response_model=list[ManagedUserResponse])
 async def users(session: SessionDep, _: CurrentUser) -> list[ManagedUserResponse]:
-    return [serialize_managed_user(user) for user in await list_users(session)]
+    managed_users = await list_users(session)
+    session_counts, passkey_counts = await user_management_counts(session)
+    return [
+        serialize_managed_user(
+            user,
+            active_session_count=session_counts.get(user.id, 0),
+            passkey_count=passkey_counts.get(user.id, 0),
+        )
+        for user in managed_users
+    ]
 
 
 @router.post(
@@ -119,13 +141,29 @@ async def update_user_endpoint(
     user = await get_user(session, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if user.id == current_user.id and (
+        payload.is_active is False
+        or (payload.role is not None and payload.role != current_user.role)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Use another administrator to change your own role or account status.",
+        )
 
+    previous_email = user.email
+    previous_username = user.username
     previous_role = user.role
     previous_active = user.is_active
     try:
         user = await update_managed_user(session, user, payload)
     except LastAdminError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User email already exists.",
+        ) from exc
     should_revoke_sessions = (
         payload.role is not None and payload.role != previous_role
     ) or payload.is_active is False
@@ -137,7 +175,8 @@ async def update_user_endpoint(
         session,
         "users.updated",
         (
-            f"User updated: {user.email}; role {previous_role}->{user.role}; "
+            f"User updated: {previous_email}->{user.email}; "
+            f"username {previous_username}->{user.username}; role {previous_role}->{user.role}; "
             f"active {previous_active}->{user.is_active}"
         ),
         actor_user_id=current_user.id,
@@ -177,6 +216,37 @@ async def reset_user_password_endpoint(
     )
 
 
+@router.post(
+    "/{user_id}/reset-mfa",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf)],
+)
+async def reset_user_mfa_endpoint(
+    user_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+    current_session: CurrentSession,
+) -> None:
+    user = await get_user(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    user.totp_enabled = False
+    user.totp_secret_encrypted = None
+    await session.execute(delete(WebAuthnCredential).where(WebAuthnCredential.user_id == user.id))
+    await revoke_user_sessions(
+        session,
+        user,
+        except_session_id=current_session.id if user.id == current_user.id else None,
+    )
+    await write_audit_event(
+        session,
+        "users.mfa_reset",
+        f"Multi-factor authentication reset for: {user.email}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
 @router.delete(
     "/{user_id}",
     response_model=ManagedUserResponse,
@@ -191,6 +261,11 @@ async def delete_user_endpoint(
     user = await get_user(session, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The current account cannot deactivate itself.",
+        )
 
     try:
         user = await deactivate_managed_user(session, user)
@@ -249,6 +324,40 @@ async def revoke_user_sessions_endpoint(
         session,
         "users.sessions_revoked",
         f"Sessions revoked for {user.email}: {revoked_count}",
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+
+
+@router.delete(
+    "/{user_id}/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf)],
+)
+async def revoke_user_session_endpoint(
+    user_id: int,
+    session_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+    current_session: CurrentSession,
+) -> None:
+    user = await get_user(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    user_session = await session.get(UserSession, session_id)
+    if user_session is None or user_session.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    if user_session.id == current_session.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The current session cannot be revoked from user management.",
+        )
+    if user_session.revoked_at is None:
+        user_session.revoked_at = datetime.now(UTC)
+    await write_audit_event(
+        session,
+        "users.session_revoked",
+        f"Session revoked for {user.email}: {user_session.id}",
         actor_user_id=current_user.id,
     )
     await session.commit()

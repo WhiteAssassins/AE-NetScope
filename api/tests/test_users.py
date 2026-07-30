@@ -69,9 +69,16 @@ async def test_admin_manages_users_by_role(users_client) -> None:
     updated = await client.patch(
         f"/api/users/{user_id}",
         headers={"X-CSRF-Token": csrf_token},
-        json={"role": "viewer", "is_active": False},
+        json={
+            "email": "viewer@example.com",
+            "username": "viewer-account",
+            "role": "viewer",
+            "is_active": False,
+        },
     )
     assert updated.status_code == 200
+    assert updated.json()["email"] == "viewer@example.com"
+    assert updated.json()["username"] == "viewer-account"
     assert updated.json()["role"] == "viewer"
     assert updated.json()["is_active"] is False
 
@@ -82,6 +89,12 @@ async def test_admin_manages_users_by_role(users_client) -> None:
     assert reset.status_code == 200
     assert reset.json()["temporary_password"]
     assert reset.json()["user"]["must_change_password"] is True
+
+    reset_mfa = await client.post(
+        f"/api/users/{user_id}/reset-mfa",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert reset_mfa.status_code == 204
 
     deleted = await client.delete(
         f"/api/users/{user_id}",
@@ -117,6 +130,12 @@ async def test_admin_can_revoke_user_sessions(users_client) -> None:
     assert sessions.status_code == 200
     assert any(item["revoked_at"] is None for item in sessions.json())
 
+    users = await client.get("/api/users")
+    managed_operator = next(item for item in users.json() if item["id"] == user_id)
+    assert managed_operator["active_session_count"] == 1
+    assert managed_operator["totp_enabled"] is False
+    assert managed_operator["passkey_count"] == 0
+
     revoked = await client.delete(
         f"/api/users/{user_id}/sessions",
         headers={"X-CSRF-Token": csrf_token},
@@ -126,6 +145,78 @@ async def test_admin_can_revoke_user_sessions(users_client) -> None:
     blocked = await operator_client.get("/api/auth/me")
     assert blocked.status_code == 401
     await operator_client.aclose()
+
+
+async def test_admin_can_revoke_one_user_session(users_client) -> None:
+    client, csrf_token = users_client
+    created = await client.post(
+        "/api/users",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "session-user@example.com", "username": "session-user", "role": "viewer"},
+    )
+    user_id = created.json()["user"]["id"]
+    temporary_password = created.json()["temporary_password"]
+    user_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    assert (
+        await user_client.post(
+            "/api/auth/login",
+            json={"email": "session-user@example.com", "password": temporary_password},
+        )
+    ).status_code == 200
+
+    sessions = await client.get(f"/api/users/{user_id}/sessions")
+    session_id = next(item["id"] for item in sessions.json() if item["revoked_at"] is None)
+    revoked = await client.delete(
+        f"/api/users/{user_id}/sessions/{session_id}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert revoked.status_code == 204
+    assert (await user_client.get("/api/auth/me")).status_code == 401
+    await user_client.aclose()
+
+
+async def test_admin_cannot_change_own_role_or_status(users_client) -> None:
+    client, csrf_token = users_client
+    users = await client.get("/api/users")
+    admin_id = next(item["id"] for item in users.json() if item["email"] == "admin@example.com")
+
+    demote = await client.patch(
+        f"/api/users/{admin_id}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"role": "viewer"},
+    )
+    deactivate = await client.patch(
+        f"/api/users/{admin_id}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"is_active": False},
+    )
+    delete_self = await client.delete(
+        f"/api/users/{admin_id}",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert demote.status_code == 409
+    assert deactivate.status_code == 409
+    assert delete_self.status_code == 409
+
+
+async def test_admin_cannot_assign_duplicate_email(users_client) -> None:
+    client, csrf_token = users_client
+    created = await client.post(
+        "/api/users",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "duplicate@example.com", "username": "duplicate", "role": "viewer"},
+    )
+
+    duplicate = await client.patch(
+        f"/api/users/{created.json()['user']['id']}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "ADMIN@example.com"},
+    )
+
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "User email already exists."
 
 
 async def test_admin_cannot_remove_last_active_admin(users_client) -> None:

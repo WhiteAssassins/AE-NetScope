@@ -37,10 +37,10 @@ describe("ChangePasswordScreen", () => {
 
     render(<ChangePasswordScreen csrfToken="csrf-token" onPasswordChanged={onPasswordChanged} />);
 
-    await user.type(screen.getByLabelText("Contraseña actual"), "old-secure-password");
-    await user.type(screen.getByLabelText("Nueva contraseña"), "new-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "new-secure-password");
-    await user.click(screen.getByRole("button", { name: "Actualizar contraseña" }));
+    await user.type(screen.getByLabelText("Current password"), "old-secure-password");
+    await user.type(screen.getByLabelText("New password"), "new-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "new-secure-password");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     await waitFor(() => expect(onPasswordChanged).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -64,12 +64,12 @@ describe("ChangePasswordScreen", () => {
 
     render(<ChangePasswordScreen csrfToken="csrf-token" onPasswordChanged={vi.fn()} />);
 
-    await user.type(screen.getByLabelText("Contraseña actual"), "old-secure-password");
-    await user.type(screen.getByLabelText("Nueva contraseña"), "new-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "different-password");
-    await user.click(screen.getByRole("button", { name: "Actualizar contraseña" }));
+    await user.type(screen.getByLabelText("Current password"), "old-secure-password");
+    await user.type(screen.getByLabelText("New password"), "new-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "different-password");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
-    expect(screen.getByText("Las contraseñas no coinciden.")).toBeInTheDocument();
+    expect(screen.getByText("The passwords do not match.")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -79,13 +79,13 @@ describe("ChangePasswordScreen", () => {
 
     render(<ChangePasswordScreen csrfToken="bad-token" onPasswordChanged={vi.fn()} />);
 
-    await user.type(screen.getByLabelText("Contraseña actual"), "old-secure-password");
-    await user.type(screen.getByLabelText("Nueva contraseña"), "new-secure-password");
-    await user.type(screen.getByLabelText("Confirmar contraseña"), "new-secure-password");
-    await user.click(screen.getByRole("button", { name: "Actualizar contraseña" }));
+    await user.type(screen.getByLabelText("Current password"), "old-secure-password");
+    await user.type(screen.getByLabelText("New password"), "new-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "new-secure-password");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(
-      await screen.findByText("La sesión expiró. Inicia sesión nuevamente."),
+      await screen.findByText("Your session expired. Sign in again."),
     ).toBeInTheDocument();
   });
 });

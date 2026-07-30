@@ -5,9 +5,13 @@ import {
   fetchInventoryData,
   fetchHealthStatus,
   fetchLatestGitHubRelease,
+  fetchReleaseHistory,
+  fetchRepositoryInfo,
+  fetchSearchIndexingPolicy,
   fetchUpdateStatus,
   fetchVersionInfo,
   startAutomaticUpdate,
+  updateSearchIndexingPolicy,
   updatePreferredLanguage,
 } from "./api";
 
@@ -32,6 +36,7 @@ describe("api client", () => {
       if (url.endsWith("/services")) return Promise.resolve(jsonResponse([{ id: 4 }]));
       if (url.endsWith("/ip-addresses")) return Promise.resolve(jsonResponse([{ id: 5 }]));
       if (url.endsWith("/interfaces")) return Promise.resolve(jsonResponse([{ id: 6 }]));
+      if (url.endsWith("/quality")) return Promise.resolve(jsonResponse({ score: 100 }));
       return Promise.resolve(jsonResponse({}, 404));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -45,7 +50,8 @@ describe("api client", () => {
     expect(data.services).toEqual([{ id: 4 }]);
     expect(data.ipMacs).toEqual([{ id: 5 }]);
     expect(data.interfaces).toEqual([{ id: 6 }]);
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(data.quality).toEqual({ score: 100 });
+    expect(fetchMock).toHaveBeenCalledTimes(8);
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE_URL}/inventory/dashboard`, {
       credentials: "include",
     });
@@ -81,6 +87,7 @@ describe("api client", () => {
     expect(data.services).toEqual([]);
     expect(data.ipMacs).toEqual([]);
     expect(data.interfaces).toEqual([]);
+    expect(data.quality).toBeNull();
   });
 
   it("fetches installed version information from the API", async () => {
@@ -105,6 +112,28 @@ describe("api client", () => {
       version: "0.1.6-alpha",
       release_channel: "alpha",
     });
+  });
+
+  it("fetches cached GitHub repository information from the API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            html_url: "https://github.com/WhiteAssassins/AE-NetScope",
+            stargazers_count: 42,
+            forks_count: 7,
+            open_issues_count: 3,
+          }),
+        ),
+      ),
+    );
+
+    await expect(fetchRepositoryInfo()).resolves.toMatchObject({
+      stargazers_count: 42,
+      forks_count: 7,
+    });
+    expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/version/repository`);
   });
 
   it("fetches detailed health status from the API", async () => {
@@ -136,6 +165,25 @@ describe("api client", () => {
         database: expect.objectContaining({ status: "ok" }),
       }),
     });
+  });
+
+  it("falls back to the public health summary when the database blocks authentication", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "degraded",
+          checks: { database: { status: "error", required: true } },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchHealthStatus()).resolves.toMatchObject({
+      status: "degraded",
+      checks: { database: { status: "error" } },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_BASE_URL}/health/summary`);
   });
 
   it("returns the first non-draft GitHub release", async () => {
@@ -200,6 +248,42 @@ describe("api client", () => {
     });
   });
 
+  it("fetches release notes only through the backend history endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          jsonResponse([
+            {
+              tag_name: "v0.1.8-alpha",
+              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.8-alpha",
+              name: "AE NetScope v0.1.8-alpha",
+              prerelease: true,
+              draft: false,
+              published_at: "2026-07-01T00:00:00Z",
+              body: "Release changes",
+              body_truncated: false,
+            },
+          ]),
+        ),
+      ),
+    );
+
+    await expect(fetchReleaseHistory(8)).resolves.toEqual([
+      expect.objectContaining({ tag_name: "v0.1.8-alpha", body: "Release changes" }),
+    ]);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/version/releases?channel=all&limit=8`,
+      { credentials: "include" },
+    );
+  });
+
+  it("reports unavailable release history", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+
+    await expect(fetchReleaseHistory()).rejects.toThrow("release-history-unavailable");
+  });
+
   it("throws update status error when the endpoint fails", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
 
@@ -214,15 +298,15 @@ describe("api client", () => {
           jsonResponse({
             started: true,
             message: "Update command started.",
-            tag_name: "v0.1.7-alpha",
+            tag_name: "v0.1.9-alpha",
           }),
         ),
       ),
     );
 
-    await expect(startAutomaticUpdate("v0.1.7-alpha", "csrf-token")).resolves.toMatchObject({
+    await expect(startAutomaticUpdate("v0.1.9-alpha", "csrf-token")).resolves.toMatchObject({
       started: true,
-      tag_name: "v0.1.7-alpha",
+      tag_name: "v0.1.9-alpha",
     });
     expect(fetch).toHaveBeenCalledWith(
       `${API_BASE_URL}/version/update`,
@@ -233,7 +317,7 @@ describe("api client", () => {
           "Content-Type": "application/json",
           "X-CSRF-Token": "csrf-token",
         }),
-        body: JSON.stringify({ tag_name: "v0.1.7-alpha" }),
+        body: JSON.stringify({ tag_name: "v0.1.9-alpha" }),
       }),
     );
   });
@@ -244,7 +328,7 @@ describe("api client", () => {
       vi.fn(() => Promise.resolve(jsonResponse({ detail: "Automatic updates disabled." }, 409))),
     );
 
-    await expect(startAutomaticUpdate("v0.1.7-alpha", "csrf-token")).rejects.toThrow(
+    await expect(startAutomaticUpdate("v0.1.9-alpha", "csrf-token")).rejects.toThrow(
       "Automatic updates disabled.",
     );
   });
@@ -269,6 +353,28 @@ describe("api client", () => {
         credentials: "include",
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
         body: JSON.stringify({ language: "es" }),
+      }),
+    );
+  });
+
+  it("loads and updates the search indexing policy", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ allow_indexing: false }))
+      .mockResolvedValueOnce(jsonResponse({ allow_indexing: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchSearchIndexingPolicy()).resolves.toEqual({ allow_indexing: false });
+    await expect(
+      updateSearchIndexingPolicy({ allow_indexing: true }, "csrf-token"),
+    ).resolves.toEqual({ allow_indexing: true });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `${API_BASE_URL}/security/search-indexing`,
+      expect.objectContaining({
+        method: "PATCH",
+        credentials: "include",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({ allow_indexing: true }),
       }),
     );
   });

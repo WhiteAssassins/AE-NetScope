@@ -1,7 +1,8 @@
 import { Boxes, ChevronDown, ChevronRight, Monitor, Network, Route, Tag } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { DeviceRecord, IpMacRecord, NetworkRecord } from "../types";
-import { stateLabel, stateTone, titleCase } from "../utils";
+import { deviceTypeLabel, stateLabel, stateTone } from "../utils";
 
 type TopologyViewProps = {
   devices: DeviceRecord[];
@@ -22,6 +23,7 @@ export default function TopologyView({
   onOpenNetwork,
   onOpenVlan,
 }: TopologyViewProps) {
+  const { t } = useTranslation();
   const [expandedNetworks, setExpandedNetworks] = useState<Set<number>>(
     () => new Set(networks.slice(0, 2).map((network) => network.id)),
   );
@@ -69,29 +71,29 @@ export default function TopologyView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Topología</h1>
-          <p>Vista pasiva de subredes, VLANs, dispositivos e IPs registradas.</p>
+          <h1>{t("topology.title")}</h1>
+          <p>{t("topology.description")}</p>
         </div>
         <div className="row-actions">
           <button className="user-action" onClick={expandAll}>
-            Expandir todo
+            {t("topology.expandAll")}
           </button>
           <button className="user-action" onClick={collapseAll}>
-            Colapsar
+            {t("topology.collapseAll")}
           </button>
         </div>
       </div>
 
-      <section className="topology-stats" aria-label="Resumen de topología">
+      <section className="topology-stats" aria-label={t("topology.summary")}>
         <article>
           <Route size={20} strokeWidth={1.8} />
           <strong>{networks.length}</strong>
-          <span>Subredes</span>
+          <span>{t("navigation.networks")}</span>
         </article>
         <article>
           <Monitor size={20} strokeWidth={1.8} />
           <strong>{devices.length}</strong>
-          <span>Dispositivos</span>
+          <span>{t("navigation.devices")}</span>
         </article>
         <article>
           <Network size={20} strokeWidth={1.8} />
@@ -101,14 +103,14 @@ export default function TopologyView({
         <article>
           <Boxes size={20} strokeWidth={1.8} />
           <strong>{averageUsage}%</strong>
-          <span>Uso promedio</span>
+          <span>{t("topology.averageUsage")}</span>
         </article>
       </section>
 
       <section className="panel topology-canvas">
         <div className="topology-root">
           <strong>AE NetScope</strong>
-          <span>Inventario LAN documentado</span>
+          <span>{t("topology.documentedInventory")}</span>
         </div>
 
         <div className="topology-tree">
@@ -132,7 +134,7 @@ export default function TopologyView({
                       <em>{network.cidr}</em>
                     </span>
                     <span className={`mini-pill ${stateTone(network.status)}`}>
-                      {stateLabel(network.status)}
+                      {stateLabel(network.status, t)}
                     </span>
                   </button>
 
@@ -140,7 +142,7 @@ export default function TopologyView({
                     <button className="topology-chip" onClick={() => onOpenNetwork(network.id)}>
                       <Route size={15} /> {network.ip_count}/{network.usable_hosts} IPs
                     </button>
-                    <span>{network.utilization_percent.toFixed(1)}% usado</span>
+                    <span>{t("topology.percentUsed", { value: network.utilization_percent.toFixed(1) })}</span>
                     {network.vlan && (
                       <button className="topology-chip" onClick={() => onOpenVlan(network.vlan!.id)}>
                         <Tag size={15} /> VLAN {network.vlan.vlan_id}
@@ -154,7 +156,7 @@ export default function TopologyView({
                   {isExpanded && (
                     <div className="topology-children">
                       <div className="topology-column">
-                        <h2>Dispositivos</h2>
+                        <h2>{t("navigation.devices")}</h2>
                         {devices.length ? (
                           devices.map((device) => (
                             <button
@@ -165,17 +167,17 @@ export default function TopologyView({
                               <Monitor size={16} strokeWidth={1.8} />
                               <span>
                                 <strong>{device.name}</strong>
-                                <em>{titleCase(device.device_type)}</em>
+                                <em>{deviceTypeLabel(device.device_type, t)}</em>
                               </span>
                             </button>
                           ))
                         ) : (
-                          <p className="muted-line">Sin dispositivos vinculados.</p>
+                          <p className="muted-line">{t("topology.noLinkedDevices")}</p>
                         )}
                       </div>
 
                       <div className="topology-column">
-                        <h2>IPs registradas</h2>
+                        <h2>{t("topology.registeredIps")}</h2>
                         {addresses.length ? (
                           addresses.slice(0, 8).map((ip) => (
                             <button
@@ -185,19 +187,19 @@ export default function TopologyView({
                             >
                               <span>
                                 <strong>{ip.address}</strong>
-                                <em>{ip.device_name ?? "Sin dispositivo"}</em>
+                                <em>{ip.device_name ?? t("topology.withoutDevice")}</em>
                               </span>
                               <span className={`mini-pill ${stateTone(ip.state)}`}>
-                                {stateLabel(ip.state)}
+                                {stateLabel(ip.state, t)}
                               </span>
                             </button>
                           ))
                         ) : (
-                          <p className="muted-line">Sin IPs registradas.</p>
+                          <p className="muted-line">{t("topology.noRegisteredIps")}</p>
                         )}
                         {addresses.length > 8 && (
                           <button className="card-link text-button" onClick={() => onOpenNetwork(network.id)}>
-                            Ver {addresses.length - 8} IPs más
+                            {t("topology.viewMoreIps", { count: addresses.length - 8 })}
                           </button>
                         )}
                       </div>
@@ -207,14 +209,14 @@ export default function TopologyView({
               );
             })
           ) : (
-            <p className="muted-line">No hay subredes para dibujar todavía.</p>
+            <p className="muted-line">{t("topology.noSubnets")}</p>
           )}
         </div>
 
         {unassignedIps.length > 0 && (
           <aside className="topology-unassigned">
-            <strong>IPs sin subred</strong>
-            <span>{unassignedIps.length} registros necesitan clasificación.</span>
+            <strong>{t("topology.unassignedIps")}</strong>
+            <span>{t("topology.needClassification", { count: unassignedIps.length })}</span>
           </aside>
         )}
       </section>

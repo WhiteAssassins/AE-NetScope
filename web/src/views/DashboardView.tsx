@@ -1,8 +1,12 @@
 import { Box, FileText, Layers3, Monitor, RefreshCcw, Route, Server, Tag } from "lucide-react";
 import type { ReactNode } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import { formatDateTime } from "../dateTime";
+import { auditEventMessage } from "../auditMessages";
 import type { AuditEvent, DashboardSummary, User } from "../types";
-import { titleCase, typeTone } from "../utils";
+import { deviceTypeLabel, stateLabel, typeTone } from "../utils";
 
 type DashboardViewProps = {
   auditEvents: AuditEvent[];
@@ -39,14 +43,15 @@ export default function DashboardView({
   showPreviewNotice,
   user,
 }: DashboardViewProps) {
-  const stats = buildStats(dashboard, {
-    Dispositivos: onOpenDevices,
-    "IPs registradas": onOpenIpMacs,
-    Subredes: onOpenNetworks,
-    VLANs: onOpenVlans,
-    Servicios: onOpenServices,
+  const { i18n, t } = useTranslation();
+  const stats = buildStats(dashboard, t, {
+    devices: onOpenDevices,
+    ipMacs: onOpenIpMacs,
+    networks: onOpenNetworks,
+    vlans: onOpenVlans,
+    services: onOpenServices,
   });
-  const chartData = buildChartData(dashboard);
+  const chartData = buildChartData(dashboard, t);
   const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
   const networks = dashboard?.networks ?? [];
   const busiestNetwork = networks.reduce<(typeof networks)[number] | null>(
@@ -57,21 +62,20 @@ export default function DashboardView({
   return (
     <>
       <div className="page-title">
-        <h1>Bienvenido, {user.username}</h1>
-        <p>Resumen general de tu red</p>
+        <h1>{t("dashboard.welcome", { username: user.username })}</h1>
+        <p>{t("dashboard.description")}</p>
       </div>
 
       {showPreviewNotice && (
         <div className="preview-notice" role="status">
-          <strong>Early Public Preview</strong>
+          <strong>{t("dashboard.previewLabel")}</strong>
           <span>
-            No uses AE NetScope todavía con datos sensibles de redes en producción. La API, el
-            esquema y los controles de seguridad pueden cambiar antes de v1.0.
+            {t("dashboard.previewDescription")}
           </span>
         </div>
       )}
 
-      <section className="stats-grid" aria-label="Resumen del inventario">
+      <section className="stats-grid" aria-label={t("dashboard.inventorySummary")}>
         {stats.map((stat) => (
           <article className="stat-card" key={stat.label}>
             <div className={`stat-icon ${stat.tone}`}>
@@ -82,10 +86,10 @@ export default function DashboardView({
               <strong>{stat.value}</strong>
               {stat.onOpen ? (
                 <button className="card-link text-button" onClick={stat.onOpen}>
-                  Ver todos
+                  {t("common.viewAll")}
                 </button>
               ) : (
-                <span className="muted-line">Próximamente</span>
+                <span className="muted-line">{t("common.comingSoon")}</span>
               )}
             </div>
           </article>
@@ -93,20 +97,20 @@ export default function DashboardView({
       </section>
 
       <section className="dashboard-grid">
-        <Card className="recent-devices span-7" title="Dispositivos recientes">
+        <Card className="recent-devices span-7" title={t("dashboard.recentDevices")}>
           <button className="card-link top-link text-button" onClick={onOpenDevices}>
-            Ver todos
+            {t("common.viewAll")}
           </button>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Tipo</th>
-                  <th>IP principal</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("common.type")}</th>
+                  <th>{t("dashboard.primaryIp")}</th>
                   <th>MAC</th>
-                  <th>Estado</th>
-                  <th>Último cambio</th>
+                  <th>{t("common.status")}</th>
+                  <th>{t("dashboard.lastChange")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,13 +126,13 @@ export default function DashboardView({
                     </td>
                     <td>
                       <span className={`pill ${typeTone(device.device_type)}`}>
-                        {device.device_type}
+                        {deviceTypeLabel(device.device_type, t)}
                       </span>
                     </td>
                     <td>{device.primary_ip ?? "-"}</td>
                     <td>{device.primary_mac ?? "-"}</td>
                     <td>
-                      <span className="status-dot" /> {titleCase(device.status)}
+                      <span className="status-dot" /> {stateLabel(device.status, t)}
                     </td>
                     <td>{device.last_change}</td>
                   </tr>
@@ -138,7 +142,7 @@ export default function DashboardView({
           </div>
         </Card>
 
-        <Card className="network-summary span-5" title="Resumen de la red">
+        <Card className="network-summary span-5" title={t("dashboard.networkSummary")}>
           <div className="summary-layout">
             <div className="donut">
               <ResponsiveContainer width="100%" height={220}>
@@ -152,7 +156,7 @@ export default function DashboardView({
               </ResponsiveContainer>
               <div className="donut-center">
                 <strong>{totalElements}</strong>
-                <span>Elementos</span>
+                <span>{t("dashboard.elements")}</span>
               </div>
             </div>
             <div className="legend">
@@ -170,19 +174,21 @@ export default function DashboardView({
           </div>
           <button className="updated text-button" onClick={onRefresh}>
             <RefreshCcw size={18} strokeWidth={1.7} />
-            Última actualización: {lastUpdatedAt ? lastUpdatedAt.toLocaleString() : "Sin datos"}
+            {t("dashboard.lastUpdated")}: {lastUpdatedAt
+              ? formatDateTime(lastUpdatedAt, i18n.resolvedLanguage)
+              : t("common.noData")}
           </button>
         </Card>
 
-        <Card className="span-4 subnet-card" title="Mapa de subredes">
+        <Card className="span-4 subnet-card" title={t("dashboard.subnetMap")}>
           <div className="subnet-map">
             <div className="subnet-map-head">
               <div>
-                <span>Subredes activas</span>
+                <span>{t("dashboard.activeSubnets")}</span>
                 <strong>{dashboard?.stats.networks ?? 0}</strong>
               </div>
               <div>
-                <span>Más usada</span>
+                <span>{t("dashboard.mostUsed")}</span>
                 <strong>{busiestNetwork?.cidr ?? "-"}</strong>
               </div>
             </div>
@@ -201,47 +207,50 @@ export default function DashboardView({
                       <em>{network.cidr}</em>
                     </span>
                     <span className="subnet-node-meta">
-                      <span>{network.device_count} disp.</span>
+                      <span>{t("dashboard.deviceAbbreviation", { count: network.device_count })}</span>
                       <span>{network.ip_count}/{network.usable_hosts || 0} IPs</span>
                       {network.vlan && <span>VLAN {network.vlan.vlan_id}</span>}
                     </span>
-                    <span className="subnet-usage" aria-label={`${network.utilization_percent}% usado`}>
+                    <span
+                      className="subnet-usage"
+                      aria-label={t("dashboard.percentUsed", { value: network.utilization_percent })}
+                    >
                       <span style={{ width: `${Math.min(network.utilization_percent, 100)}%` }} />
                     </span>
                   </button>
                 ))
               ) : (
-                <p className="muted-line">No hay subredes registradas.</p>
+                <p className="muted-line">{t("dashboard.noSubnets")}</p>
               )}
             </div>
           </div>
           <button className="card-link lower-link text-button" onClick={onOpenNetworks}>
-            Ver todas las subredes
+            {t("dashboard.viewAllSubnets")}
           </button>
           <button className="card-link topology-link text-button" onClick={onOpenTopology}>
-            Abrir topología
+            {t("dashboard.openTopology")}
           </button>
         </Card>
 
-        <Card className="span-3" title="Servicios activos">
+        <Card className="span-3" title={t("dashboard.activeServices")}>
           <div className="service-list">
             {(dashboard?.services ?? []).map((service) => (
               <div className="service-row" key={service.name}>
                 <Server size={18} strokeWidth={1.7} />
                 <strong>{service.name}</strong>
-                <span>{service.device_count} dispositivos</span>
+                <span>{t("dashboard.deviceCount", { count: service.device_count })}</span>
                 <em className={`mini-pill ${service.status === "active" ? "green" : "gray"}`}>
-                  {titleCase(service.status)}
+                  {stateLabel(service.status, t)}
                 </em>
               </div>
             ))}
           </div>
           <button className="card-link lower-link text-button" onClick={onOpenServices}>
-            Ver todos los servicios
+            {t("dashboard.viewAllServices")}
           </button>
         </Card>
 
-        <Card className="span-5" title="Últimos cambios">
+        <Card className="span-5" title={t("dashboard.latestChanges")}>
           <div className="change-list">
             {auditEvents.length ? (
               auditEvents.slice(0, 5).map((event) => (
@@ -251,19 +260,19 @@ export default function DashboardView({
                   </span>
                   <div className="change-content">
                     <button className="text-button" onClick={() => onOpenAuditEvent(event)}>
-                      {event.message}
+                      {auditEventMessage(event, t)}
                     </button>
-                    <small>{event.actor_email ?? "Sistema"}</small>
+                    <small>{event.actor_email ?? t("common.system")}</small>
                   </div>
-                  <time>{new Date(event.created_at).toLocaleString()}</time>
+                  <time>{formatDateTime(event.created_at, i18n.resolvedLanguage)}</time>
                 </div>
               ))
             ) : (
-              <p className="muted-line">No hay cambios recientes para mostrar.</p>
+              <p className="muted-line">{t("dashboard.noRecentChanges")}</p>
             )}
           </div>
           <button className="card-link lower-link text-button" onClick={onOpenAudit}>
-            Ver todo el historial de cambios
+            {t("dashboard.viewChangeHistory")}
           </button>
         </Card>
       </section>
@@ -280,24 +289,28 @@ function Card({ title, children, className = "" }: { title: string; children: Re
   );
 }
 
-function buildStats(dashboard: DashboardSummary | null, handlers: Record<string, () => void>) {
+function buildStats(
+  dashboard: DashboardSummary | null,
+  t: TFunction,
+  handlers: Record<"devices" | "ipMacs" | "networks" | "vlans" | "services", () => void>,
+) {
   return [
-    { label: "Dispositivos", value: String(dashboard?.stats.devices ?? 0), icon: Monitor, tone: "blue" as const, onOpen: handlers.Dispositivos },
-    { label: "IPs registradas", value: String(dashboard?.stats.ip_addresses ?? 0), icon: Box, tone: "green" as const, onOpen: handlers["IPs registradas"] },
-    { label: "Subredes", value: String(dashboard?.stats.networks ?? 0), icon: Route, tone: "violet" as const, onOpen: handlers.Subredes },
-    { label: "VLANs", value: String(dashboard?.stats.vlans ?? 0), icon: Tag, tone: "orange" as const, onOpen: handlers.VLANs },
-    { label: "Servicios", value: String(dashboard?.stats.services ?? 0), icon: Layers3, tone: "cyan" as const, onOpen: handlers.Servicios },
-    { label: "Notas técnicas", value: String(dashboard?.stats.notes ?? 0), icon: FileText, tone: "gray" as const },
+    { label: t("navigation.devices"), value: String(dashboard?.stats.devices ?? 0), icon: Monitor, tone: "blue" as const, onOpen: handlers.devices },
+    { label: t("dashboard.registeredIps"), value: String(dashboard?.stats.ip_addresses ?? 0), icon: Box, tone: "green" as const, onOpen: handlers.ipMacs },
+    { label: t("navigation.networks"), value: String(dashboard?.stats.networks ?? 0), icon: Route, tone: "violet" as const, onOpen: handlers.networks },
+    { label: t("navigation.vlans"), value: String(dashboard?.stats.vlans ?? 0), icon: Tag, tone: "orange" as const, onOpen: handlers.vlans },
+    { label: t("navigation.services"), value: String(dashboard?.stats.services ?? 0), icon: Layers3, tone: "cyan" as const, onOpen: handlers.services },
+    { label: t("navigation.notes"), value: String(dashboard?.stats.notes ?? 0), icon: FileText, tone: "gray" as const },
   ];
 }
 
-function buildChartData(dashboard: DashboardSummary | null) {
+function buildChartData(dashboard: DashboardSummary | null, t: TFunction) {
   return [
-    { name: "Dispositivos", value: dashboard?.stats.devices ?? 0, color: "#3857f6" },
-    { name: "IPs y MACs", value: dashboard?.stats.ip_addresses ?? 0, color: "#30b866" },
-    { name: "Subredes", value: dashboard?.stats.networks ?? 0, color: "#7446dc" },
-    { name: "VLANs", value: dashboard?.stats.vlans ?? 0, color: "#f39a16" },
-    { name: "Servicios", value: dashboard?.stats.services ?? 0, color: "#12a7ad" },
+    { name: t("navigation.devices"), value: dashboard?.stats.devices ?? 0, color: "#3857f6" },
+    { name: t("navigation.ipMacs"), value: dashboard?.stats.ip_addresses ?? 0, color: "#30b866" },
+    { name: t("navigation.networks"), value: dashboard?.stats.networks ?? 0, color: "#7446dc" },
+    { name: t("navigation.vlans"), value: dashboard?.stats.vlans ?? 0, color: "#f39a16" },
+    { name: t("navigation.services"), value: dashboard?.stats.services ?? 0, color: "#12a7ad" },
   ];
 }
 

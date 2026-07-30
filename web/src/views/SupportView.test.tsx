@@ -1,12 +1,13 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import SupportView from "./SupportView";
 
 describe("SupportView", () => {
   it("shows official contact channels", () => {
-    render(<SupportView />);
+    const onOpenAbout = vi.fn();
+    render(<SupportView onOpenAbout={onOpenAbout} />);
 
-    expect(screen.getByRole("heading", { name: "Soporte" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Support" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "contacto@aewhitedevs.com" })).toHaveAttribute(
       "href",
       "mailto:contacto@aewhitedevs.com",
@@ -23,5 +24,7 @@ describe("SupportView", () => {
       "href",
       "https://github.com/WhiteAssassins/AE-NetScope",
     );
+    fireEvent.click(screen.getByRole("button", { name: "About AE NetScope" }));
+    expect(onOpenAbout).toHaveBeenCalledOnce();
   });
 });

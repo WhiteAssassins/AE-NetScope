@@ -17,6 +17,7 @@ from app.core.security import (
 from app.models.session import UserSession
 from app.models.user import User
 from app.services.audit import write_audit_event
+from app.services.mfa import MfaSecretError, decrypt_totp_secret, verify_totp
 from app.services.users import revoke_user_sessions
 
 
@@ -25,6 +26,10 @@ class AuthError(Exception):
 
 
 class AccountLockedError(AuthError):
+    pass
+
+
+class TotpRequiredError(AuthError):
     pass
 
 
@@ -44,6 +49,7 @@ async def authenticate_user(
     email: str,
     password: str,
     ip_address: str | None,
+    totp_code: str | None = None,
 ) -> User:
     result = await session.execute(select(User).where(User.email == email.lower()))
     user = result.scalar_one_or_none()
@@ -97,6 +103,25 @@ async def authenticate_user(
 
     if updated_password_hash:
         user.password_hash = updated_password_hash
+
+    if user.totp_enabled:
+        if not totp_code:
+            raise TotpRequiredError("Authenticator code required.")
+        try:
+            totp_valid = bool(user.totp_secret_encrypted) and verify_totp(
+                decrypt_totp_secret(user.totp_secret_encrypted), totp_code
+            )
+        except MfaSecretError:
+            totp_valid = False
+        if not totp_valid:
+            await write_audit_event(
+                session,
+                "auth.mfa_failed",
+                f"Authenticator code failed for {user.email}",
+                actor_user_id=user.id,
+                ip_address=ip_address,
+            )
+            raise AuthError("Invalid email, password, or authenticator code.")
 
     user.failed_login_count = 0
     user.locked_until = None

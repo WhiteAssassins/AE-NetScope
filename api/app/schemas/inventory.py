@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -318,3 +319,39 @@ class DashboardSummary(BaseModel):
     recent_devices: list[RecentDevice]
     services: list[ServiceSummary]
     networks: list[NetworkNode]
+
+
+class InventoryQualityIssue(BaseModel):
+    code: str
+    severity: Literal["critical", "warning", "info"]
+    resource_type: Literal["device", "ip_address", "network", "vlan"]
+    resource_id: int
+    resource_name: str
+    context: dict[str, str | int] = Field(default_factory=dict)
+
+
+class InventoryQualityCounts(BaseModel):
+    critical: int = 0
+    warning: int = 0
+    info: int = 0
+
+
+class InventoryRelationshipSummary(BaseModel):
+    device_ip_links: int
+    ip_network_links: int
+    network_vlan_links: int
+    disconnected_devices: int
+    unassigned_ips: int
+
+
+class InventoryQualityReport(BaseModel):
+    score: int = Field(ge=0, le=100)
+    status: Literal["empty", "critical", "attention", "good", "excellent"]
+    records_reviewed: int
+    checks_completed: int
+    checks_passed: int
+    issue_counts: InventoryQualityCounts
+    issues_total: int
+    issues_truncated: bool
+    issues: list[InventoryQualityIssue]
+    relationships: InventoryRelationshipSummary

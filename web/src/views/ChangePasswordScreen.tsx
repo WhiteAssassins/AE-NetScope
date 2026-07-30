@@ -1,6 +1,7 @@
 import { Network } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { User } from "../types";
 
@@ -11,6 +12,7 @@ export default function ChangePasswordScreen({
   csrfToken: string;
   onPasswordChanged: (user: User) => void;
 }) {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,7 +24,7 @@ export default function ChangePasswordScreen({
     setError("");
 
     if (newPassword !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
+      setError(t("changePassword.passwordMismatch"));
       return;
     }
 
@@ -45,8 +47,8 @@ export default function ChangePasswordScreen({
       if (!response.ok) {
         setError(
           response.status === 403
-            ? "La sesión expiró. Inicia sesión nuevamente."
-            : "No se pudo cambiar la contraseña.",
+            ? t("auth.sessionExpired")
+            : t("changePassword.changeFailed"),
         );
         return;
       }
@@ -54,7 +56,7 @@ export default function ChangePasswordScreen({
       const data = (await response.json()) as { user: User };
       onPasswordChanged(data.user);
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -70,12 +72,12 @@ export default function ChangePasswordScreen({
           <strong>AE NetScope</strong>
         </div>
         <div className="login-copy">
-          <h1>Cambia tu contraseña</h1>
-          <p>Debes reemplazar la contraseña inicial antes de entrar al panel.</p>
+          <h1>{t("changePassword.title")}</h1>
+          <p>{t("changePassword.description")}</p>
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            Contraseña actual
+            {t("changePassword.currentPassword")}
             <input
               autoComplete="current-password"
               onChange={(event) => setCurrentPassword(event.target.value)}
@@ -85,7 +87,7 @@ export default function ChangePasswordScreen({
             />
           </label>
           <label>
-            Nueva contraseña
+            {t("changePassword.newPassword")}
             <input
               autoComplete="new-password"
               minLength={12}
@@ -96,7 +98,7 @@ export default function ChangePasswordScreen({
             />
           </label>
           <label>
-            Confirmar contraseña
+            {t("changePassword.confirmPassword")}
             <input
               autoComplete="new-password"
               minLength={12}
@@ -108,7 +110,7 @@ export default function ChangePasswordScreen({
           </label>
           {error && <p className="login-error">{error}</p>}
           <button className="login-button" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Guardando..." : "Actualizar contraseña"}
+            {isSubmitting ? t("common.saving") : t("changePassword.submit")}
           </button>
         </form>
       </section>

@@ -1,7 +1,11 @@
-import { Save } from "lucide-react";
+import { CalendarClock, Languages, LayoutDashboard, MonitorCog, PanelLeftClose, Save } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { updatePreferredLanguage } from "../api";
+import { updateAccountPreferences } from "../api";
+import AdminSettings from "../components/AdminSettings";
+import SecuritySettings from "../components/SecuritySettings";
+import { storeRegionalPreferences } from "../dateTime";
+import type { RegionalPreferences } from "../dateTime";
 import {
   DEFAULT_LANGUAGE,
   isSupportedLanguage,
@@ -9,20 +13,12 @@ import {
   supportedLanguages,
 } from "../i18n";
 import type { User } from "../types";
-
-const storageKey = "ae-netscope-settings";
-
-type LocalSettings = {
-  defaultView: string;
-  compactTables: boolean;
-  showPreviewNotice: boolean;
-};
-
-const defaultSettings: LocalSettings = {
-  defaultView: "dashboard",
-  compactTables: false,
-  showPreviewNotice: true,
-};
+import {
+  defaultViewOptions,
+  readLocalSettings,
+  writeLocalSettings,
+} from "../settings";
+import type { DefaultView, LocalSettings } from "../settings";
 
 type SettingsViewProps = {
   csrfToken: string;
@@ -32,16 +28,15 @@ type SettingsViewProps = {
 
 export default function SettingsView({ csrfToken, onUserChanged, user }: SettingsViewProps) {
   const { i18n, t } = useTranslation();
-  const [settings, setSettings] = useState<LocalSettings>(() => {
-    const stored = window.localStorage.getItem(storageKey);
-    if (!stored) {
-      return defaultSettings;
-    }
-    return { ...defaultSettings, ...(JSON.parse(stored) as Partial<LocalSettings>) };
-  });
+  const [settings, setSettings] = useState<LocalSettings>(readLocalSettings);
   const [language, setSelectedLanguage] = useState(
     isSupportedLanguage(user.preferred_language) ? user.preferred_language : DEFAULT_LANGUAGE,
   );
+  const [regional, setRegional] = useState<RegionalPreferences>({
+    timezone: user.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
+    date_format: user.date_format ?? "locale",
+    hour_format: user.hour_format ?? "24",
+  });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -64,7 +59,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
     setIsSaving(true);
     setMessage("");
     setError("");
-    window.localStorage.setItem(storageKey, JSON.stringify(settings));
+    writeLocalSettings(settings);
     window.dispatchEvent(new Event("ae-netscope-settings-changed"));
 
     const persistedLanguage = isSupportedLanguage(user.preferred_language)
@@ -72,17 +67,17 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
       : DEFAULT_LANGUAGE;
 
     try {
-      if (language !== persistedLanguage) {
-        const data = await updatePreferredLanguage(language, csrfToken);
-        const savedLanguage = isSupportedLanguage(data.user.preferred_language)
-          ? data.user.preferred_language
-          : DEFAULT_LANGUAGE;
-        setSelectedLanguage(savedLanguage);
-        await setLanguage(savedLanguage);
-        onUserChanged(data.user);
-      } else {
-        await setLanguage(persistedLanguage);
-      }
+      const data = await updateAccountPreferences(
+        { language, ...regional },
+        csrfToken,
+      );
+      const savedLanguage = isSupportedLanguage(data.user.preferred_language)
+        ? data.user.preferred_language
+        : DEFAULT_LANGUAGE;
+      setSelectedLanguage(savedLanguage);
+      await setLanguage(savedLanguage);
+      storeRegionalPreferences(regional);
+      onUserChanged(data.user);
       setMessage(t("settings.saved"));
     } catch {
       setSelectedLanguage(persistedLanguage);
@@ -100,6 +95,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
           <h1>{t("settings.title")}</h1>
           <p>{t("settings.description")}</p>
         </div>
+
         <button className="primary-action" disabled={isSaving} onClick={saveSettings}>
           <Save size={18} strokeWidth={2} />
           {isSaving ? t("common.saving") : t("settings.save")}
@@ -107,6 +103,13 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
       </div>
 
       <section className="panel settings-panel">
+        <div className="settings-section-heading">
+          <Languages size={20} />
+          <div>
+            <h2>{t("settings.sections.language")}</h2>
+            <span>{t("settings.sections.languageDescription")}</span>
+          </div>
+        </div>
         <div className="settings-row">
           <div>
             <strong>{t("language.label")}</strong>
@@ -126,6 +129,39 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
           </select>
         </div>
 
+        <div className="settings-section-heading">
+          <CalendarClock size={20} />
+          <div>
+            <h2>{t("settings.sections.regional")}</h2>
+            <span>{t("settings.sections.regionalDescription")}</span>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div><strong>{t("settings.timezone")}</strong><span>{t("settings.timezoneDescription")}</span></div>
+          <select className="filter-select" onChange={(event) => setRegional((current) => ({ ...current, timezone: event.target.value }))} value={regional.timezone}>
+            {["UTC", ...(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [])].filter((timezone, index, values) => values.indexOf(timezone) === index).map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+          </select>
+        </div>
+        <div className="settings-row">
+          <div><strong>{t("settings.dateFormat")}</strong><span>{t("settings.dateFormatDescription")}</span></div>
+          <select className="filter-select" onChange={(event) => setRegional((current) => ({ ...current, date_format: event.target.value as RegionalPreferences["date_format"] }))} value={regional.date_format}>
+            {(["locale", "ymd", "dmy", "mdy"] as const).map((format) => <option key={format} value={format}>{t(`settings.dateFormats.${format}`)}</option>)}
+          </select>
+        </div>
+        <div className="settings-row">
+          <div><strong>{t("settings.hourFormat")}</strong><span>{t("settings.hourFormatDescription")}</span></div>
+          <select className="filter-select" onChange={(event) => setRegional((current) => ({ ...current, hour_format: event.target.value as "12" | "24" }))} value={regional.hour_format}>
+            <option value="12">{t("settings.hourFormats.12")}</option><option value="24">{t("settings.hourFormats.24")}</option>
+          </select>
+        </div>
+
+        <div className="settings-section-heading">
+          <PanelLeftClose size={20} />
+          <div>
+            <h2>{t("settings.sections.navigation")}</h2>
+            <span>{t("settings.sections.navigationDescription")}</span>
+          </div>
+        </div>
         <div className="settings-row">
           <div>
             <strong>{t("settings.defaultView")}</strong>
@@ -134,18 +170,41 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
           <select
             aria-label={t("settings.defaultView")}
             className="filter-select"
-            onChange={(event) => updateSetting("defaultView", event.target.value)}
+            onChange={(event) =>
+              updateSetting("defaultView", event.target.value as DefaultView)
+            }
             value={settings.defaultView}
           >
-            <option value="dashboard">{t("navigation.dashboard")}</option>
-            <option value="devices">{t("navigation.devices")}</option>
-            <option value="ipMacs">{t("navigation.ipMacs")}</option>
-            <option value="networks">{t("navigation.networks")}</option>
-            <option value="topology">{t("navigation.topology")}</option>
-            <option value="services">{t("navigation.services")}</option>
+            {defaultViewOptions.map((option) => (
+              <option key={option} value={option}>
+                {t(`navigation.${option}`)}
+              </option>
+            ))}
           </select>
         </div>
 
+        <label className="settings-row settings-check">
+          <div>
+            <strong>{t("settings.startSidebarCollapsed")}</strong>
+            <span>{t("settings.startSidebarCollapsedDescription")}</span>
+          </div>
+          <input
+            checked={settings.startSidebarCollapsed}
+            onChange={(event) => updateSetting("startSidebarCollapsed", event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+
+        <SecuritySettings csrfToken={csrfToken} onUserChanged={onUserChanged} user={user} />
+        {user.permissions.includes("settings:manage") && <AdminSettings csrfToken={csrfToken} />}
+
+        <div className="settings-section-heading">
+          <MonitorCog size={20} />
+          <div>
+            <h2>{t("settings.sections.interface")}</h2>
+            <span>{t("settings.sections.interfaceDescription")}</span>
+          </div>
+        </div>
         <label className="settings-row settings-check">
           <div>
             <strong>{t("settings.compactTables")}</strong>
@@ -158,6 +217,61 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
           />
         </label>
 
+        <label className="settings-row settings-check">
+          <div>
+            <strong>{t("settings.reducedMotion")}</strong>
+            <span>{t("settings.reducedMotionDescription")}</span>
+          </div>
+          <input
+            checked={settings.reducedMotion}
+            onChange={(event) => updateSetting("reducedMotion", event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+
+        <label className="settings-row settings-check">
+          <div>
+            <strong>{t("settings.showSystemStatus")}</strong>
+            <span>{t("settings.showSystemStatusDescription")}</span>
+          </div>
+          <input
+            checked={settings.showSystemStatus}
+            onChange={(event) => updateSetting("showSystemStatus", event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+
+        <label className="settings-row settings-check">
+          <div>
+            <strong>{t("settings.showGitHubButton")}</strong>
+            <span>{t("settings.showGitHubButtonDescription")}</span>
+          </div>
+          <input
+            checked={settings.showGitHubButton}
+            onChange={(event) => updateSetting("showGitHubButton", event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+
+        <label className="settings-row settings-check">
+          <div>
+            <strong>{t("settings.showFooter")}</strong>
+            <span>{t("settings.showFooterDescription")}</span>
+          </div>
+          <input
+            checked={settings.showFooter}
+            onChange={(event) => updateSetting("showFooter", event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+
+        <div className="settings-section-heading">
+          <LayoutDashboard size={20} />
+          <div>
+            <h2>{t("settings.sections.dashboard")}</h2>
+            <span>{t("settings.sections.dashboardDescription")}</span>
+          </div>
+        </div>
         <label className="settings-row settings-check">
           <div>
             <strong>{t("settings.previewNotice")}</strong>

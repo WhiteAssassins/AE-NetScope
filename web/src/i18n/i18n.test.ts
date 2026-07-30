@@ -95,6 +95,25 @@ describe("translation resources", () => {
     }
   });
 
+  it("defines every statically referenced production translation key", () => {
+    const english = flattenTranslations(localeResources.en);
+    const missing = sourceFiles(resolve(process.cwd(), "src"))
+      .filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\.(ts|tsx)$/.test(file))
+      .flatMap((file) => {
+        const contents = readFileSync(file, "utf8");
+        return [...contents.matchAll(/\b(?:i18n\.)?t\(\s*["']([^"']+)["']/g)]
+          .map((match) => match[1])
+          .filter(
+            (key) =>
+              !(key in english) &&
+              !(`${key}_one` in english && `${key}_other` in english),
+          )
+          .map((key) => `${file}: ${key}`);
+      });
+
+    expect(missing).toEqual([]);
+  });
+
   it("falls back to English for unsupported languages", async () => {
     await i18n.changeLanguage("fr");
     expect(i18n.t("auth.signIn")).toBe("Sign in");

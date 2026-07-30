@@ -1,9 +1,10 @@
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { InterfaceRecord, IpMacRecord, NetworkRecord } from "../types";
-import { hasPermission, stateLabel, stateTone, titleCase } from "../utils";
+import { assignmentTypeLabel, hasPermission, stateLabel, stateTone } from "../utils";
 export default function IpMacsView({
   csrfToken,
   focusIpId,
@@ -21,6 +22,7 @@ export default function IpMacsView({
   onChanged: () => Promise<void>;
   permissions: string[];
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -128,15 +130,15 @@ export default function IpMacsView({
       });
 
       if (!response.ok) {
-        setError("No se pudo guardar la IP. Revisa duplicados, formato o asignación.");
+        setError(t("ipMacs.errors.save"));
         return;
       }
 
-      setMessage(selectedIp ? "IP actualizada." : "IP registrada.");
+      setMessage(t(selectedIp ? "ipMacs.updated" : "ipMacs.created"));
       resetForm();
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +149,7 @@ export default function IpMacsView({
       return;
     }
     const confirmed = window.confirm(
-      `Eliminar la IP "${selectedIp.address}"? Esta acción no se puede deshacer.`,
+      t("ipMacs.confirmDelete", { address: selectedIp.address }),
     );
     if (!confirmed) {
       return;
@@ -163,16 +165,16 @@ export default function IpMacsView({
       });
 
       if (!response.ok) {
-        setError("No se pudo eliminar la IP.");
+        setError(t("ipMacs.errors.delete"));
         return;
       }
 
-      setMessage("IP eliminada.");
+      setMessage(t("ipMacs.deleted"));
       resetForm();
       setShowForm(false);
       await onChanged();
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     }
   }
 
@@ -180,8 +182,8 @@ export default function IpMacsView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>IPs y MACs</h1>
-          <p>Tabla operativa de direccionamiento, interfaces y asignaciónes.</p>
+          <h1>{t("ipMacs.title")}</h1>
+          <p>{t("ipMacs.description")}</p>
         </div>
         {canCreate && (
           <button
@@ -194,27 +196,27 @@ export default function IpMacsView({
             }}
           >
             <Plus size={18} strokeWidth={2} />
-            {showForm ? "Ocultar formulario" : "Nueva IP"}
+            {showForm ? t("common.hideForm") : t("ipMacs.new")}
           </button>
         )}
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de IPs y MACs">
+      <section className="ip-summary-grid" aria-label={t("ipMacs.summaryLabel")}>
         <article className="mini-stat">
           <strong>{ipMacs.length}</strong>
-          <span>IPs registradas</span>
+          <span>{t("ipMacs.registered")}</span>
         </article>
         <article className="mini-stat green">
           <strong>{activeCount}</strong>
-          <span>Activas</span>
+          <span>{t("values.states.active")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{reservedCount}</strong>
-          <span>Reservadas</span>
+          <span>{t("values.states.reserved")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{unassignedCount}</strong>
-          <span>Sin asignar</span>
+          <span>{t("values.states.unassigned")}</span>
         </article>
       </section>
 
@@ -225,7 +227,7 @@ export default function IpMacsView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por IP, MAC, dispositivo, subred..."
+                placeholder={t("ipMacs.searchPlaceholder")}
                 value={query}
               />
             </label>
@@ -234,12 +236,12 @@ export default function IpMacsView({
               onChange={(event) => setStateFilter(event.target.value)}
               value={stateFilter}
             >
-              <option value="all">Todos los estados</option>
-              <option value="active">Activas</option>
-              <option value="reserved">Reservadas</option>
-              <option value="unassigned">Sin asignar</option>
+              <option value="all">{t("ipMacs.allStates")}</option>
+              <option value="active">{t("values.states.active")}</option>
+              <option value="reserved">{t("values.states.reserved")}</option>
+              <option value="unassigned">{t("values.states.unassigned")}</option>
             </select>
-            <span>{filteredIpMacs.length} registros</span>
+            <span>{t("ipMacs.count", { count: filteredIpMacs.length })}</span>
           </div>
           <div className="table-wrap">
             <table>
@@ -247,12 +249,12 @@ export default function IpMacsView({
                 <tr>
                   <th>IP</th>
                   <th>MAC</th>
-                  <th>Dispositivo</th>
-                  <th>Interfaz</th>
-                  <th>Subred</th>
+                  <th>{t("ipMacs.device")}</th>
+                  <th>{t("devices.interface")}</th>
+                  <th>{t("ipMacs.network")}</th>
                   <th>VLAN</th>
-                  <th>Tipo</th>
-                  <th>Estado</th>
+                  <th>{t("common.type")}</th>
+                  <th>{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,10 +270,10 @@ export default function IpMacsView({
                     <td>{item.interface_name ?? "-"}</td>
                     <td>{item.network_cidr ?? "-"}</td>
                     <td>{item.vlan_id ? `${item.vlan_id} - ${item.vlan_name}` : "-"}</td>
-                    <td>{titleCase(item.assignment_type)}</td>
+                    <td>{assignmentTypeLabel(item.assignment_type, t)}</td>
                     <td>
                       <span className={`mini-pill ${stateTone(item.state)}`}>
-                        {stateLabel(item.state)}
+                        {stateLabel(item.state, t)}
                       </span>
                     </td>
                   </tr>
@@ -283,7 +285,7 @@ export default function IpMacsView({
 
       {showForm && (selectedIp ? canUpdate : canCreate) && (
           <article className="panel device-form-panel">
-            <h2>{selectedIp ? "Editar IP" : "Nueva IP"}</h2>
+            <h2>{t(selectedIp ? "ipMacs.edit" : "ipMacs.new")}</h2>
             <form className="inventory-form" onSubmit={handleSubmit}>
               <label className="form-wide">
                 IP
@@ -295,23 +297,23 @@ export default function IpMacsView({
                 />
               </label>
               <label>
-                Tipo
+                {t("common.type")}
                 <select
                   onChange={(event) => updateField("assignment_type", event.target.value)}
                   value={form.assignment_type}
                 >
-                  <option value="static">Estática</option>
+                  <option value="static">{t("values.assignmentTypes.static")}</option>
                   <option value="dhcp">DHCP</option>
-                  <option value="reserved">Reservada</option>
+                  <option value="reserved">{t("values.assignmentTypes.reserved")}</option>
                 </select>
               </label>
               <label>
-                Subred
+                {t("ipMacs.network")}
                 <select
                   onChange={(event) => updateField("network_id", event.target.value)}
                   value={form.network_id}
                 >
-                  <option value="">Sin subred</option>
+                  <option value="">{t("devices.withoutSubnet")}</option>
                   {networks.map((network) => (
                     <option key={network.id} value={network.id}>
                       {network.cidr} - {network.name}
@@ -320,12 +322,12 @@ export default function IpMacsView({
                 </select>
               </label>
               <label className="form-wide">
-                Interfaz
+                {t("devices.interface")}
                 <select
                   onChange={(event) => updateField("interface_id", event.target.value)}
                   value={form.interface_id}
                 >
-                  <option value="">Sin asignar</option>
+                  <option value="">{t("values.states.unassigned")}</option>
                   {interfaces.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.device_name} / {item.name}
@@ -337,12 +339,14 @@ export default function IpMacsView({
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Guardando..." : selectedIp ? "Guardar IP" : "Registrar IP"}
+                {isSubmitting
+                  ? t("common.saving")
+                  : t(selectedIp ? "ipMacs.save" : "ipMacs.create")}
               </button>
             </form>
             {selectedIp && canDelete && (
               <button className="danger-action panel-action" onClick={deleteSelectedIp}>
-                Eliminar IP
+                {t("ipMacs.delete")}
               </button>
             )}
           </article>

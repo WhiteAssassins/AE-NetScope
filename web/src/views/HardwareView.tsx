@@ -1,7 +1,9 @@
 import { HardDrive, Search } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { DeviceRecord } from "../types";
-import { typeTone } from "../utils";
+import { deviceTypeLabel, typeTone } from "../utils";
 
 type HardwareViewProps = {
   devices: DeviceRecord[];
@@ -24,6 +26,7 @@ const hardwareFocusedTypes = new Set([
 ]);
 
 export default function HardwareView({ devices, onOpenDevice }: HardwareViewProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -71,26 +74,26 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
   return (
     <>
       <div className="page-title">
-        <h1>Hardware</h1>
-        <p>Inventario físico y técnico de equipos, garantías, seriales y ubicación.</p>
+        <h1>{t("hardware.title")}</h1>
+        <p>{t("hardware.description")}</p>
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de hardware">
+      <section className="ip-summary-grid" aria-label={t("hardware.summary")}>
         <article className="mini-stat">
           <strong>{hardwareDevices.length}</strong>
-          <span>Activos físicos</span>
+          <span>{t("hardware.physicalAssets")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{missingSerial}</strong>
-          <span>Sin serial</span>
+          <span>{t("hardware.missingSerial")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{missingAssetTag}</strong>
-          <span>Sin asset tag</span>
+          <span>{t("hardware.missingAssetTag")}</span>
         </article>
         <article className="mini-stat green">
           <strong>{warrantySoon}</strong>
-          <span>Garantía próxima</span>
+          <span>{t("hardware.warrantySoon")}</span>
         </article>
       </section>
 
@@ -100,47 +103,49 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
             <Search size={18} strokeWidth={1.8} />
             <input
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por serial, asset tag, rack, responsable, CPU..."
+              placeholder={t("hardware.searchPlaceholder")}
               value={query}
             />
           </label>
           <select className="filter-select" onChange={(event) => setFilter(event.target.value)} value={filter}>
-            <option value="all">Todo el hardware</option>
-            <option value="missing-serial">Sin serial</option>
-            <option value="missing-asset">Sin asset tag</option>
-            <option value="warranty-soon">Garantía próxima</option>
-            <option value="warranty-expired">Garantía vencida</option>
+            <option value="all">{t("hardware.filters.all")}</option>
+            <option value="missing-serial">{t("hardware.missingSerial")}</option>
+            <option value="missing-asset">{t("hardware.missingAssetTag")}</option>
+            <option value="warranty-soon">{t("hardware.warrantySoon")}</option>
+            <option value="warranty-expired">{t("hardware.warrantyExpired")}</option>
             {deviceTypes.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {deviceTypeLabel(type, t)}
               </option>
             ))}
           </select>
-          <span>{filteredDevices.length} equipos</span>
+          <span>{t("hardware.deviceCount", { count: filteredDevices.length })}</span>
         </div>
 
         <div className="hardware-grid">
           {filteredDevices.map((device) => (
             <article className="hardware-card" key={device.id}>
               <div className="hardware-card-head">
-                <span className={`pill ${typeTone(device.device_type)}`}>{device.device_type}</span>
+                <span className={`pill ${typeTone(device.device_type)}`}>
+                  {deviceTypeLabel(device.device_type, t)}
+                </span>
                 <span className={`mini-pill ${warrantyTone(device.warranty_expires)}`}>
-                  {warrantyLabel(device.warranty_expires)}
+                  {warrantyLabel(device.warranty_expires, t)}
                 </span>
               </div>
               <div>
                 <h2>{device.name}</h2>
                 <p>
-                  {device.vendor ?? "Sin fabricante"} {device.model ?? ""}
+                  {device.vendor ?? t("hardware.withoutVendor")} {device.model ?? ""}
                 </p>
               </div>
               <dl className="hardware-facts">
                 <div>
-                  <dt>Serial</dt>
+                  <dt>{t("devices.fields.serial")}</dt>
                   <dd>{device.serial_number ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Asset tag</dt>
+                  <dt>{t("devices.fields.assetTag")}</dt>
                   <dd>{device.asset_tag ?? "-"}</dd>
                 </div>
                 <div>
@@ -152,32 +157,32 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
                   <dd>{device.memory ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Storage</dt>
+                  <dt>{t("devices.fields.storage")}</dt>
                   <dd>{device.storage ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Firmware</dt>
+                  <dt>{t("devices.fields.firmware")}</dt>
                   <dd>{device.firmware_version ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Rack</dt>
+                  <dt>{t("devices.fields.rackPosition")}</dt>
                   <dd>{device.rack_position ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>Responsable</dt>
+                  <dt>{t("hardware.owner")}</dt>
                   <dd>{device.owner ?? "-"}</dd>
                 </div>
               </dl>
               <button className="user-action" onClick={() => onOpenDevice(device.id)}>
-                Abrir dispositivo
+                {t("hardware.openDevice")}
               </button>
             </article>
           ))}
           {!filteredDevices.length && (
             <div className="hardware-empty">
               <HardDrive size={30} strokeWidth={1.8} />
-              <strong>Sin hardware para mostrar</strong>
-              <span>Ajusta los filtros o registra datos técnicos en dispositivos.</span>
+              <strong>{t("hardware.emptyTitle")}</strong>
+              <span>{t("hardware.emptyDescription")}</span>
             </div>
           )}
         </div>
@@ -210,10 +215,7 @@ function warrantyTone(value: string | null) {
   return "gray";
 }
 
-function warrantyLabel(value: string | null) {
+function warrantyLabel(value: string | null, t: TFunction) {
   const state = warrantyState(value);
-  if (state === "expired") return "Garantía vencida";
-  if (state === "soon") return "Garantía próxima";
-  if (state === "ok") return "Garantía OK";
-  return "Sin garantía";
+  return t(`hardware.warranty.${state}`);
 }

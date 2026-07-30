@@ -32,11 +32,11 @@ describe("HardwareView", () => {
     render(<HardwareView devices={[baseDevice]} onOpenDevice={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Hardware" })).toBeInTheDocument();
-    expect(screen.getByText("Activos físicos")).toBeInTheDocument();
+    expect(screen.getByText("Physical assets")).toBeInTheDocument();
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
     expect(screen.getByText("CAM-SN-001")).toBeInTheDocument();
     expect(screen.getByText("AE-CAM-001")).toBeInTheDocument();
-    expect(screen.getByText("Garantía OK")).toBeInTheDocument();
+    expect(screen.getByText("Warranty OK")).toBeInTheDocument();
   });
 
   it("filters by missing serial and opens the real device", async () => {
@@ -58,7 +58,7 @@ describe("HardwareView", () => {
     expect(screen.queryByText("CAM-DOOR-01")).not.toBeInTheDocument();
     expect(screen.getByText("SW-LAB-01")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Abrir dispositivo" }));
+    await user.click(screen.getByRole("button", { name: "Open device" }));
     expect(onOpenDevice).toHaveBeenCalledWith(2);
   });
 
@@ -66,11 +66,11 @@ describe("HardwareView", () => {
     const user = userEvent.setup();
     render(<HardwareView devices={[baseDevice]} onOpenDevice={vi.fn()} />);
 
-    await user.type(screen.getByPlaceholderText(/buscar por serial/i), "security");
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "security");
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
 
-    await user.clear(screen.getByPlaceholderText(/buscar por serial/i));
-    await user.type(screen.getByPlaceholderText(/buscar por serial/i), "arm");
+    await user.clear(screen.getByPlaceholderText(/search by serial/i));
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "arm");
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
   });
 });

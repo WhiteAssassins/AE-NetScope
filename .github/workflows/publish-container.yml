@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to publish, for example v0.1.7-alpha
+        description: Release tag to publish, for example v0.1.8-alpha
         required: true
       prerelease:
         description: Publish as prerelease channel

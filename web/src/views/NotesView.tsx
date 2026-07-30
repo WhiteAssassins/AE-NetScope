@@ -1,9 +1,10 @@
 import { FileText, Search } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord } from "../types";
-import { hasPermission, typeTone } from "../utils";
+import { deviceTypeLabel, hasPermission, typeTone } from "../utils";
 
 type NotesViewProps = {
   csrfToken: string;
@@ -22,6 +23,7 @@ export default function NotesView({
   onOpenDevice,
   permissions,
 }: NotesViewProps) {
+  const { t } = useTranslation();
   const initialFocusedDevice = focusDeviceId
     ? devices.find((device) => device.id === focusDeviceId) ?? null
     : null;
@@ -93,15 +95,15 @@ export default function NotesView({
       });
 
       if (!response.ok) {
-        setError("No se pudo guardar la nota técnica.");
+        setError(t("notes.saveFailed"));
         return;
       }
 
-      setMessage(`Nota actualizada: ${selectedDevice.name}`);
+      setMessage(t("notes.updated", { name: selectedDevice.name }));
       await onChanged();
       setSelectedDevice({ ...selectedDevice, notes: notes.trim() ? notes : null });
     } catch {
-      setError("No se pudo conectar con la API.");
+      setError(t("auth.apiUnavailable"));
     } finally {
       setIsSaving(false);
     }
@@ -110,26 +112,26 @@ export default function NotesView({
   return (
     <>
       <div className="page-title">
-        <h1>Notas técnicas</h1>
-        <p>Notas operativas asociadas a dispositivos del inventario.</p>
+        <h1>{t("notes.title")}</h1>
+        <p>{t("notes.description")}</p>
       </div>
 
-      <section className="ip-summary-grid" aria-label="Resumen de notas técnicas">
+      <section className="ip-summary-grid" aria-label={t("notes.summary")}>
         <article className="mini-stat">
           <strong>{devices.length}</strong>
-          <span>Dispositivos</span>
+          <span>{t("navigation.devices")}</span>
         </article>
         <article className="mini-stat green">
           <strong>{devicesWithNotes}</strong>
-          <span>Con notas</span>
+          <span>{t("notes.withNotes")}</span>
         </article>
         <article className="mini-stat gray">
           <strong>{devicesWithoutNotes}</strong>
-          <span>Sin notas</span>
+          <span>{t("notes.withoutNotes")}</span>
         </article>
         <article className="mini-stat orange">
           <strong>{deviceTypes.length}</strong>
-          <span>Tipos de equipo</span>
+          <span>{t("notes.deviceTypes")}</span>
         </article>
       </section>
 
@@ -140,7 +142,7 @@ export default function NotesView({
               <Search size={18} strokeWidth={1.8} />
               <input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por dispositivo, IP, ubicación o nota..."
+                placeholder={t("notes.searchPlaceholder")}
                 value={query}
               />
             </label>
@@ -149,16 +151,16 @@ export default function NotesView({
               onChange={(event) => setFilter(event.target.value)}
               value={filter}
             >
-              <option value="all">Todas</option>
-              <option value="with-notes">Con notas</option>
-              <option value="without-notes">Sin notas</option>
+              <option value="all">{t("common.all")}</option>
+              <option value="with-notes">{t("notes.withNotes")}</option>
+              <option value="without-notes">{t("notes.withoutNotes")}</option>
               {deviceTypes.map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {deviceTypeLabel(type, t)}
                 </option>
               ))}
             </select>
-            <span>{filteredDevices.length} registros</span>
+            <span>{t("notes.recordCount", { count: filteredDevices.length })}</span>
           </div>
 
           <div className="notes-list">
@@ -168,27 +170,29 @@ export default function NotesView({
                 key={device.id}
               >
                 <button className="note-main button-reset" onClick={() => selectDevice(device)}>
-                  <span className={`pill ${typeTone(device.device_type)}`}>{device.device_type}</span>
+                  <span className={`pill ${typeTone(device.device_type)}`}>
+                    {deviceTypeLabel(device.device_type, t)}
+                  </span>
                   <strong>{device.name}</strong>
                   <small>
-                    {device.primary_ip ?? "Sin IP"} · {device.location ?? "Sin ubicación"}
+                    {device.primary_ip ?? t("audit.withoutIp")} · {device.location ?? t("notes.withoutLocation")}
                   </small>
-                  <p>{device.notes?.trim() || "Sin nota técnica registrada."}</p>
+                  <p>{device.notes?.trim() || t("notes.noTechnicalNote")}</p>
                 </button>
                 <button className="user-action" onClick={() => onOpenDevice(device.id)}>
-                  Abrir dispositivo
+                  {t("hardware.openDevice")}
                 </button>
               </article>
             ))}
-            {!filteredDevices.length && <p className="muted-line">No hay notas para mostrar.</p>}
+            {!filteredDevices.length && <p className="muted-line">{t("notes.empty")}</p>}
           </div>
         </article>
 
         <article className="panel device-form-panel">
           <div className="detail-heading">
             <div>
-              <h2>{selectedDevice ? selectedDevice.name : "Selecciona un dispositivo"}</h2>
-              <p>{selectedDevice?.primary_ip ?? "Sin dispositivo seleccionado"}</p>
+              <h2>{selectedDevice ? selectedDevice.name : t("notes.selectDevice")}</h2>
+              <p>{selectedDevice?.primary_ip ?? t("notes.noDeviceSelected")}</p>
             </div>
             <FileText size={24} strokeWidth={1.8} />
           </div>
@@ -196,23 +200,23 @@ export default function NotesView({
           {selectedDevice ? (
             <form className="inventory-form" onSubmit={saveNotes}>
               <label className="form-wide">
-                Nota técnica
+                {t("notes.technicalNote")}
                 <textarea
                   disabled={!canUpdateDevices}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Ej: acceso físico, dependencia, configuración relevante, mantenimiento pendiente..."
+                  placeholder={t("notes.notePlaceholder")}
                   value={notes}
                 />
               </label>
               {message && <p className="form-success">{message}</p>}
               {error && <p className="login-error form-wide">{error}</p>}
               <button className="login-button form-wide" disabled={!canUpdateDevices || isSaving} type="submit">
-                {isSaving ? "Guardando..." : "Guardar nota"}
+                {isSaving ? t("common.saving") : t("notes.save")}
               </button>
             </form>
           ) : (
             <p className="muted-line">
-              Elige un registro de la lista para revisar o editar su nota técnica.
+              {t("notes.selectHint")}
             </p>
           )}
         </article>

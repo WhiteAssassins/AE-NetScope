@@ -1,4 +1,7 @@
 import ipaddress
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Literal
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +17,10 @@ from app.schemas.inventory import (
     InterfaceCreate,
     InterfaceRecordResponse,
     InterfaceResponse,
+    InventoryQualityCounts,
+    InventoryQualityIssue,
+    InventoryQualityReport,
+    InventoryRelationshipSummary,
     IpAddressCreate,
     IpAddressRecordResponse,
     IpAddressResponse,
@@ -32,6 +39,9 @@ from app.schemas.inventory import (
     VlanSummaryResponse,
     VlanUpdate,
 )
+
+QUALITY_ISSUE_LIMIT = 250
+QUALITY_SEVERITY_ORDER = {"critical": 0, "warning": 1, "info": 2}
 
 
 async def create_vlan(session: AsyncSession, payload: VlanCreate) -> Vlan:
@@ -90,6 +100,284 @@ async def delete_network(session: AsyncSession, network: Network) -> None:
         ip_address.network_id = None
     await session.delete(network)
     await session.flush()
+
+
+async def inventory_quality_report(session: AsyncSession) -> InventoryQualityReport:
+    devices = list((await session.scalars(select(Device).order_by(Device.name))).all())
+    interfaces = list(
+        (await session.scalars(select(NetworkInterface).order_by(NetworkInterface.id))).all()
+    )
+    ip_addresses = list(
+        (await session.scalars(select(IpAddress).order_by(IpAddress.address))).all()
+    )
+    networks = list((await session.scalars(select(Network).order_by(Network.cidr))).all())
+    vlans = list((await session.scalars(select(Vlan).order_by(Vlan.vlan_id))).all())
+
+    interfaces_by_device: dict[int, list[NetworkInterface]] = defaultdict(list)
+    ips_by_interface: dict[int, list[IpAddress]] = defaultdict(list)
+    for interface in interfaces:
+        interfaces_by_device[interface.device_id].append(interface)
+    for ip_address in ip_addresses:
+        if ip_address.interface_id is not None:
+            ips_by_interface[ip_address.interface_id].append(ip_address)
+
+    issues: list[InventoryQualityIssue] = []
+    checks_completed = 0
+    checks_passed = 0
+
+    def check(passed: bool) -> None:
+        nonlocal checks_completed, checks_passed
+        checks_completed += 1
+        checks_passed += int(passed)
+
+    def add_issue(
+        code: str,
+        severity: Literal["critical", "warning", "info"],
+        resource_type: Literal["device", "ip_address", "network", "vlan"],
+        resource_id: int,
+        resource_name: str,
+        **context: str | int,
+    ) -> None:
+        issues.append(
+            InventoryQualityIssue(
+                code=code,
+                severity=severity,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                resource_name=resource_name,
+                context=context,
+            )
+        )
+
+    for device in devices:
+        device_interfaces = interfaces_by_device[device.id]
+        has_interface = bool(device_interfaces)
+        check(has_interface)
+        if not has_interface:
+            add_issue("device_no_interface", "warning", "device", device.id, device.name)
+
+        has_ip = any(ips_by_interface[interface.id] for interface in device_interfaces)
+        check(has_ip)
+        if not has_ip:
+            add_issue("device_no_ip", "warning", "device", device.id, device.name)
+
+        missing_fields = [
+            field
+            for field, value in (
+                ("vendor", device.vendor),
+                ("model", device.model),
+                ("location", device.location),
+            )
+            if not value
+        ]
+        has_core_documentation = not missing_fields
+        check(has_core_documentation)
+        if not has_core_documentation:
+            add_issue(
+                "device_missing_documentation",
+                "info",
+                "device",
+                device.id,
+                device.name,
+                fields=", ".join(missing_fields),
+            )
+
+    device_by_id = {device.id: device for device in devices}
+    for interface in interfaces:
+        has_mac = bool(interface.mac_address)
+        check(has_mac)
+        if not has_mac:
+            device = device_by_id[interface.device_id]
+            add_issue(
+                "interface_no_mac",
+                "info",
+                "device",
+                device.id,
+                device.name,
+                interface=interface.name,
+            )
+
+    network_by_id = {network.id: network for network in networks}
+    interface_by_id = {interface.id: interface for interface in interfaces}
+    for ip_address in ip_addresses:
+        has_network = ip_address.network_id in network_by_id
+        check(has_network)
+        if not has_network:
+            add_issue(
+                "ip_no_network",
+                "warning",
+                "ip_address",
+                ip_address.id,
+                ip_address.address,
+            )
+        else:
+            network = network_by_id[ip_address.network_id]
+            belongs_to_network = ipaddress.ip_address(ip_address.address) in ipaddress.ip_network(
+                network.cidr,
+                strict=False,
+            )
+            check(belongs_to_network)
+            if not belongs_to_network:
+                add_issue(
+                    "ip_outside_network",
+                    "critical",
+                    "ip_address",
+                    ip_address.id,
+                    ip_address.address,
+                    network=network.cidr,
+                )
+
+        if ip_address.assignment_type != "reserved":
+            has_device = ip_address.interface_id in interface_by_id
+            check(has_device)
+            if not has_device:
+                add_issue(
+                    "ip_no_device",
+                    "warning",
+                    "ip_address",
+                    ip_address.id,
+                    ip_address.address,
+                )
+
+    for network in networks:
+        has_gateway = bool(network.gateway)
+        check(has_gateway)
+        if not has_gateway:
+            add_issue("network_no_gateway", "info", "network", network.id, network.cidr)
+
+    parsed_networks = {
+        network.id: ipaddress.ip_network(network.cidr, strict=False) for network in networks
+    }
+    overlapping_network_ids: set[int] = set()
+    for index, network in enumerate(networks):
+        parsed = parsed_networks[network.id]
+        for other_network in networks[index + 1 :]:
+            other_parsed = parsed_networks[other_network.id]
+            if parsed.version == other_parsed.version and parsed.overlaps(other_parsed):
+                overlapping_network_ids.update((network.id, other_network.id))
+                add_issue(
+                    "network_overlap",
+                    "critical",
+                    "network",
+                    network.id,
+                    network.cidr,
+                    other=other_network.cidr,
+                )
+    for network in networks:
+        check(network.id not in overlapping_network_ids)
+
+    networks_by_vlan: dict[int, list[Network]] = defaultdict(list)
+    for network in networks:
+        if network.vlan_id is not None:
+            networks_by_vlan[network.vlan_id].append(network)
+    for vlan in vlans:
+        in_use = bool(networks_by_vlan[vlan.id])
+        check(in_use)
+        if not in_use:
+            add_issue("vlan_no_network", "info", "vlan", vlan.id, f"VLAN {vlan.vlan_id}")
+
+    _append_duplicate_device_identifier_issues(devices, "serial_number", issues, check)
+    _append_duplicate_device_identifier_issues(devices, "asset_tag", issues, check)
+    _append_duplicate_device_identifier_issues(devices, "name", issues, check)
+
+    counts = InventoryQualityCounts(
+        critical=sum(issue.severity == "critical" for issue in issues),
+        warning=sum(issue.severity == "warning" for issue in issues),
+        info=sum(issue.severity == "info" for issue in issues),
+    )
+    records_reviewed = (
+        len(devices) + len(interfaces) + len(ip_addresses) + len(networks) + len(vlans)
+    )
+    score = round((checks_passed / checks_completed) * 100) if checks_completed else 0
+    if records_reviewed == 0:
+        quality_status = "empty"
+    elif counts.critical:
+        quality_status = "critical"
+    elif score >= 90:
+        quality_status = "excellent"
+    elif score >= 75:
+        quality_status = "good"
+    elif score >= 50:
+        quality_status = "attention"
+    else:
+        quality_status = "critical"
+
+    sorted_issues = sorted(
+        issues,
+        key=lambda issue: (
+            QUALITY_SEVERITY_ORDER[issue.severity],
+            issue.code,
+            issue.resource_name.casefold(),
+        ),
+    )
+    devices_with_ip = {
+        interface.device_id
+        for interface in interfaces
+        if ips_by_interface[interface.id]
+    }
+    unassigned_ips = sum(
+        ip_address.network_id is None
+        or (
+            ip_address.assignment_type != "reserved"
+            and ip_address.interface_id not in interface_by_id
+        )
+        for ip_address in ip_addresses
+    )
+
+    valid_vlan_ids = {vlan.id for vlan in vlans}
+    return InventoryQualityReport(
+        score=score,
+        status=quality_status,
+        records_reviewed=records_reviewed,
+        checks_completed=checks_completed,
+        checks_passed=checks_passed,
+        issue_counts=counts,
+        issues_total=len(sorted_issues),
+        issues_truncated=len(sorted_issues) > QUALITY_ISSUE_LIMIT,
+        issues=sorted_issues[:QUALITY_ISSUE_LIMIT],
+        relationships=InventoryRelationshipSummary(
+            device_ip_links=len(devices_with_ip),
+            ip_network_links=sum(
+                ip_address.network_id in network_by_id for ip_address in ip_addresses
+            ),
+            network_vlan_links=sum(network.vlan_id in valid_vlan_ids for network in networks),
+            disconnected_devices=len(devices) - len(devices_with_ip),
+            unassigned_ips=unassigned_ips,
+        ),
+    )
+
+
+def _append_duplicate_device_identifier_issues(
+    devices: list[Device],
+    field: str,
+    issues: list[InventoryQualityIssue],
+    check: Callable[[bool], None],
+) -> None:
+    grouped: dict[str, list[Device]] = defaultdict(list)
+    for device in devices:
+        value = getattr(device, field)
+        if value and value.strip():
+            grouped[value.strip().casefold()].append(device)
+
+    for matches in grouped.values():
+        is_unique = len(matches) == 1
+        check(is_unique)
+        if is_unique:
+            continue
+        first = matches[0]
+        issues.append(
+            InventoryQualityIssue(
+                code=f"duplicate_{field}",
+                severity="warning",
+                resource_type="device",
+                resource_id=first.id,
+                resource_name=first.name,
+                context={
+                    "identifier": str(getattr(first, field)),
+                    "count": len(matches),
+                },
+            )
+        )
 
 
 async def create_device(session: AsyncSession, payload: DeviceWithInterfaceCreate) -> Device:

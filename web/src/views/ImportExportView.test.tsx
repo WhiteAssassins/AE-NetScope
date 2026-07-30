@@ -39,8 +39,8 @@ describe("ImportExportView", () => {
       />,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Exportar CSV" }));
-    await user.click(screen.getByRole("button", { name: "Dispositivos" }));
+    await user.click(screen.getByRole("tab", { name: "Export CSV" }));
+    await user.click(screen.getByRole("button", { name: "Devices" }));
 
     expect(openMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/inventory/export/devices.csv`,
@@ -86,7 +86,7 @@ describe("ImportExportView", () => {
         permissions={["inventory:read", "settings:manage"]}
       />,
     );
-    await user.click(screen.getByRole("tab", { name: "Restaurar" }));
+    await user.click(screen.getByRole("tab", { name: "Restore" }));
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
 
@@ -97,9 +97,9 @@ describe("ImportExportView", () => {
       }),
     );
 
-    expect(await screen.findByText("Preview de restauracion")).toBeInTheDocument();
+    expect(await screen.findByText("Restore preview")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /reemplazar inventario/i }));
+    await user.click(screen.getByRole("button", { name: /replace inventory/i }));
 
     await waitFor(() => expect(onImported).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -110,5 +110,31 @@ describe("ImportExportView", () => {
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
       }),
     );
+  });
+
+  it("does not report valid JSON as malformed when the preview API is unavailable", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, 503))));
+
+    const { container } = render(
+      <ImportExportView
+        csrfToken="csrf-token"
+        onImported={vi.fn()}
+        permissions={["inventory:read", "settings:manage"]}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Restore" }));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(
+      input,
+      new File([JSON.stringify({ format: "ae-netscope.inventory.v1" })], "backup.json", {
+        type: "application/json",
+      }),
+    );
+
+    expect(
+      await screen.findByText(/backup preview service is unavailable/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/does not appear to be valid/i)).not.toBeInTheDocument();
   });
 });

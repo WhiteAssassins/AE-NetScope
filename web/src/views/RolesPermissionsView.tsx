@@ -1,71 +1,72 @@
 import { ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 type RoleKey = "admin" | "operator" | "viewer";
 
-const roles: Array<{ key: RoleKey; label: string; description: string }> = [
+const roles: Array<{ key: RoleKey; labelKey: string; descriptionKey: string }> = [
   {
     key: "admin",
-    label: "Admin",
-    description: "Control completo de usuarios, seguridad, auditoría e inventario.",
+    labelKey: "values.roles.admin",
+    descriptionKey: "roles.descriptions.admin",
   },
   {
     key: "operator",
-    label: "Operador",
-    description: "Puede operar el inventario y revisar auditoría, sin administrar usuarios.",
+    labelKey: "values.roles.operator",
+    descriptionKey: "roles.descriptions.operator",
   },
   {
     key: "viewer",
-    label: "Solo lectura",
-    description: "Acceso de consulta al inventario, sin cambios.",
+    labelKey: "values.roles.viewer",
+    descriptionKey: "roles.descriptions.viewer",
   },
 ];
 
 const permissionGroups = [
   {
-    title: "Usuarios y seguridad",
+    titleKey: "roles.groups.usersSecurity",
     items: [
-      { label: "Gestionar usuarios", permission: "users:manage" },
-      { label: "Gestionar ajustes", permission: "settings:manage" },
-      { label: "Leer auditoría", permission: "audit:read" },
+      { labelKey: "roles.permissions.manageUsers", permission: "users:manage" },
+      { labelKey: "roles.permissions.manageSettings", permission: "settings:manage" },
+      { labelKey: "roles.permissions.readAudit", permission: "audit:read" },
     ],
   },
   {
-    title: "Inventario general",
-    items: [{ label: "Leer inventario", permission: "inventory:read" }],
+    titleKey: "roles.groups.inventory",
+    items: [{ labelKey: "roles.permissions.readInventory", permission: "inventory:read" }],
   },
   {
-    title: "Dispositivos",
+    titleKey: "roles.groups.devices",
     items: [
-      { label: "Crear dispositivos", permission: "devices:create" },
-      { label: "Editar dispositivos", permission: "devices:update" },
-      { label: "Eliminar dispositivos", permission: "devices:delete" },
+      { labelKey: "roles.permissions.createDevices", permission: "devices:create" },
+      { labelKey: "roles.permissions.updateDevices", permission: "devices:update" },
+      { labelKey: "roles.permissions.deleteDevices", permission: "devices:delete" },
     ],
   },
   {
-    title: "IPs y MACs",
+    titleKey: "roles.groups.ipMacs",
     items: [
-      { label: "Crear IPs", permission: "ip_addresses:create" },
-      { label: "Editar IPs", permission: "ip_addresses:update" },
-      { label: "Eliminar IPs", permission: "ip_addresses:delete" },
+      { labelKey: "roles.permissions.createIps", permission: "ip_addresses:create" },
+      { labelKey: "roles.permissions.updateIps", permission: "ip_addresses:update" },
+      { labelKey: "roles.permissions.deleteIps", permission: "ip_addresses:delete" },
     ],
   },
   {
-    title: "Redes",
+    titleKey: "roles.groups.networks",
     items: [
-      { label: "Crear subredes", permission: "networks:create" },
-      { label: "Editar subredes", permission: "networks:update" },
-      { label: "Eliminar subredes", permission: "networks:delete" },
-      { label: "Crear VLANs", permission: "vlans:create" },
-      { label: "Editar VLANs", permission: "vlans:update" },
-      { label: "Eliminar VLANs", permission: "vlans:delete" },
+      { labelKey: "roles.permissions.createNetworks", permission: "networks:create" },
+      { labelKey: "roles.permissions.updateNetworks", permission: "networks:update" },
+      { labelKey: "roles.permissions.deleteNetworks", permission: "networks:delete" },
+      { labelKey: "roles.permissions.createVlans", permission: "vlans:create" },
+      { labelKey: "roles.permissions.updateVlans", permission: "vlans:update" },
+      { labelKey: "roles.permissions.deleteVlans", permission: "vlans:delete" },
     ],
   },
   {
-    title: "Servicios",
+    titleKey: "roles.groups.services",
     items: [
-      { label: "Crear servicios", permission: "services:create" },
-      { label: "Editar servicios", permission: "services:update" },
-      { label: "Eliminar servicios", permission: "services:delete" },
+      { labelKey: "roles.permissions.createServices", permission: "services:create" },
+      { labelKey: "roles.permissions.updateServices", permission: "services:update" },
+      { labelKey: "roles.permissions.deleteServices", permission: "services:delete" },
     ],
   },
 ];
@@ -90,11 +91,13 @@ const rolePermissions: Record<RoleKey, Set<string>> = {
 };
 
 export default function RolesPermissionsView() {
+  const { t } = useTranslation();
+
   return (
     <>
       <div className="page-title">
-        <h1>Roles y permisos</h1>
-        <p>Matriz de acceso aplicada por AE NetScope a usuarios, inventario y auditoría.</p>
+        <h1>{t("roles.title")}</h1>
+        <p>{t("roles.description")}</p>
       </div>
 
       <section className="role-summary-grid">
@@ -102,10 +105,10 @@ export default function RolesPermissionsView() {
           <article className="panel role-card" key={role.key}>
             <ShieldCheck size={28} strokeWidth={1.8} />
             <div>
-              <h2>{role.label}</h2>
-              <p>{role.description}</p>
+              <h2>{t(role.labelKey)}</h2>
+              <p>{t(role.descriptionKey)}</p>
             </div>
-            <strong>{rolePermissions[role.key].size} permisos</strong>
+            <strong>{t("roles.permissionCount", { count: rolePermissions[role.key].size })}</strong>
           </article>
         ))}
       </section>
@@ -113,18 +116,18 @@ export default function RolesPermissionsView() {
       <section className="panel permissions-panel">
         <div className="permissions-table">
           <div className="permissions-row permissions-head">
-            <strong>Permiso</strong>
+            <strong>{t("roles.permission")}</strong>
             {roles.map((role) => (
-              <strong key={role.key}>{role.label}</strong>
+              <strong key={role.key}>{t(role.labelKey)}</strong>
             ))}
           </div>
 
           {permissionGroups.map((group) => (
-            <div className="permissions-group" key={group.title}>
-              <h2>{group.title}</h2>
+            <div className="permissions-group" key={group.titleKey}>
+              <h2>{t(group.titleKey)}</h2>
               {group.items.map((item) => (
                 <div className="permissions-row" key={item.permission}>
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                   {roles.map((role) => (
                     <span
                       className={
@@ -134,7 +137,11 @@ export default function RolesPermissionsView() {
                       }
                       key={role.key}
                     >
-                      {rolePermissions[role.key].has(item.permission) ? "Permitido" : "No"}
+                      {t(
+                        rolePermissions[role.key].has(item.permission)
+                          ? "roles.allowed"
+                          : "roles.denied",
+                      )}
                     </span>
                   ))}
                 </div>

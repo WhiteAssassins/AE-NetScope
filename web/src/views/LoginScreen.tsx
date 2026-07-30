@@ -1,9 +1,10 @@
-import { Network } from "lucide-react";
+import { KeyRound, Network } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE_URL } from "../api";
+import { API_BASE_URL, beginPasskeyAuthentication, verifyPasskeyAuthentication } from "../api";
 import type { User } from "../types";
+import { authenticationOptionsFromJson, credentialToJson } from "../webauthn";
 
 export default function LoginScreen({
   message,
@@ -15,6 +16,8 @@ export default function LoginScreen({
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpRequired, setTotpRequired] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,10 +31,15 @@ export default function LoginScreen({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, totp_code: totpRequired ? totpCode : null }),
       });
 
       if (!response.ok) {
+        if (response.status === 428) {
+          setTotpRequired(true);
+          setError(t("auth.totpRequired"));
+          return;
+        }
         setError(response.status === 423 ? t("auth.locked") : t("auth.invalidCredentials"));
         return;
       }
@@ -40,6 +48,31 @@ export default function LoginScreen({
       onLogin(data.user, data.csrf_token);
     } catch {
       setError(t("auth.apiUnavailable"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function signInWithPasskey() {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      if (!navigator.credentials?.get || !email) {
+        setError(t("auth.passkeyEmailRequired"));
+        return;
+      }
+      const begin = await beginPasskeyAuthentication(email);
+      const credential = await navigator.credentials.get({
+        publicKey: authenticationOptionsFromJson(begin.options),
+      });
+      if (!(credential instanceof PublicKeyCredential)) return;
+      const data = await verifyPasskeyAuthentication(
+        begin.challenge_id,
+        credentialToJson(credential),
+      );
+      onLogin(data.user, data.csrf_token);
+    } catch {
+      setError(t("auth.passkeyFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -69,6 +102,12 @@ export default function LoginScreen({
               value={email}
             />
           </label>
+          {totpRequired && (
+            <label>
+              {t("auth.authenticatorCode")}
+              <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} onChange={(event) => setTotpCode(event.target.value)} required value={totpCode} />
+            </label>
+          )}
           <label>
             {t("auth.password")}
             <input
@@ -84,6 +123,9 @@ export default function LoginScreen({
           {error && <p className="login-error">{error}</p>}
           <button className="login-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? t("auth.verifying") : t("auth.signIn")}
+          </button>
+          <button className="secondary-login-button" disabled={isSubmitting || !email} onClick={() => void signInWithPasskey()} type="button">
+            <KeyRound size={17} /> {t("auth.signInWithPasskey")}
           </button>
         </form>
       </section>

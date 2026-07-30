@@ -66,7 +66,3 @@ export function downloadJson(filename: string, payload: unknown) {
   link.click();
   URL.revokeObjectURL(url);
 }
-
-export function countsSummary(counts: BackupCounts) {
-  return `${counts.devices} dispositivos, ${counts.ip_addresses} IPs, ${counts.networks} subredes, ${counts.vlans} VLANs y ${counts.services} servicios`;
-}

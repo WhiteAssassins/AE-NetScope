@@ -1,10 +1,10 @@
 import { Download, FileJson, RotateCcw, Table, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import {
   type BackupCounts,
   type BackupPreview,
-  countsSummary,
   downloadJson,
   previewBackup,
   restoreBackupPayload,
@@ -20,12 +20,12 @@ type ImportExportViewProps = {
 type DataSection = "backup" | "restore" | "csv";
 
 const csvExports = [
-  { resource: "devices", label: "Dispositivos" },
-  { resource: "ip-addresses", label: "IPs y MACs" },
-  { resource: "networks", label: "Subredes" },
-  { resource: "vlans", label: "VLANs" },
-  { resource: "services", label: "Servicios" },
-  { resource: "interfaces", label: "Interfaces" },
+  { resource: "devices", labelKey: "devices.title" },
+  { resource: "ip-addresses", labelKey: "ipMacs.title" },
+  { resource: "networks", labelKey: "networks.title" },
+  { resource: "vlans", labelKey: "vlans.title" },
+  { resource: "services", labelKey: "services.title" },
+  { resource: "interfaces", labelKey: "devices.interfaces" },
 ];
 
 export default function ImportExportView({
@@ -33,6 +33,7 @@ export default function ImportExportView({
   onImported,
   permissions,
 }: ImportExportViewProps) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSection, setActiveSection] = useState<DataSection>("backup");
   const [message, setMessage] = useState("");
@@ -55,18 +56,29 @@ export default function ImportExportView({
     setPendingPayload(null);
     setPreview(null);
     setIsPreviewing(true);
+    let payload: unknown;
     try {
-      const payload = JSON.parse(await file.text()) as unknown;
+      payload = JSON.parse(await file.text()) as unknown;
+    } catch {
+      setError(t("data.errors.invalidJson"));
+      setIsPreviewing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    try {
       const nextPreview = await previewBackup(payload, csrfToken);
       setPreview(nextPreview);
       if (nextPreview.valid) {
         setPendingPayload(payload);
-        setMessage("Backup validado. Revisa el preview antes de restaurar.");
+        setMessage(t("data.previewReady"));
       } else {
-        setError("El backup no paso la validacion. Revisa los detalles antes de continuar.");
+        setError(t("data.errors.validation"));
       }
     } catch {
-      setError("El archivo no parece ser un JSON valido de AE NetScope.");
+      setError(t("data.errors.preview"));
     } finally {
       setIsPreviewing(false);
       if (fileInputRef.current) {
@@ -88,12 +100,20 @@ export default function ImportExportView({
       downloadJson(data.previous_backup_filename, data.previous_backup);
       await onImported();
       setMessage(
-        `Backup restaurado: ${countsSummary(data.counts)}. Se descargo un backup previo automatico.`,
+        t("data.restored", {
+          counts: t("data.countsSummary", {
+            devices: data.counts.devices,
+            ips: data.counts.ip_addresses,
+            networks: data.counts.networks,
+            vlans: data.counts.vlans,
+            services: data.counts.services,
+          }),
+        }),
       );
       setPendingPayload(null);
       setPreview(null);
     } catch {
-      setError("No se pudo restaurar el backup validado.");
+      setError(t("data.errors.restore"));
     } finally {
       setIsImporting(false);
     }
@@ -102,8 +122,8 @@ export default function ImportExportView({
   if (!canReadInventory) {
     return (
       <div className="page-title">
-        <h1>Datos</h1>
-        <p>No tienes permisos para exportar inventario.</p>
+        <h1>{t("data.title")}</h1>
+        <p>{t("data.noPermission")}</p>
       </div>
     );
   }
@@ -111,19 +131,19 @@ export default function ImportExportView({
   return (
     <>
       <div className="page-title">
-        <h1>Datos</h1>
-        <p>Backups, restauracion y exportaciones portables del inventario.</p>
+        <h1>{t("data.title")}</h1>
+        <p>{t("data.description")}</p>
       </div>
 
       <section className="panel data-workspace">
-        <div className="data-tabs" role="tablist" aria-label="Herramientas de datos">
+        <div className="data-tabs" role="tablist" aria-label={t("data.toolsLabel")}>
           <button
             className={activeSection === "backup" ? "data-tab active" : "data-tab"}
             onClick={() => setActiveSection("backup")}
             role="tab"
             type="button"
           >
-            Backup JSON
+            {t("data.backupTab")}
           </button>
           <button
             className={activeSection === "restore" ? "data-tab active" : "data-tab"}
@@ -131,7 +151,7 @@ export default function ImportExportView({
             role="tab"
             type="button"
           >
-            Restaurar
+            {t("data.restoreTab")}
           </button>
           <button
             className={activeSection === "csv" ? "data-tab active" : "data-tab"}
@@ -139,7 +159,7 @@ export default function ImportExportView({
             role="tab"
             type="button"
           >
-            Exportar CSV
+            {t("data.csvTab")}
           </button>
         </div>
 
@@ -147,15 +167,12 @@ export default function ImportExportView({
           <article className="export-card data-section">
             <FileJson size={28} strokeWidth={1.8} />
             <div>
-              <h2>Inventario completo JSON</h2>
-              <p>
-                Descarga un backup portable con dispositivos, interfaces, IPs, subredes, VLANs y
-                servicios.
-              </p>
+              <h2>{t("data.fullBackupTitle")}</h2>
+              <p>{t("data.fullBackupDescription")}</p>
             </div>
             <button className="primary-action" onClick={() => openExport("/inventory/export.json")}>
               <Download size={18} strokeWidth={2} />
-              Descargar backup
+              {t("data.downloadBackup")}
             </button>
           </article>
         )}
@@ -164,8 +181,8 @@ export default function ImportExportView({
           <article className="export-card data-section">
             <RotateCcw size={28} strokeWidth={1.8} />
             <div>
-              <h2>Restaurar backup JSON</h2>
-              <p>Valida el archivo, muestra un preview y descarga un backup previo automatico.</p>
+              <h2>{t("data.restoreTitle")}</h2>
+              <p>{t("data.restoreDescription")}</p>
             </div>
             <input
               accept="application/json,.json"
@@ -185,12 +202,16 @@ export default function ImportExportView({
               onClick={() => fileInputRef.current?.click()}
               title={
                 canRestoreInventory
-                  ? "Restaurar inventario desde JSON"
-                  : "Solo administradores pueden restaurar backups"
+                  ? t("data.restoreTitleAttr")
+                  : t("data.adminOnly")
               }
             >
               <Upload size={18} strokeWidth={2} />
-              {isPreviewing ? "Validando..." : isImporting ? "Restaurando..." : "Subir backup"}
+              {isPreviewing
+                ? t("data.validating")
+                : isImporting
+                  ? t("data.restoring")
+                  : t("data.uploadBackup")}
             </button>
           </article>
         )}
@@ -199,8 +220,8 @@ export default function ImportExportView({
           <article className="export-card export-card-wide data-section">
             <Table size={28} strokeWidth={1.8} />
             <div>
-              <h2>CSV por tabla</h2>
-              <p>Descargas individuales para trabajar en hojas de calculo o reportes.</p>
+              <h2>{t("data.csvTitle")}</h2>
+              <p>{t("data.csvDescription")}</p>
             </div>
             <div className="export-actions">
               {csvExports.map((item) => (
@@ -209,7 +230,7 @@ export default function ImportExportView({
                   key={item.resource}
                   onClick={() => openExport(`/inventory/export/${item.resource}.csv`)}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </button>
               ))}
             </div>
@@ -221,23 +242,20 @@ export default function ImportExportView({
         <section className="panel import-preview">
           <div className="import-preview-head">
             <div>
-              <h2>Preview de restauracion</h2>
-              <p>
-                El inventario actual sera reemplazado. Usuarios, sesiones y secretos no se
-                modifican.
-              </p>
+              <h2>{t("data.previewTitle")}</h2>
+              <p>{t("data.previewDescription")}</p>
             </div>
             <span className={`mini-pill ${preview.valid ? "green" : "orange"}`}>
-              {preview.valid ? "Valido" : "Revisar"}
+              {t(preview.valid ? "data.valid" : "data.review")}
             </span>
           </div>
           <div className="import-preview-grid">
-            <PreviewCount label="Actual" counts={preview.current_counts} />
-            <PreviewCount label="Backup" counts={preview.counts} />
+            <PreviewCount label={t("data.current")} counts={preview.current_counts} />
+            <PreviewCount label={t("data.backupLabel")} counts={preview.counts} />
           </div>
           {preview.errors.length > 0 && (
             <div className="import-preview-list">
-              <strong>Errores</strong>
+              <strong>{t("data.errorsTitle")}</strong>
               {preview.errors.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -245,7 +263,7 @@ export default function ImportExportView({
           )}
           {preview.warnings.length > 0 && (
             <div className="import-preview-list">
-              <strong>Advertencias</strong>
+              <strong>{t("data.warningsTitle")}</strong>
               {preview.warnings.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -256,20 +274,20 @@ export default function ImportExportView({
             disabled={!preview.valid || isImporting}
             onClick={() => confirmImport().catch(() => undefined)}
           >
-            Reemplazar inventario
+            {t("data.replaceInventory")}
           </button>
         </section>
       )}
 
       <section className="panel backup-notes">
-        <h2>Alcance del backup</h2>
+        <h2>{t("data.scopeTitle")}</h2>
         <div className="backup-scope-grid">
-          <span className="mini-pill green">Incluye inventario</span>
-          <span className="mini-pill green">Incluye IPs y MACs</span>
-          <span className="mini-pill green">Incluye servicios</span>
-          <span className="mini-pill gray">No incluye usuarios</span>
-          <span className="mini-pill gray">No incluye sesiones</span>
-          <span className="mini-pill gray">No incluye secretos</span>
+          <span className="mini-pill green">{t("data.scope.inventory")}</span>
+          <span className="mini-pill green">{t("data.scope.ipMacs")}</span>
+          <span className="mini-pill green">{t("data.scope.services")}</span>
+          <span className="mini-pill gray">{t("data.scope.noUsers")}</span>
+          <span className="mini-pill gray">{t("data.scope.noSessions")}</span>
+          <span className="mini-pill gray">{t("data.scope.noSecrets")}</span>
         </div>
       </section>
 
@@ -281,14 +299,16 @@ export default function ImportExportView({
 }
 
 function PreviewCount({ counts, label }: { counts: BackupCounts; label: string }) {
+  const { t } = useTranslation();
+
   return (
     <div className="import-preview-count">
       <strong>{label}</strong>
-      <span>{counts.devices} dispositivos</span>
-      <span>{counts.ip_addresses} IPs</span>
-      <span>{counts.networks} subredes</span>
-      <span>{counts.vlans} VLANs</span>
-      <span>{counts.services} servicios</span>
+      <span>{t("devices.count", { count: counts.devices })}</span>
+      <span>{t("data.ipCount", { count: counts.ip_addresses })}</span>
+      <span>{t("networks.count", { count: counts.networks })}</span>
+      <span>{t("vlans.count", { count: counts.vlans })}</span>
+      <span>{t("services.count", { count: counts.services })}</span>
     </div>
   );
 }

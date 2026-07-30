@@ -6,6 +6,39 @@ export type User = {
   permissions: string[];
   must_change_password: boolean;
   preferred_language: string;
+  timezone?: string;
+  date_format?: "locale" | "ymd" | "dmy" | "mdy";
+  hour_format?: "12" | "24";
+  totp_enabled?: boolean;
+};
+
+export type OwnSession = {
+  id: number;
+  user_agent: string | null;
+  ip_address: string | null;
+  created_at: string;
+  expires_at: string;
+  is_current: boolean;
+};
+
+export type PasskeyCredential = {
+  id: number;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+export type PasskeyCapability = { enabled: boolean; reason: string | null };
+export type MaintenanceStatus = { enabled: boolean; message: string };
+export type SearchIndexingPolicy = { allow_indexing: boolean };
+export type UpdateHistoryItem = {
+  id: number;
+  requested_by_user_id: number | null;
+  requested_by: string | null;
+  target_tag: string;
+  status: string;
+  message: string | null;
+  created_at: string;
 };
 
 export type ManagedUser = {
@@ -18,6 +51,9 @@ export type ManagedUser = {
   locked_until: string | null;
   last_login_at: string | null;
   created_at: string;
+  active_session_count: number;
+  totp_enabled: boolean;
+  passkey_count: number;
 };
 
 export type UserRole = ManagedUser["role"];
@@ -144,6 +180,36 @@ export type InterfaceRecord = {
   device_name: string;
 };
 
+export type InventoryQualitySeverity = "critical" | "warning" | "info";
+
+export type InventoryQualityIssue = {
+  code: string;
+  severity: InventoryQualitySeverity;
+  resource_type: "device" | "ip_address" | "network" | "vlan";
+  resource_id: number;
+  resource_name: string;
+  context: Record<string, string | number>;
+};
+
+export type InventoryQualityReport = {
+  score: number;
+  status: "empty" | "critical" | "attention" | "good" | "excellent";
+  records_reviewed: number;
+  checks_completed: number;
+  checks_passed: number;
+  issue_counts: Record<InventoryQualitySeverity, number>;
+  issues_total: number;
+  issues_truncated: boolean;
+  issues: InventoryQualityIssue[];
+  relationships: {
+    device_ip_links: number;
+    ip_network_links: number;
+    network_vlan_links: number;
+    disconnected_devices: number;
+    unassigned_ips: number;
+  };
+};
+
 export type IpMacRecord = {
   id: number;
   address: string;
@@ -181,6 +247,13 @@ export type VersionInfo = {
   release_notes_url: string;
 };
 
+export type RepositoryInfo = {
+  html_url: string;
+  stargazers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+};
+
 export type GitHubReleaseInfo = {
   tag_name: string;
   html_url: string;
@@ -188,6 +261,11 @@ export type GitHubReleaseInfo = {
   prerelease: boolean;
   draft: boolean;
   published_at: string | null;
+};
+
+export type GitHubReleaseDetails = GitHubReleaseInfo & {
+  body: string | null;
+  body_truncated: boolean;
 };
 
 export type UpdateCapability = {
@@ -233,6 +311,7 @@ export type ViewName =
   | "ipMacs"
   | "networks"
   | "topology"
+  | "quality"
   | "vlans"
   | "services"
   | "hardware"
@@ -246,4 +325,5 @@ export type ViewName =
   | "health"
   | "updates"
   | "settings"
+  | "about"
   | "support";

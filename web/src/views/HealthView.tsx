@@ -10,6 +10,7 @@ import {
 import type { TFunction } from "i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { formatDateTime } from "../dateTime";
 import { API_BASE_URL, fetchHealthStatus } from "../api";
 import type { HealthCheckStatus, HealthStatus } from "../types";
 
@@ -273,8 +274,5 @@ function formatCheckedAt(value: string | undefined, language: string | undefined
   if (!value) {
     return "-";
   }
-  return new Intl.DateTimeFormat(language, {
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(new Date(value));
+  return formatDateTime(value, language);
 }

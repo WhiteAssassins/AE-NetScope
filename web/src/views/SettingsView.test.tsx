@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { User } from "../types";
 import SettingsView from "./SettingsView";
 
+vi.mock("../components/SecuritySettings", () => ({ default: () => null }));
+vi.mock("../components/AdminSettings", () => ({ default: () => null }));
+
 const currentUser: User = {
   id: 1,
   email: "admin@example.com",
@@ -41,13 +44,22 @@ describe("SettingsView", () => {
     expect(screen.getByLabelText("Preferred start view")).toHaveValue("dashboard");
     expect(screen.getByLabelText(/compact tables/i)).not.toBeChecked();
     expect(screen.getByLabelText(/show early public preview/i)).toBeChecked();
+    expect(screen.getByLabelText(/start with the sidebar collapsed/i)).not.toBeChecked();
+    expect(screen.getByLabelText(/reduce interface motion/i)).not.toBeChecked();
+    expect(screen.getByLabelText(/show system status in the top bar/i)).toBeChecked();
+    expect(screen.getByLabelText(/show GitHub in the top bar/i)).toBeChecked();
+    expect(screen.getByLabelText(/show application footer/i)).toBeChecked();
+    expect(screen.getByText("Time zone")).toBeInTheDocument();
+    expect(screen.getByText("Date format")).toBeInTheDocument();
+    expect(screen.getByText("Time format")).toBeInTheDocument();
   });
 
   it("persists browser settings without an unnecessary language request", async () => {
     const user = userEvent.setup();
     const listener = vi.fn();
     const onUserChanged = vi.fn();
-    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ user: currentUser })));
+    const fetchMock = vi.fn<typeof fetch>();
+    fetchMock.mockResolvedValue(jsonResponse({ user: currentUser }));
     vi.stubGlobal("fetch", fetchMock);
     window.addEventListener("ae-netscope-settings-changed", listener);
 
@@ -61,17 +73,22 @@ describe("SettingsView", () => {
 
     await user.selectOptions(screen.getByLabelText("Preferred start view"), "devices");
     await user.click(screen.getByLabelText(/compact tables/i));
+    await user.click(screen.getByLabelText(/reduce interface motion/i));
+    await user.click(screen.getByLabelText(/show GitHub in the top bar/i));
     await user.click(screen.getByRole("button", { name: /save settings/i }));
 
     await waitFor(() => expect(screen.getByText("Settings saved.")).toBeInTheDocument());
     expect(JSON.parse(window.localStorage.getItem("ae-netscope-settings") ?? "{}")).toMatchObject({
       defaultView: "devices",
       compactTables: true,
+      reducedMotion: true,
+      showGitHubButton: false,
       showPreviewNotice: true,
     });
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(onUserChanged).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/auth/preferences");
+    expect(onUserChanged).toHaveBeenCalledWith(currentUser);
 
     window.removeEventListener("ae-netscope-settings-changed", listener);
   });

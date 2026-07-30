@@ -4,6 +4,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.config import settings
+from app.services import search_indexing
 
 
 async def security_headers_middleware(
@@ -11,12 +12,21 @@ async def security_headers_middleware(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     response = await call_next(request)
-    sensitive_prefixes = ("/api/auth", "/api/users", "/api/inventory", "/api/audit")
-    sensitive_paths = {"/api/health/status"}
+    sensitive_prefixes = (
+        "/api/auth",
+        "/api/users",
+        "/api/inventory",
+        "/api/audit",
+        "/api/security",
+    )
+    sensitive_paths = {"/api/health/status", "/api/version/update-history"}
     if request.url.path.startswith(sensitive_prefixes) or request.url.path in sensitive_paths:
         response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("Pragma", "no-cache")
         response.headers.setdefault("Vary", "Cookie")
+
+    if not await search_indexing.is_search_engine_indexing_allowed():
+        response.headers.setdefault("X-Robots-Tag", "noindex, nofollow, noarchive")
 
     if not settings.security_headers_enabled:
         return response
@@ -24,7 +34,13 @@ async def security_headers_middleware(
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        (
+            "camera=(), microphone=(), geolocation=(), "
+            "publickey-credentials-create=(self), publickey-credentials-get=(self)"
+        ),
+    )
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
     response.headers.setdefault(

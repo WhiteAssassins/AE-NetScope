@@ -1,8 +1,10 @@
 import { KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { User } from "../types";
+import { roleLabel } from "../utils";
 
 type ProfileViewProps = {
   csrfToken: string;
@@ -17,6 +19,7 @@ export default function ProfileView({
   onUserChanged,
   user,
 }: ProfileViewProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState(user.email);
   const [emailPassword, setEmailPassword] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
@@ -42,8 +45,8 @@ export default function ProfileView({
       if (!response.ok) {
         setEmailError(
           response.status === 409
-            ? "Ese correo ya esta en uso."
-            : "No se pudo cambiar el correo. Verifica tu contrasena.",
+            ? t("profile.emailConflict")
+            : t("profile.emailChangeFailed"),
         );
         return;
       }
@@ -52,9 +55,9 @@ export default function ProfileView({
       onUserChanged(data.user);
       setEmail(data.user.email);
       setEmailPassword("");
-      setEmailMessage("Correo actualizado correctamente.");
+      setEmailMessage(t("profile.emailChanged"));
     } catch {
-      setEmailError("No se pudo conectar con la API.");
+      setEmailError(t("auth.apiUnavailable"));
     } finally {
       setIsEmailSaving(false);
     }
@@ -64,12 +67,12 @@ export default function ProfileView({
     <>
       <div className="page-title page-title-row">
         <div>
-          <h1>Perfil</h1>
-          <p>Cuenta, correo, contrasena y permisos activos.</p>
+          <h1>{t("profile.title")}</h1>
+          <p>{t("profile.description")}</p>
         </div>
         <button className="primary-action" onClick={onChangePassword}>
           <KeyRound size={18} strokeWidth={2} />
-          Cambiar contrasena
+          {t("profile.changePassword")}
         </button>
       </div>
 
@@ -81,20 +84,22 @@ export default function ProfileView({
             <p>{user.email}</p>
           </div>
           <div className="profile-meta">
-            <span className="mini-pill blue">{user.role}</span>
-            <span className="mini-pill green">{user.permissions.length} permisos</span>
+            <span className="mini-pill blue">{roleLabel(user.role, t)}</span>
+            <span className="mini-pill green">
+              {t("profile.permissionCount", { count: user.permissions.length })}
+            </span>
           </div>
         </article>
 
         <article className="panel profile-card">
           <Mail size={30} strokeWidth={1.8} />
           <div>
-            <h2>Correo de la cuenta</h2>
-            <p>Cambia el correo con el que inicias sesion. Requiere tu contrasena actual.</p>
+            <h2>{t("profile.accountEmail")}</h2>
+            <p>{t("profile.accountEmailDescription")}</p>
           </div>
           <form className="account-settings-form" onSubmit={saveEmail}>
             <input
-              aria-label="Nuevo correo"
+              aria-label={t("profile.newEmail")}
               autoComplete="email"
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -102,16 +107,16 @@ export default function ProfileView({
               value={email}
             />
             <input
-              aria-label="Contrasena actual para cambiar correo"
+              aria-label={t("profile.currentPasswordForEmail")}
               autoComplete="current-password"
               onChange={(event) => setEmailPassword(event.target.value)}
-              placeholder="Contrasena actual"
+              placeholder={t("changePassword.currentPassword")}
               required
               type="password"
               value={emailPassword}
             />
             <button className="user-action" disabled={isEmailSaving} type="submit">
-              {isEmailSaving ? "Guardando..." : "Cambiar correo"}
+              {isEmailSaving ? t("common.saving") : t("profile.changeEmail")}
             </button>
             {emailMessage && <p className="form-success">{emailMessage}</p>}
             {emailError && <p className="login-error">{emailError}</p>}
@@ -122,13 +127,13 @@ export default function ProfileView({
       <section className="panel permissions-panel">
         <div className="permissions-table">
           <div className="permissions-row permissions-head">
-            <strong>Permisos activos</strong>
-            <strong>Estado</strong>
+            <strong>{t("profile.activePermissions")}</strong>
+            <strong>{t("profile.status")}</strong>
           </div>
           {user.permissions.map((permission) => (
             <div className="permissions-row" key={permission}>
               <span>{permission}</span>
-              <span className="mini-pill green">Permitido</span>
+              <span className="mini-pill green">{t("profile.allowed")}</span>
             </div>
           ))}
         </div>

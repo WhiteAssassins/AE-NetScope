@@ -36,7 +36,7 @@ describe("ProfileView", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Perfil" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
     expect(screen.getByText("admin@example.com")).toBeInTheDocument();
     expect(screen.getByText("inventory:read")).toBeInTheDocument();
     expect(screen.getByText("users:manage")).toBeInTheDocument();
@@ -69,10 +69,10 @@ describe("ProfileView", () => {
     const emailInput = screen.getByDisplayValue("admin@example.com");
     await user.clear(emailInput);
     await user.type(emailInput, "admin@aewhitedevs.com");
-    await user.type(screen.getByPlaceholderText("Contrasena actual"), "correct-password");
-    await user.click(screen.getByRole("button", { name: "Cambiar correo" }));
+    await user.type(screen.getByPlaceholderText("Current password"), "correct-password");
+    await user.click(screen.getByRole("button", { name: "Change email" }));
 
-    expect(await screen.findByText("Correo actualizado correctamente.")).toBeInTheDocument();
+    expect(await screen.findByText("Email updated successfully.")).toBeInTheDocument();
     expect(onUserChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: "admin@aewhitedevs.com" }),
     );

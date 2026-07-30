@@ -105,7 +105,7 @@ describe("DashboardView", () => {
   it("renders inventory summary, recent devices, and recent audit events", () => {
     renderDashboard();
 
-    expect(screen.getByRole("heading", { name: "Bienvenido, admin" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome, admin" })).toBeInTheDocument();
     expect(screen.getByText("Early Public Preview")).toBeInTheDocument();
     expect(screen.getByText("SW-Core-01")).toBeInTheDocument();
     expect(screen.getAllByText("10.0.0.0/24").length).toBeGreaterThan(0);
@@ -117,8 +117,8 @@ describe("DashboardView", () => {
     const props = renderDashboard();
 
     await testUser.click(screen.getByRole("button", { name: "SW-Core-01" }));
-    await testUser.click(screen.getByRole("button", { name: /Abrir topolog/i }));
-    await testUser.click(screen.getByRole("button", { name: /actualizaci/i }));
+    await testUser.click(screen.getByRole("button", { name: /Open topology/i }));
+    await testUser.click(screen.getByRole("button", { name: /Last updated/i }));
     await testUser.click(screen.getByRole("button", { name: "Login succeeded for admin@example.com" }));
 
     expect(props.onOpenDevice).toHaveBeenCalledWith(10);
@@ -136,8 +136,8 @@ describe("DashboardView", () => {
     });
 
     expect(screen.queryByText("Early Public Preview")).not.toBeInTheDocument();
-    expect(screen.getByText("No hay subredes registradas.")).toBeInTheDocument();
-    expect(screen.getByText("No hay cambios recientes para mostrar.")).toBeInTheDocument();
-    expect(screen.getByText(/Sin datos/)).toBeInTheDocument();
+    expect(screen.getByText("No subnets are registered.")).toBeInTheDocument();
+    expect(screen.getByText("There are no recent changes to display.")).toBeInTheDocument();
+    expect(screen.getByText(/No data/)).toBeInTheDocument();
   });
 });

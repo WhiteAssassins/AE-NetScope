@@ -14,7 +14,7 @@ const readyHealth = {
   status: "ready",
   service: "AE NetScope",
   environment: "local",
-  version: "0.1.7-alpha",
+  version: "0.1.8-alpha",
   release_channel: "alpha",
   checked_at: "2026-06-03T18:00:00Z",
   duration_ms: 8.4,
@@ -57,7 +57,7 @@ describe("HealthView", () => {
     render(<HealthView />);
 
     expect(screen.getByRole("heading", { name: "System status" })).toBeInTheDocument();
-    expect(await screen.findByText("v0.1.7-alpha")).toBeInTheDocument();
+    expect(await screen.findByText("v0.1.8-alpha")).toBeInTheDocument();
     expect(screen.getByText("3 of 3")).toBeInTheDocument();
     expect(screen.getByText("Database")).toBeInTheDocument();
     expect(screen.getByText("The database responded successfully.")).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("HealthView", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<HealthView />);
-    await screen.findByText("v0.1.7-alpha");
+    await screen.findByText("v0.1.8-alpha");
 
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
