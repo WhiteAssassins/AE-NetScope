@@ -267,7 +267,18 @@ export default function UsersView({
         setError(await userError(response, "update", t));
         return;
       }
-      setMessage(t("users.updated", { email: user.email }));
+      const updatedUser = (await response.json()) as ManagedUser;
+      setMessage(t("users.updated", { email: updatedUser.email }));
+      if (updatedUser.id === currentUser.id) {
+        onCurrentUserChanged({
+          ...currentUser,
+          email: updatedUser.email,
+          username: updatedUser.username,
+          role: updatedUser.role,
+          must_change_password: updatedUser.must_change_password,
+          totp_enabled: updatedUser.totp_enabled,
+        });
+      }
       const nextUsers = await loadUsers();
       const refreshed = nextUsers.find((item) => item.id === user.id);
       if (refreshed) {
