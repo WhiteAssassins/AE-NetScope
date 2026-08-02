@@ -45,6 +45,7 @@ export default function HealthView() {
         }
       } catch {
         if (requestId === requestIdRef.current) {
+          setHealth(null);
           setError(t("health.loadError"));
         }
       } finally {

@@ -90,7 +90,13 @@ describe("UsersView", () => {
 
   it("shows operational summaries, security state, and working filters", async () => {
     const user = userEvent.setup();
-    render(<UsersView csrfToken="csrf" currentUser={currentUser} />);
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
 
     expect(await screen.findByText("Total accounts")).toBeInTheDocument();
     expect(screen.getByText("MFA protected")).toBeInTheDocument();
@@ -127,7 +133,13 @@ describe("UsersView", () => {
       );
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(<UsersView csrfToken="csrf-token" currentUser={currentUser} />);
+    render(
+      <UsersView
+        csrfToken="csrf-token"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
 
     const viewerRow = (await screen.findByText("viewer@example.com")).closest("tr");
     expect(viewerRow).not.toBeNull();
@@ -186,7 +198,13 @@ describe("UsersView", () => {
       }),
     );
 
-    render(<UsersView csrfToken="csrf" currentUser={currentUser} />);
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
     await user.click(await screen.findByRole("button", { name: "New user" }));
     await user.type(screen.getByLabelText("Email"), "new@example.com");
     await user.type(screen.getByLabelText("Username"), "new-user");
@@ -200,7 +218,13 @@ describe("UsersView", () => {
 
   it("protects the current administrator role and account status", async () => {
     const user = userEvent.setup();
-    render(<UsersView csrfToken="csrf" currentUser={currentUser} />);
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
 
     const adminRow = (await screen.findByText("admin@example.com")).closest("tr");
     await user.click(within(adminRow!).getByRole("button", { name: "Manage" }));
@@ -209,5 +233,90 @@ describe("UsersView", () => {
     expect(within(managementPanel!).getByLabelText("Role")).toBeDisabled();
     expect(within(managementPanel!).getByLabelText(/Active account/i)).toBeDisabled();
     expect(screen.getByText(/use another administrator/i)).toBeInTheDocument();
+  });
+
+  it("keeps only sessions from the latest selected user", async () => {
+    const user = userEvent.setup();
+    const pendingSessions = new Map<number, (response: Response) => void>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) => {
+        const url = requestUrl(input);
+        const match = url.match(/\/users\/(\d+)\/sessions$/);
+        if (match) {
+          return new Promise<Response>((resolve) => {
+            pendingSessions.set(Number(match[1]), resolve);
+          });
+        }
+        return Promise.resolve(jsonResponse(managedUsers));
+      }),
+    );
+
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
+
+    const adminRow = (await screen.findByText("admin@example.com")).closest("tr");
+    const viewerRow = screen.getByText("viewer@example.com").closest("tr");
+    await user.click(within(adminRow!).getByRole("button", { name: "Manage" }));
+    await user.click(within(viewerRow!).getByRole("button", { name: "Manage" }));
+
+    pendingSessions.get(2)?.(
+      jsonResponse([{ ...sessions[0], id: 22, user_id: 2, ip_address: "10.0.0.22" }]),
+    );
+    expect(await screen.findByText("10.0.0.22")).toBeInTheDocument();
+
+    pendingSessions.get(1)?.(jsonResponse(sessions));
+    await Promise.resolve();
+    expect(screen.queryByText("10.0.0.12")).not.toBeInTheDocument();
+    expect(screen.getByText("10.0.0.22")).toBeInTheDocument();
+  });
+
+  it("updates the authenticated user after editing the current account", async () => {
+    const user = userEvent.setup();
+    const onCurrentUserChanged = vi.fn();
+    const updatedAdmin = {
+      ...managedUsers[0],
+      email: "owner@example.com",
+      username: "owner",
+    };
+    let updated = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = requestUrl(input);
+        if (url.endsWith("/users/1") && init?.method === "PATCH") {
+          updated = true;
+          return Promise.resolve(jsonResponse(updatedAdmin));
+        }
+        if (url.endsWith("/users/1/sessions")) return Promise.resolve(jsonResponse(sessions));
+        return Promise.resolve(jsonResponse(updated ? [updatedAdmin, managedUsers[1]] : managedUsers));
+      }),
+    );
+
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={onCurrentUserChanged}
+      />,
+    );
+
+    const adminRow = (await screen.findByText("admin@example.com")).closest("tr");
+    await user.click(within(adminRow!).getByRole("button", { name: "Manage" }));
+    const managementPanel = screen.getByRole("heading", { name: "admin" }).closest("aside");
+    await user.clear(within(managementPanel!).getByLabelText("Email"));
+    await user.type(within(managementPanel!).getByLabelText("Email"), "owner@example.com");
+    await user.clear(within(managementPanel!).getByLabelText("Username"));
+    await user.type(within(managementPanel!).getByLabelText("Username"), "owner");
+    await user.click(within(managementPanel!).getByRole("button", { name: "Save" }));
+
+    expect(onCurrentUserChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "owner@example.com", username: "owner" }),
+    );
   });
 });

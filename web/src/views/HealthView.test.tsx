@@ -126,4 +126,22 @@ describe("HealthView", () => {
     expect(await screen.findByText("System status could not be loaded.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
+
+  it("does not present stale health data as ready after a refresh fails", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(readyHealth))
+      .mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HealthView />);
+    expect(await screen.findByText("v0.1.8-alpha")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByText("System status could not be loaded.")).toBeInTheDocument();
+    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("v0.1.8-alpha")).not.toBeInTheDocument();
+  });
 });

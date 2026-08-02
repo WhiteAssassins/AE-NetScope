@@ -14,7 +14,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
@@ -26,6 +26,7 @@ type UsersViewProps = {
   csrfToken: string;
   currentUser: User;
   focusUserId?: number;
+  onCurrentUserChanged: (user: User) => void;
 };
 
 type UserStatusFilter = "all" | "active" | "inactive" | "locked";
@@ -38,7 +39,12 @@ type UserEditForm = {
 
 const emptyCreateForm = { email: "", username: "", role: "viewer" as UserRole };
 
-export default function UsersView({ csrfToken, currentUser, focusUserId }: UsersViewProps) {
+export default function UsersView({
+  csrfToken,
+  currentUser,
+  focusUserId,
+  onCurrentUserChanged,
+}: UsersViewProps) {
   const { i18n, t } = useTranslation();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [query, setQuery] = useState("");
@@ -60,9 +66,49 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [busyAction, setBusyAction] = useState("");
+  const selectedUserIdRef = useRef<number | null>(null);
+  const sessionRequestIdRef = useRef(0);
   const canManageUsers = hasPermission(currentUser.permissions, "users:manage");
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
   const activeAdminCount = users.filter((user) => user.role === "admin" && user.is_active).length;
+
+  const loadSessions = useCallback(
+    async (user: ManagedUser) => {
+      if (selectedUserIdRef.current !== user.id) return;
+
+      const requestId = ++sessionRequestIdRef.current;
+      setSessions([]);
+      setSessionsLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/${user.id}/sessions`, {
+          credentials: "include",
+        });
+        if (!response.ok) throw new Error("sessions");
+        const nextSessions = (await response.json()) as ManagedUserSession[];
+        if (
+          requestId === sessionRequestIdRef.current &&
+          selectedUserIdRef.current === user.id
+        ) {
+          setSessions(nextSessions);
+        }
+      } catch {
+        if (
+          requestId === sessionRequestIdRef.current &&
+          selectedUserIdRef.current === user.id
+        ) {
+          setError(t("users.errors.loadSessions"));
+        }
+      } finally {
+        if (
+          requestId === sessionRequestIdRef.current &&
+          selectedUserIdRef.current === user.id
+        ) {
+          setSessionsLoading(false);
+        }
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     loadUsers().catch(() => setError(t("users.errors.load")));
@@ -75,18 +121,19 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
     queueMicrotask(() => {
       setQuery(focusedUser.email);
       setShowForm(false);
+      selectedUserIdRef.current = focusedUser.id;
       setSelectedUserId(focusedUser.id);
       setEditForm(toEditForm(focusedUser));
-      setSessionsLoading(true);
-      fetch(`${API_BASE_URL}/users/${focusedUser.id}/sessions`, { credentials: "include" })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("sessions");
-          setSessions((await response.json()) as ManagedUserSession[]);
-        })
-        .catch(() => setError(t("users.errors.loadSessions")))
-        .finally(() => setSessionsLoading(false));
+      void loadSessions(focusedUser);
     });
-  }, [focusUserId, selectedUserId, t, users]);
+  }, [focusUserId, loadSessions, selectedUserId, users]);
+
+  useEffect(
+    () => () => {
+      sessionRequestIdRef.current += 1;
+    },
+    [],
+  );
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredUsers = users.filter((user) => {
@@ -121,23 +168,9 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
     }
   }
 
-  async function loadSessions(user: ManagedUser) {
-    setSessionsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/${user.id}/sessions`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("sessions");
-      setSessions((await response.json()) as ManagedUserSession[]);
-    } catch {
-      setError(t("users.errors.loadSessions"));
-    } finally {
-      setSessionsLoading(false);
-    }
-  }
-
   async function openUser(user: ManagedUser) {
     setShowForm(false);
+    selectedUserIdRef.current = user.id;
     setSelectedUserId(user.id);
     setEditForm(toEditForm(user));
     setError("");
@@ -145,6 +178,8 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
   }
 
   function openCreateForm() {
+    selectedUserIdRef.current = null;
+    sessionRequestIdRef.current += 1;
     setSelectedUserId(null);
     setEditForm(null);
     setSessions([]);
@@ -591,9 +626,12 @@ export default function UsersView({ csrfToken, currentUser, focusUserId }: Users
             <PanelHeading
               title={selectedUser.username}
               onClose={() => {
+                selectedUserIdRef.current = null;
+                sessionRequestIdRef.current += 1;
                 setSelectedUserId(null);
                 setEditForm(null);
                 setSessions([]);
+                setSessionsLoading(false);
               }}
             />
             <div className="user-panel-meta">

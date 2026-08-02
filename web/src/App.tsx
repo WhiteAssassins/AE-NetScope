@@ -1041,6 +1041,7 @@ function App() {
             csrfToken={csrfToken}
             currentUser={currentUser}
             focusUserId={focusTarget?.view === "users" ? focusTarget.id : undefined}
+            onCurrentUserChanged={setUser}
           />
         </Suspense>
       );
