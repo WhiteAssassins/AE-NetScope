@@ -1,6 +1,6 @@
 services:
   ae-netscope:
-    image: ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha
     depends_on:
       postgres:
         condition: service_healthy

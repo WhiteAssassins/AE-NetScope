@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   defaultLocalSettings,
   LOCAL_SETTINGS_STORAGE_KEY,
@@ -32,9 +32,23 @@ describe("local interface settings", () => {
 
   it("writes complete settings", () => {
     const settings = { ...defaultLocalSettings, reducedMotion: true, showFooter: false };
-    writeLocalSettings(settings);
+    expect(writeLocalSettings(settings)).toBe(true);
     expect(JSON.parse(window.localStorage.getItem(LOCAL_SETTINGS_STORAGE_KEY) ?? "{}")).toEqual(
       settings,
     );
+  });
+
+  it("uses defaults and reports writes that are blocked by the browser", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    expect(readLocalSettings()).toEqual(defaultLocalSettings);
+    getItem.mockRestore();
+
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    expect(writeLocalSettings(defaultLocalSettings)).toBe(false);
+    setItem.mockRestore();
   });
 });

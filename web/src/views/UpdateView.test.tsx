@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UpdateView from "./UpdateView";
@@ -101,6 +101,47 @@ describe("UpdateView", () => {
     expect(screen.getByText(/stable release/i)).toBeInTheDocument();
     expect(screen.getAllByText(/prerelease/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/PostgreSQL backup/i)).toBeInTheDocument();
+  });
+
+  it("ignores an older update response after a newer check completes", async () => {
+    const pendingUpdates: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string | URL | Request) => {
+        if (requestUrl(url).includes("/version/updates")) {
+          return new Promise<Response>((resolve) => pendingUpdates.push(resolve));
+        }
+        return Promise.resolve(jsonResponse(installedVersion));
+      }),
+    );
+    const newerVersion = { ...installedVersion, version: "0.1.8-alpha" };
+    const { rerender } = render(
+      <UpdateView
+        csrfToken="csrf"
+        initialVersionInfo={installedVersion}
+        permissions={["settings:manage"]}
+      />,
+    );
+    await waitFor(() => expect(pendingUpdates).toHaveLength(1));
+
+    rerender(
+      <UpdateView
+        csrfToken="csrf"
+        initialVersionInfo={newerVersion}
+        permissions={["settings:manage"]}
+      />,
+    );
+    await waitFor(() => expect(pendingUpdates).toHaveLength(2));
+
+    await act(async () => pendingUpdates[1](jsonResponse(updateStatus)));
+    expect(await screen.findByText("v0.1.8-alpha")).toBeInTheDocument();
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
+
+    await act(async () =>
+      pendingUpdates[0](jsonResponse({ ...updateStatus, update_available: true })),
+    );
+    expect(screen.getByText("v0.1.8-alpha")).toBeInTheDocument();
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
   });
 
   it("loads and filters recent changelogs only when requested", async () => {

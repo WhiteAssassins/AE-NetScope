@@ -59,14 +59,16 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
     setIsSaving(true);
     setMessage("");
     setError("");
-    writeLocalSettings(settings);
-    window.dispatchEvent(new Event("ae-netscope-settings-changed"));
-
     const persistedLanguage = isSupportedLanguage(user.preferred_language)
       ? user.preferred_language
       : DEFAULT_LANGUAGE;
+    let localSettingsSaved = false;
 
     try {
+      localSettingsSaved = writeLocalSettings(settings);
+      if (localSettingsSaved) {
+        window.dispatchEvent(new Event("ae-netscope-settings-changed"));
+      }
       const data = await updateAccountPreferences(
         { language, ...regional },
         csrfToken,
@@ -76,13 +78,21 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
         : DEFAULT_LANGUAGE;
       setSelectedLanguage(savedLanguage);
       await setLanguage(savedLanguage);
-      storeRegionalPreferences(regional);
+      const regionalPreferencesSaved = storeRegionalPreferences(regional);
       onUserChanged(data.user);
-      setMessage(t("settings.saved"));
+      if (localSettingsSaved && regionalPreferencesSaved) {
+        setMessage(t("settings.saved"));
+      } else {
+        setError(t("settings.browserStorageFailed"));
+      }
     } catch {
       setSelectedLanguage(persistedLanguage);
       await setLanguage(persistedLanguage);
-      setError(i18n.t("settings.localSavedLanguageFailed"));
+      setError(
+        i18n.t(
+          localSettingsSaved ? "settings.localSavedLanguageFailed" : "settings.saveFailed",
+        ),
+      );
     } finally {
       setIsSaving(false);
     }

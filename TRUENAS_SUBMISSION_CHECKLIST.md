@@ -99,7 +99,7 @@ Fuentes oficiales revisadas:
   - [x] `org.opencontainers.image.title`
   - [x] `org.opencontainers.image.description`
   - [x] `org.opencontainers.image.source`
-  - [x] `org.opencontainers.image.licenses` debe reflejar la licencia source-available propietaria de AE NetScope, no MIT/Apache/GPL.
+  - [x] `org.opencontainers.image.licenses` debe reflejar la licencia MIT de AE NetScope.
   - [x] `org.opencontainers.image.version`
 - [ ] Ejecutar escaneo de vulnerabilidades de la imagen.
 - [ ] Definir politica de actualizacion de tags.
@@ -284,9 +284,8 @@ Cuando trabajemos dentro del fork de `truenas/apps`, no deben commitearse:
 - [ ] Escaneo de secretos limpio.
 - [ ] Escaneo de vulnerabilidades revisado.
 - [ ] Documentacion publica actualizada.
-- [ ] Licencia visible y coherente con distribucion publica source-available propietaria.
-- [ ] Confirmar si TrueNAS acepta la licencia de AE NetScope antes de abrir PR final.
-- [ ] Confirmar que la publicacion en catalogo no concede derechos de reventa, sublicencia, hosting comercial o marketplace fuera del permiso escrito del propietario.
+- [ ] Licencia MIT visible y coherente en metadatos, imagen y documentacion publica.
+- [ ] Confirmar que el selector de idioma funciona y que la preferencia persiste tras reiniciar la app.
 - [ ] No hay datos personales o internos en screenshots, ejemplos o logs.
 - [ ] PR en TrueNAS explica que AE NetScope usa PostgreSQL y Redis.
 - [ ] PR incluye notas de instalacion si los mantenedores las necesitan.

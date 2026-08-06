@@ -41,13 +41,21 @@ export function isSupportedLanguage(value: unknown): value is string {
 }
 
 export function readStoredLanguage(): string {
-  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  return isSupportedLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+  try {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return isSupportedLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+  } catch {
+    return DEFAULT_LANGUAGE;
+  }
 }
 
 export async function setLanguage(language: string): Promise<string> {
   const resolved = isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE;
-  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, resolved);
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, resolved);
+  } catch {
+    // The interface language can still change when browser storage is unavailable.
+  }
   await i18n.changeLanguage(resolved);
   return resolved;
 }

@@ -32,12 +32,12 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.1.8-alpha"
+    assert response.json()["version"] == "0.1.9-alpha"
     assert response.json()["release_channel"] == "alpha"
     assert (
         response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
     )
-    assert response.json()["release_notes_url"].endswith("/tag/v0.1.8-alpha")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.1.9-alpha")
 
 
 async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
@@ -55,8 +55,8 @@ async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
                 draft=False,
             ),
             version_route.ReleaseDetails(
-                tag_name="v0.1.9-alpha",
-                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.9-alpha",
+                tag_name="v0.1.10-alpha",
+                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.10-alpha",
                 prerelease=True,
                 draft=False,
             ),
@@ -68,9 +68,55 @@ async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["latest_release"]["tag_name"] == "v0.1.4"
-    assert payload["latest_prerelease"]["tag_name"] == "v0.1.9-alpha"
-    assert payload["selected_release"]["tag_name"] == "v0.1.9-alpha"
+    assert payload["latest_prerelease"]["tag_name"] == "v0.1.10-alpha"
+    assert payload["selected_release"]["tag_name"] == "v0.1.10-alpha"
     assert payload["update_available"] is True
+
+
+async def test_update_status_selects_highest_semantic_versions(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    version_route.clear_release_cache()
+    monkeypatch.setattr(
+        version_route,
+        "fetch_github_releases",
+        lambda: [
+            version_route.ReleaseDetails(
+                tag_name="v0.1.7-alpha",
+                html_url="https://example.com/v0.1.7-alpha",
+                prerelease=True,
+                draft=False,
+            ),
+            version_route.ReleaseDetails(
+                tag_name="v0.1.7",
+                html_url="https://example.com/v0.1.7",
+                prerelease=False,
+                draft=False,
+            ),
+            version_route.ReleaseDetails(
+                tag_name="v0.1.10-alpha",
+                html_url="https://example.com/v0.1.10-alpha",
+                prerelease=True,
+                draft=False,
+            ),
+            version_route.ReleaseDetails(
+                tag_name="v0.1.9",
+                html_url="https://example.com/v0.1.9",
+                prerelease=False,
+                draft=False,
+            ),
+        ],
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/version/updates")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_release"]["tag_name"] == "v0.1.9"
+    assert payload["latest_prerelease"]["tag_name"] == "v0.1.10-alpha"
+    assert payload["selected_release"]["tag_name"] == "v0.1.10-alpha"
+    version_route.clear_release_cache()
 
 
 async def test_update_status_uses_cached_github_releases(monkeypatch) -> None:
@@ -368,7 +414,7 @@ async def test_detailed_health_status_endpoint() -> None:
 
     payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.1.8-alpha"
+    assert payload["version"] == "0.1.9-alpha"
     assert payload["release_channel"] == "alpha"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"

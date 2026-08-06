@@ -868,6 +868,7 @@
     "save": "Save settings",
     "saved": "Settings saved.",
     "saveFailed": "Settings could not be saved.",
+    "browserStorageFailed": "Account settings were saved, but this browser blocked local preference storage.",
     "localSavedLanguageFailed": "Browser settings were saved, but the account language could not be updated.",
     "defaultView": "Preferred start view",
     "defaultViewDescription": "This preference is stored locally for future sessions in this browser.",

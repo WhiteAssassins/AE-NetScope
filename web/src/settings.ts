@@ -47,12 +47,11 @@ function isDefaultView(value: unknown): value is DefaultView {
 }
 
 export function readLocalSettings(): LocalSettings {
-  const stored = window.localStorage.getItem(LOCAL_SETTINGS_STORAGE_KEY);
-  if (!stored) {
-    return { ...defaultLocalSettings };
-  }
-
   try {
+    const stored = window.localStorage.getItem(LOCAL_SETTINGS_STORAGE_KEY);
+    if (!stored) {
+      return { ...defaultLocalSettings };
+    }
     const parsed = JSON.parse(stored) as Record<string, unknown>;
     return {
       compactTables:
@@ -90,6 +89,11 @@ export function readLocalSettings(): LocalSettings {
   }
 }
 
-export function writeLocalSettings(settings: LocalSettings) {
-  window.localStorage.setItem(LOCAL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+export function writeLocalSettings(settings: LocalSettings): boolean {
+  try {
+    window.localStorage.setItem(LOCAL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    return true;
+  } catch {
+    return false;
+  }
 }

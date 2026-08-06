@@ -14,7 +14,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.8-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.1.9-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -226,7 +226,7 @@ Before a pending startup migration runs, the container creates a PostgreSQL cust
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha
+ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha
 ```
 
 From the project root:
@@ -338,7 +338,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.8-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.

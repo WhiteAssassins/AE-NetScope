@@ -2,6 +2,38 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.1.9-alpha - 2026-08-05
+
+### Changed
+
+- Improved user administration so rapid user switching cannot display stale session data and edits to the signed-in account update the application header immediately.
+- Improved Health, administrative settings, and Updates so failed or overlapping requests cannot leave stale success states or overwrite newer results.
+- Improved release selection to use semantic version ordering instead of relying on the order returned by GitHub.
+- Hardened language, regional-preference, and interface-setting persistence when browser storage is unavailable or blocked.
+- Added consistent visible keyboard focus styles across search, select, form, and action controls.
+- Raised automated API and frontend coverage requirements and expanded regression coverage for API clients, bootstrap behavior, users, settings, updates, date/time handling, and WebAuthn helpers.
+- Updated release and TrueNAS submission checklists to reflect the MIT license and the English-first localization model.
+
+### Security
+
+- Updated `cryptography`, `undici`, and `brace-expansion` to patched compatible releases.
+- Added dependency-audit verification after the security updates.
+
+### Fixed
+
+- Fixed stale sessions appearing after switching quickly between users.
+- Fixed stale signed-in identity after an administrator edits their own account.
+- Fixed Health displaying a previous Ready state after a refresh failure.
+- Fixed Settings failures and stuck saving states when `localStorage` is blocked.
+- Fixed one failed administrative endpoint discarding valid results from the other settings endpoints.
+- Fixed competing update and release-history requests overwriting newer responses.
+
+### Verified
+
+- API suite passes with `99` tests and at least `85%` coverage.
+- Web suite passes with `121` tests and at least `85%` statements, functions, and lines coverage.
+- API and web lint, frontend build, dependency audits, release metadata validation, and repository hygiene checks pass.
+
 ## v0.1.8-alpha - 2026-07-20
 
 ### Added

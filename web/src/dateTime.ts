@@ -12,8 +12,13 @@ const defaults: RegionalPreferences = {
   hour_format: "24",
 };
 
-export function storeRegionalPreferences(preferences: RegionalPreferences) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+export function storeRegionalPreferences(preferences: RegionalPreferences): boolean {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function readRegionalPreferences(): RegionalPreferences {

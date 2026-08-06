@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ManagedUser, User } from "../types";
@@ -317,6 +317,178 @@ describe("UsersView", () => {
 
     expect(onCurrentUserChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: "owner@example.com", username: "owner" }),
+    );
+  });
+
+  it("runs password, MFA, unlock, and session security actions", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const securedOperator: ManagedUser = {
+      ...managedUsers[1],
+      is_active: true,
+      locked_until: "2099-07-01T12:00:00Z",
+      active_session_count: 1,
+      totp_enabled: true,
+    };
+    const operatorSession = {
+      ...sessions[0],
+      id: 22,
+      user_id: 2,
+      is_current: false,
+      ip_address: "10.0.0.22",
+    };
+    let usersState = [managedUsers[0], securedOperator];
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/users/2/sessions/22") && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (url.endsWith("/users/2/sessions") && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (url.endsWith("/users/2/sessions")) {
+        return Promise.resolve(jsonResponse([operatorSession]));
+      }
+      if (url.endsWith("/users/2/reset-password") && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({ user: securedOperator, temporary_password: "Reset-Password-123" }),
+        );
+      }
+      if (url.endsWith("/users/2/reset-mfa") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(securedOperator));
+      }
+      if (url.endsWith("/users/2") && init?.method === "PATCH") {
+        const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+        usersState = [managedUsers[0], { ...securedOperator, ...payload }];
+        return Promise.resolve(jsonResponse(usersState[1]));
+      }
+      return Promise.resolve(jsonResponse(usersState));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <UsersView
+        csrfToken="csrf-token"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
+
+    const operatorRow = (await screen.findByText("viewer@example.com")).closest("tr");
+    await user.click(within(operatorRow!).getByRole("button", { name: "Manage" }));
+    const panel = screen.getByRole("heading", { name: "viewer" }).closest("aside")!;
+
+    await user.click(within(panel).getByRole("button", { name: "Unlock login" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/users/2"),
+        expect.objectContaining({ body: JSON.stringify({ clear_lock: true }) }),
+      ),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Require password change" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/users/2"),
+        expect.objectContaining({ body: JSON.stringify({ must_change_password: true }) }),
+      ),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Reset password" }));
+    expect(await screen.findByText("Reset-Password-123")).toBeInTheDocument();
+
+    await user.click(within(panel).getByRole("button", { name: "Reset MFA and passkeys" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/users/2/reset-mfa"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Close this session" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/users/2/sessions/22"),
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Close active sessions" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/users\/2\/sessions$/),
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    expect(confirm).toHaveBeenCalledTimes(4);
+  });
+
+  it("classifies browsers, platforms, and inactive sessions", async () => {
+    const user = userEvent.setup();
+    const sessionVariants = [
+      { ...sessions[0], id: 21, is_current: false, user_agent: "Edg/130 Windows" },
+      { ...sessions[0], id: 22, is_current: false, user_agent: "Firefox/130 Android" },
+      { ...sessions[0], id: 23, is_current: false, user_agent: "Safari/18 Mac OS" },
+      { ...sessions[0], id: 24, is_current: false, user_agent: "Custom Linux" },
+      { ...sessions[0], id: 25, is_current: false, user_agent: "Unknown" },
+      { ...sessions[0], id: 26, is_current: false, user_agent: null, revoked_at: "2026-01-01T00:00:00Z" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) =>
+        Promise.resolve(
+          requestUrl(input).endsWith("/users/2/sessions")
+            ? jsonResponse(sessionVariants)
+            : jsonResponse(managedUsers),
+        ),
+      ),
+    );
+
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
+    const viewerRow = (await screen.findByText("viewer@example.com")).closest("tr");
+    await user.click(within(viewerRow!).getByRole("button", { name: "Manage" }));
+
+    expect(await screen.findByText(/Edge.*Windows/)).toBeInTheDocument();
+    expect(screen.getByText(/Firefox.*Android/)).toBeInTheDocument();
+    expect(screen.getByText(/Safari.*macOS/)).toBeInTheDocument();
+    expect(screen.getByText(/Browser.*Linux/)).toBeInTheDocument();
+    expect(screen.getByText(/Browser.*Unknown platform/)).toBeInTheDocument();
+    expect(screen.getByText("Unknown client")).toBeInTheDocument();
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+  });
+
+  it("keeps destructive account changes behind confirmation", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/users/2/sessions")) return Promise.resolve(jsonResponse([]));
+      return Promise.resolve(jsonResponse(managedUsers));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <UsersView
+        csrfToken="csrf"
+        currentUser={currentUser}
+        onCurrentUserChanged={vi.fn()}
+      />,
+    );
+    const viewerRow = (await screen.findByText("viewer@example.com")).closest("tr");
+    await user.click(within(viewerRow!).getByRole("button", { name: "Manage" }));
+    const panel = screen.getByRole("heading", { name: "viewer" }).closest("aside")!;
+
+    await user.click(within(panel).getByRole("button", { name: "Reset password" }));
+    expect(confirm).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("reset-password"),
+      expect.anything(),
     );
   });
 });

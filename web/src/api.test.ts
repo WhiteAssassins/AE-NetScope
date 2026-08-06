@@ -2,17 +2,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   API_BASE_URL,
   GITHUB_RELEASES_API_URL,
+  beginPasskeyAuthentication,
+  beginPasskeyRegistration,
+  beginTotpSetup,
+  confirmTotp,
+  deletePasskey,
+  disableTotp,
   fetchInventoryData,
   fetchHealthStatus,
   fetchLatestGitHubRelease,
+  fetchMaintenanceStatus,
+  fetchOwnSessions,
+  fetchPasskeyCapability,
+  fetchPasskeys,
   fetchReleaseHistory,
   fetchRepositoryInfo,
   fetchSearchIndexingPolicy,
+  fetchUpdateHistory,
   fetchUpdateStatus,
   fetchVersionInfo,
+  revokeOtherSessions,
   startAutomaticUpdate,
+  updateAccountPreferences,
+  updateMaintenanceStatus,
+  updateRegionalPreferences,
   updateSearchIndexingPolicy,
   updatePreferredLanguage,
+  verifyPasskeyAuthentication,
+  verifyPasskeyRegistration,
 } from "./api";
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -377,5 +394,110 @@ describe("api client", () => {
         body: JSON.stringify({ allow_indexing: true }),
       }),
     );
+  });
+
+  it("uses the authenticated account and TOTP endpoints", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/auth/sessions/others") && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(jsonResponse({ user: { id: 1 }, secret: "secret", otpauth_uri: "uri" }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateRegionalPreferences(
+      { timezone: "UTC", date_format: "ymd", hour_format: "24" },
+      "csrf",
+    );
+    await updateAccountPreferences(
+      { language: "en", timezone: "UTC", date_format: "locale", hour_format: "12" },
+      "csrf",
+    );
+    await fetchOwnSessions();
+    await revokeOtherSessions("csrf");
+    await beginTotpSetup("password", "csrf");
+    await confirmTotp("123456", "csrf");
+    await disableTotp("password", "123456", "csrf");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/auth/preferences/regional`,
+      expect.objectContaining({ method: "PATCH", credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/auth/sessions/others`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/auth/totp`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("uses every passkey endpoint with the expected methods", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/security/passkeys/7") && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(jsonResponse({ challenge_id: "challenge", options: {}, id: 7 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchPasskeyCapability();
+    await fetchPasskeys();
+    await beginPasskeyRegistration("password", "csrf");
+    await verifyPasskeyRegistration("challenge", "Laptop", { id: "key" }, "csrf");
+    await deletePasskey(7, "csrf");
+    await beginPasskeyAuthentication("admin@example.com");
+    await verifyPasskeyAuthentication("challenge", { id: "key" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/security/passkeys/register/verify`,
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/security/passkeys/7`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/security/passkeys/authenticate/verify`,
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("loads and updates maintenance state and update history", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse({ enabled: false, message: "", items: [] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchMaintenanceStatus();
+    await updateMaintenanceStatus({ enabled: true, message: "Maintenance" }, "csrf");
+    await fetchUpdateHistory();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/security/maintenance`,
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/security/maintenance`,
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/version/update-history`,
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("surfaces structured and fallback API errors", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ detail: { message: "Policy denied" } }, 403))
+      .mockResolvedValueOnce(new Response("not-json", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchMaintenanceStatus()).rejects.toThrow("Policy denied");
+    await expect(fetchPasskeys()).rejects.toThrow("request-failed");
   });
 });

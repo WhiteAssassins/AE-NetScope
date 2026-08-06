@@ -1,6 +1,6 @@
 import { ChevronDown, ExternalLink, History, RefreshCw, Rocket } from "lucide-react";
 import type { TFunction } from "i18next";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -43,6 +43,8 @@ export default function UpdateView({
   const [releaseHistoryStatus, setReleaseHistoryStatus] =
     useState<ReleaseHistoryStatus>("idle");
   const [releaseFilter, setReleaseFilter] = useState<ReleaseFilter>("all");
+  const updateRequestIdRef = useRef(0);
+  const releaseRequestIdRef = useRef(0);
   const canManageSettings = hasPermission(permissions, "settings:manage");
 
   function applyUpdateState(currentVersion: VersionInfo, currentUpdateInfo: UpdateStatusInfo) {
@@ -51,20 +53,25 @@ export default function UpdateView({
     setStatus(currentUpdateInfo.update_available ? "update-available" : "current");
   }
 
-  async function checkForUpdates() {
+  const checkForUpdates = useCallback(async (versionOverride: VersionInfo | null = null) => {
+    const requestId = ++updateRequestIdRef.current;
     setStatus("checking");
     setError("");
     try {
       const [currentVersion, currentUpdateInfo] = await Promise.all([
-        fetchVersionInfo(),
+        versionOverride ? Promise.resolve(versionOverride) : fetchVersionInfo(),
         fetchUpdateStatus(),
       ]);
-      applyUpdateState(currentVersion, currentUpdateInfo);
+      if (requestId === updateRequestIdRef.current) {
+        applyUpdateState(currentVersion, currentUpdateInfo);
+      }
     } catch {
-      setStatus("unavailable");
-      setError(t("updates.checkFailed"));
+      if (requestId === updateRequestIdRef.current) {
+        setStatus("unavailable");
+        setError(t("updates.checkFailed"));
+      }
     }
-  }
+  }, [t]);
 
   async function installSelectedUpdate() {
     if (!updateInfo?.selected_release || !canManageSettings) {
@@ -83,15 +90,21 @@ export default function UpdateView({
     }
   }
 
-  async function loadReleaseHistory() {
+  const loadReleaseHistory = useCallback(async () => {
+    const requestId = ++releaseRequestIdRef.current;
     setReleaseHistoryStatus("loading");
     try {
-      setReleaseHistory(await fetchReleaseHistory(8));
-      setReleaseHistoryStatus("loaded");
+      const releases = await fetchReleaseHistory(8);
+      if (requestId === releaseRequestIdRef.current) {
+        setReleaseHistory(releases);
+        setReleaseHistoryStatus("loaded");
+      }
     } catch {
-      setReleaseHistoryStatus("error");
+      if (requestId === releaseRequestIdRef.current) {
+        setReleaseHistoryStatus("error");
+      }
     }
-  }
+  }, []);
 
   function toggleReleaseHistory() {
     const nextVisible = !showReleaseHistory;
@@ -102,31 +115,16 @@ export default function UpdateView({
   }
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function load() {
-      try {
-        const [currentVersion, currentUpdateInfo] = await Promise.all([
-          initialVersionInfo ? Promise.resolve(initialVersionInfo) : fetchVersionInfo(),
-          fetchUpdateStatus(),
-        ]);
-        if (!isMounted) {
-          return;
-        }
-        applyUpdateState(currentVersion, currentUpdateInfo);
-      } catch {
-        if (isMounted) {
-          setStatus("unavailable");
-          setError(t("updates.checkFailed"));
-        }
-      }
-    }
-
-    load().catch(() => undefined);
+    const initialCheckId = window.setTimeout(
+      () => void checkForUpdates(initialVersionInfo),
+      0,
+    );
     return () => {
-      isMounted = false;
+      window.clearTimeout(initialCheckId);
+      updateRequestIdRef.current += 1;
+      releaseRequestIdRef.current += 1;
     };
-  }, [initialVersionInfo, t]);
+  }, [checkForUpdates, initialVersionInfo]);
 
   const selectedRelease = updateInfo?.selected_release ?? null;
   const updateCapability = updateInfo?.update_capability ?? null;
@@ -149,8 +147,12 @@ export default function UpdateView({
           <h1>{t("updates.title")}</h1>
           <p>{t("updates.description")}</p>
         </div>
-        <button className="primary-action" onClick={() => checkForUpdates().catch(() => undefined)}>
-          <RefreshCw size={18} strokeWidth={2} />
+        <button
+          className="primary-action"
+          disabled={status === "checking"}
+          onClick={() => void checkForUpdates()}
+        >
+          <RefreshCw className={status === "checking" ? "spin" : undefined} size={18} strokeWidth={2} />
           {t("updates.check")}
         </button>
       </div>
@@ -228,7 +230,7 @@ export default function UpdateView({
             {releaseHistoryStatus === "error" && (
               <div className="release-history-state release-history-error">
                 <span>{t("updates.releaseHistory.loadFailed")}</span>
-                <button className="text-button" onClick={() => loadReleaseHistory()}>
+                <button className="text-button" onClick={() => void loadReleaseHistory()}>
                   {t("updates.releaseHistory.retry")}
                 </button>
               </div>

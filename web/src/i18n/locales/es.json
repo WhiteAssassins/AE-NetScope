@@ -868,6 +868,7 @@
     "save": "Guardar ajustes",
     "saved": "Ajustes guardados.",
     "saveFailed": "No se pudieron guardar los ajustes.",
+    "browserStorageFailed": "Los ajustes de la cuenta se guardaron, pero el navegador bloqueó el almacenamiento local de preferencias.",
     "localSavedLanguageFailed": "Los ajustes del navegador se guardaron, pero no se pudo actualizar el idioma de la cuenta.",
     "defaultView": "Vista inicial preferida",
     "defaultViewDescription": "Esta preferencia se guarda localmente para futuras sesiones en este navegador.",

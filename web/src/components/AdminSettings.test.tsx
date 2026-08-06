@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminSettings from "./AdminSettings";
 
-function jsonResponse(payload: unknown) {
+function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -38,6 +38,7 @@ describe("AdminSettings", () => {
     const toggle = await screen.findByRole("checkbox", {
       name: /block search engine indexing/i,
     });
+    await waitFor(() => expect(toggle).toBeEnabled());
     expect(toggle).toBeChecked();
     await user.click(toggle);
     await user.click(screen.getAllByRole("button", { name: "Save" })[0]);
@@ -52,5 +53,47 @@ describe("AdminSettings", () => {
         body: JSON.stringify({ allow_indexing: true }),
       }),
     );
+  });
+
+  it("keeps successful administrative sections usable when another endpoint fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/security/maintenance")) {
+          return Promise.resolve(jsonResponse({ enabled: true, message: "Planned work" }));
+        }
+        if (url.endsWith("/security/search-indexing")) {
+          return Promise.resolve(jsonResponse({}, 503));
+        }
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 1,
+              requested_by_user_id: 1,
+              requested_by: "admin@example.com",
+              target_tag: "v0.1.8-alpha",
+              status: "succeeded",
+              message: null,
+              created_at: "2026-07-01T12:00:00Z",
+            },
+          ]),
+        );
+      }),
+    );
+
+    render(<AdminSettings csrfToken="csrf-token" />);
+
+    const maintenanceToggle = await screen.findByRole("checkbox", {
+      name: /maintenance mode/i,
+    });
+    expect(maintenanceToggle).toBeChecked();
+    expect(maintenanceToggle).toBeEnabled();
+    expect(screen.getByDisplayValue("Planned work")).toBeEnabled();
+    expect(screen.getByText("v0.1.8-alpha")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: /block search engine indexing/i }),
+    ).toBeDisabled();
+    expect(screen.getByText(/administrative settings could not be loaded/i)).toBeInTheDocument();
   });
 });

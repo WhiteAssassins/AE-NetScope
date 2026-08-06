@@ -5,8 +5,7 @@
 - Project name is consistent: AE NetScope.
 - Repository description is short, clear, and accurate.
 - License file is present.
-- License terms match the intended source-available proprietary model.
-- Public documentation states that internal business use is allowed but resale, sublicensing, marketplace publishing, paid hosting, and product repackaging require written permission.
+- License terms and public documentation consistently identify the project as MIT-licensed free and open source software.
 - README explains what the project is and how to run it.
 - README clearly states that the project is an early public preview and not production ready.
 - The app displays an early preview warning.
@@ -47,6 +46,9 @@
 - `test.cmd` passes from the repository root.
 - The root start command runs without requiring private files.
 - Environment variables have safe defaults or documented placeholders.
+- English is the canonical, default, and fallback interface language.
+- Bundled locale files pass key, placeholder, UTF-8, and mojibake validation.
+- `npm --prefix web run test:i18n` passes.
 
 ## Production readiness
 
@@ -80,6 +82,6 @@
 - Run the build command from a clean install.
 - Run `start-dev.cmd` from the repository root.
 - Search for sensitive strings before publishing.
-- Confirm the repository visibility and source-available proprietary license choice.
+- Confirm the repository visibility and MIT License metadata.
 - Create release notes with clear alpha status: "Early public preview, not production ready".
 - Create the first public tag: `v0.1.0-alpha`.

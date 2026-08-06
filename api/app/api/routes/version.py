@@ -78,16 +78,8 @@ async def update_status() -> UpdateStatusResponse:
         releases = []
         release_error = "GitHub releases could not be checked right now."
 
-    latest_release = next(
-        (release for release in releases if not release.draft and not release.prerelease),
-        None,
-    )
-
-
-    latest_prerelease = next(
-        (release for release in releases if not release.draft and release.prerelease),
-        None,
-    )
+    latest_release = latest_versioned_release(releases, prerelease=False)
+    latest_prerelease = latest_versioned_release(releases, prerelease=True)
     selected_release = latest_prerelease if current_channel != "stable" else latest_release
     if selected_release is None:
         selected_release = latest_release or latest_prerelease
@@ -397,3 +389,17 @@ def version_sort_key(
         stable_rank,
         prerelease_key,
     )
+
+
+def latest_versioned_release(
+    releases: list[ReleaseDetails],
+    *,
+    prerelease: bool,
+) -> ReleaseDetails | None:
+    candidates = [
+        (key, release)
+        for release in releases
+        if not release.draft and release.prerelease is prerelease
+        if (key := version_sort_key(release.tag_name)) is not None
+    ]
+    return max(candidates, key=lambda candidate: candidate[0])[1] if candidates else None

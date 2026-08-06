@@ -143,4 +143,26 @@ describe("SettingsView", () => {
     });
     expect(onUserChanged).not.toHaveBeenCalled();
   });
+
+  it("recovers when the browser blocks local preference storage", async () => {
+    const user = userEvent.setup();
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(jsonResponse({ user: currentUser }))),
+    );
+
+    render(
+      <SettingsView csrfToken="csrf-token" onUserChanged={vi.fn()} user={currentUser} />,
+    );
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    expect(
+      await screen.findByText(/this browser blocked local preference storage/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save settings/i })).toBeEnabled();
+    setItem.mockRestore();
+  });
 });
