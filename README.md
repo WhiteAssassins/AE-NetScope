@@ -8,6 +8,12 @@ AE NetScope is a self-hosted web app for organizing LAN inventory data such as d
 
 English is the primary, default, and fallback interface language. Spanish is bundled and can be selected per user from **Settings > Language**.
 
+## Live Demo
+
+Explore AE NetScope without installing it at **[netscope-demo.aewhitedevs.com](https://netscope-demo.aewhitedevs.com/)**.
+
+The public demo uses fictional, non-sensitive inventory data and is intended only for evaluating the current early preview. Do not enter real credentials or sensitive network information.
+
 ## Early Public Preview
 
 AE NetScope is in early public preview and is not production ready yet.
