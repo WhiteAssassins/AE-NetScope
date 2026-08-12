@@ -52,10 +52,10 @@ async def test_same_origin_api_mutations_reach_route_handling() -> None:
         response = await client.post(
             "/api/auth/login",
             headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://test"},
-            json={"email": "nobody@example.com", "password": "invalid-password"},
+            json={},
         )
 
-    assert response.status_code != 403
+    assert response.status_code == 422
 
 
 async def test_search_engines_are_blocked_by_default(monkeypatch) -> None:
