@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.types import EncryptedText
 
 
 class Vlan(Base):
@@ -13,7 +14,7 @@ class Vlan(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vlan_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -30,8 +31,8 @@ class Network(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cidr: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    gateway: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    location: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    gateway: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    location: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     vlan_id: Mapped[int | None] = mapped_column(ForeignKey("vlans.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -52,20 +53,20 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     device_type: Mapped[str] = mapped_column(String(60), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
-    vendor: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    serial_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    asset_tag: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    operating_system: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    firmware_version: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    cpu: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    memory: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    storage: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    warranty_expires: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    rack_position: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    location: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    vendor: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    model: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    serial_number: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    asset_tag: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    operating_system: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    firmware_version: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    cpu: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    memory: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    storage: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    warranty_expires: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    owner: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    rack_position: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    location: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
+    notes: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

@@ -2,6 +2,43 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## Unreleased
+
+## v0.2.0-alpha - 2026-08-12
+
+### Security
+
+- Added authenticated application-level encryption for sensitive inventory details, session metadata, audit messages, audit IP addresses, persisted restore backups, and PostgreSQL pre-migration dumps.
+- Added independent data and backup encryption keys with controlled fallback-key rotation and a recovery CLI for encrypted backups.
+- Added absolute and idle session expiration, bounded activity updates, and broader session revocation after identity, password, MFA, role, lock, and account-status changes.
+- Added constant-cost password verification for unknown, inactive, and locked accounts and HMAC-protected Redis rate-limit identifiers.
+- Added startup rejection for placeholder managed-deployment secrets, unauthenticated Redis, and fail-open rate limiting, plus an explicit warning for HTTP-only managed deployments without secure cookies.
+- Added cross-site mutation rejection, stricter CORS and browser security headers, non-cacheable API responses, hidden managed-deployment OpenAPI schemas, minimal public liveness output, and hidden SQL query parameters.
+- Hardened the Compose stack with a read-only application filesystem, temporary writable memory, dropped capabilities, process limits, no-new-privileges, Redis protected mode, and PostgreSQL SCRAM initialization.
+- Removed unnecessary build utilities from the runtime container and suppressed the Uvicorn server header.
+- Prevented plaintext values beginning with the encrypted-value marker from bypassing field encryption or blocking key migration.
+- Added bounded, coalesced, negatively cached, and rate-limited GitHub metadata requests to prevent unauthenticated request amplification.
+- Applied request-body limits to JSON-bearing `DELETE` endpoints, including TOTP removal.
+- Separated administrator self-service recovery from user management and required current-password verification before passkey deletion.
+- Added account lockout accounting for invalid TOTP attempts, atomic TOTP replay prevention, and atomic single-use WebAuthn challenges.
+- Added audit events for initial setup, logout, and failed passkey authentication without recording submitted credentials.
+- Updated the transitive `nanoid` dependency to a patched release.
+
+### Changed
+
+- Added reversible Alembic migrations for session activity tracking and encrypted-field storage, including safe decryption before schema downgrade.
+- Preserved TrueNAS HTTP compatibility while making Redis rate limiting fail closed by default in managed deployments.
+- Preserved upgrades for existing TrueNAS installations with non-placeholder internal passwords of any historical length and custom runtime UIDs that cannot write to `/app/backups`.
+- Updated deployment, key-rotation, backup-recovery, and host-encryption guidance.
+- Replaced CSP-incompatible dynamic progress styles with native progress elements.
+
+### Verified
+
+- Added regression tests for key rotation, tamper detection, encrypted database storage, encrypted backup recovery, session idling, runtime configuration, cross-site requests, migration upgrades, and encrypted downgrades.
+- Added regression tests for ciphertext-prefix handling, bounded `DELETE` bodies, GitHub request coalescing, administrator self-recovery boundaries, TOTP lockout and replay, passkey verification, single-use WebAuthn challenges, and authentication audit events.
+- Validated a production image against isolated PostgreSQL 18 and Redis 8 containers, including real migrations, encrypted values at rest, backup decryption, hidden OpenAPI, and minimal health output.
+- Validated the TrueNAS runtime contract with UID/GID 568, PostgreSQL 18.4, Valkey 9.1.1, HTTP cookies, omitted dedicated encryption keys, and migration to the current schema head.
+
 ## v0.1.9-alpha - 2026-08-05
 
 ### Changed

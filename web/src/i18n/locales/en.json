@@ -176,6 +176,8 @@
         "login_blocked": "Inactive account attempted sign-in: {{target}}",
         "login_locked": "Locked account attempted sign-in: {{target}}",
         "mfa_failed": "Authenticator code failed for {{subject}}",
+        "initial_setup": "Initial administrator account created",
+        "logout": "Session signed out",
         "login_success": "Login succeeded for {{subject}}",
         "password_change_failed": "Password change failed for {{subject}}",
         "password_changed": "Password changed for {{subject}}",
@@ -186,6 +188,7 @@
         "totp_enabled": "TOTP authentication enabled",
         "totp_disabled": "TOTP authentication disabled",
         "passkey_added": "Passkey added: {{target}}",
+        "passkey_failed": "Passkey login failed",
         "passkey_removed": "Passkey removed: {{target}}",
         "passkey_login": "Passkey login succeeded for {{subject}}"
       },
@@ -922,6 +925,7 @@
       "passkeyAdded": "Passkey added.",
       "passkeyRemoved": "Passkey removed.",
       "removePasskey": "Remove passkey",
+      "passwordRequiredForPasskeyRemoval": "Enter your current password before removing a passkey.",
       "passkeyUnsupported": "This browser does not support passkeys.",
       "loadFailed": "Security settings could not be loaded.",
       "actionFailed": "The security action could not be completed."

@@ -149,9 +149,11 @@ export default function TopologyView({
                       </button>
                     )}
                   </div>
-                  <span className="topology-meter">
-                    <span style={{ width: `${Math.min(network.utilization_percent, 100)}%` }} />
-                  </span>
+                  <progress
+                    className="topology-meter"
+                    max="100"
+                    value={Math.min(network.utilization_percent, 100)}
+                  />
 
                   {isExpanded && (
                     <div className="topology-children">

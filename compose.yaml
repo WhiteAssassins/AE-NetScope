@@ -1,6 +1,6 @@
 services:
   ae-netscope:
-    image: ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha
+    image: ghcr.io/whiteassassins/ae-netscope:v0.2.0-alpha
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,7 +22,10 @@ services:
       REDIS_PORT: 6379
       REDIS_DB: 0
       REDIS_PASSWORD: ${REDIS_PASSWORD:-change-me-redis-local-only}
+      REDIS_RATE_LIMIT_FAIL_OPEN: "false"
       SESSION_SECRET: ${SESSION_SECRET:-change-me-at-least-32-random-bytes-local-only}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      DATA_DECRYPTION_FALLBACK_KEYS: ${DATA_DECRYPTION_FALLBACK_KEYS:-}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
       MFA_DECRYPTION_FALLBACK_KEYS: ${MFA_DECRYPTION_FALLBACK_KEYS:-}
       INITIAL_SETUP_TOKEN: ${INITIAL_SETUP_TOKEN:-}
@@ -30,6 +33,8 @@ services:
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       SESSION_COOKIE_SAMESITE: strict
       SESSION_TTL_SECONDS: 28800
+      SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-1800}
+      SESSION_TOUCH_INTERVAL_SECONDS: ${SESSION_TOUCH_INTERVAL_SECONDS:-60}
       SECURITY_HEADERS_ENABLED: true
       SECURITY_HSTS_ENABLED: ${SECURITY_HSTS_ENABLED:-false}
       SECURITY_HSTS_MAX_AGE: 31536000
@@ -44,6 +49,8 @@ services:
       AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT: ${AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT:-10}
       INVENTORY_BACKUP_DIR: /app/backups
       INVENTORY_BACKUP_RETENTION_COUNT: ${INVENTORY_BACKUP_RETENTION_COUNT:-10}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_DECRYPTION_FALLBACK_KEYS: ${BACKUP_DECRYPTION_FALLBACK_KEYS:-}
       SESSION_RECORD_RETENTION_DAYS: ${SESSION_RECORD_RETENTION_DAYS:-30}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
       AE_NETSCOPE_AUTO_UPDATE_ENABLED: ${AE_NETSCOPE_AUTO_UPDATE_ENABLED:-false}
@@ -55,6 +62,15 @@ services:
       - "${AE_NETSCOPE_PORT:-8080}:8000"
     volumes:
       - ae_netscope_backups:/app/backups
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 256
     restart: unless-stopped
     healthcheck:
       test:
@@ -75,9 +91,12 @@ services:
       POSTGRES_DB: ae_netscope
       POSTGRES_USER: ae_netscope
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - ae_netscope_postgres:/var/lib/postgresql
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ae_netscope -d ae_netscope"]
       interval: 10s
@@ -93,14 +112,18 @@ services:
         "redis-server",
         "--appendonly",
         "yes",
+        "--protected-mode",
+        "yes",
         "--requirepass",
         "${REDIS_PASSWORD:-change-me-redis-local-only}",
       ]
     volumes:
       - ae_netscope_redis:/data
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-change-me-redis-local-only}\" ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD:-change-me-redis-local-only}\" redis-cli ping"]
       interval: 10s
       timeout: 5s
       retries: 5

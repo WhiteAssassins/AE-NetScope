@@ -141,7 +141,18 @@ def test_security_migration_marks_existing_setup_complete(tmp_path, monkeypatch)
     try:
         inspector = inspect(engine)
         session_indexes = {index["name"] for index in inspector.get_indexes("user_sessions")}
+        session_column_details = {
+            column["name"]: column for column in inspector.get_columns("user_sessions")
+        }
+        session_columns = set(session_column_details)
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
         audit_indexes = {index["name"] for index in inspector.get_indexes("audit_events")}
+        audit_column_details = {
+            column["name"]: column for column in inspector.get_columns("audit_events")
+        }
+        device_column_details = {
+            column["name"]: column for column in inspector.get_columns("devices")
+        }
         with engine.connect() as connection:
             state = connection.execute(
                 text("SELECT setup_completed, admin_guard FROM app_state WHERE id = 1")
@@ -152,4 +163,56 @@ def test_security_migration_marks_existing_setup_complete(tmp_path, monkeypatch)
     assert bool(state.setup_completed) is True
     assert state.admin_guard == 0
     assert "ix_user_sessions_expires_at" in session_indexes
+    assert "ix_user_sessions_last_seen_at" in session_indexes
+    assert "last_seen_at" in session_columns
+    assert "last_totp_counter" in user_columns
+    assert str(session_column_details["user_agent"]["type"]).upper() == "TEXT"
+    assert str(session_column_details["ip_address"]["type"]).upper() == "TEXT"
+    assert str(audit_column_details["message"]["type"]).upper() == "TEXT"
+    assert str(audit_column_details["ip_address"]["type"]).upper() == "TEXT"
+    assert str(device_column_details["serial_number"]["type"]).upper() == "TEXT"
     assert "ix_audit_events_created_at" in audit_indexes
+
+
+def test_sensitive_data_migration_can_downgrade_encrypted_values(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from app.core.config import settings
+    from app.services.data_protection import encrypt_sensitive_text
+
+    database_path = tmp_path / "encrypted-downgrade-test.db"
+    async_url = f"sqlite+aiosqlite:///{database_path.as_posix()}"
+    sync_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", async_url)
+    monkeypatch.setattr(settings, "data_encryption_key", "downgrade-data-key" * 3)
+    config = migration_config(sync_url)
+    command.upgrade(config, "head")
+    engine = create_engine(sync_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO devices (name, device_type, status, serial_number, "
+                "created_at, updated_at) VALUES ('rollback-device', 'server', 'active', "
+                ":serial, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ),
+            {"serial": encrypt_sensitive_text("ROLLBACK-SERIAL")},
+        )
+
+    command.downgrade(config, "0009_session_idle")
+
+    try:
+        with engine.connect() as connection:
+            serial = connection.scalar(
+                text("SELECT serial_number FROM devices WHERE name = 'rollback-device'")
+            )
+        serial_type = next(
+            column["type"]
+            for column in inspect(engine).get_columns("devices")
+            if column["name"] == "serial_number"
+        )
+    finally:
+        engine.dispose()
+
+    assert serial == "ROLLBACK-SERIAL"
+    assert serial_type.length == 120

@@ -16,7 +16,11 @@ async def test_api_responses_include_security_headers() -> None:
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert response.headers["cross-origin-opener-policy"] == "same-origin"
+    assert response.headers["origin-agent-cluster"] == "?1"
+    assert response.headers["x-permitted-cross-domain-policies"] == "none"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert "object-src 'none'" in response.headers["content-security-policy"]
+    assert "script-src 'self'" in response.headers["content-security-policy"]
 
 
 async def test_sensitive_api_responses_are_never_cacheable(monkeypatch) -> None:
@@ -25,9 +29,33 @@ async def test_sensitive_api_responses_are_never_cacheable(monkeypatch) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/auth/me")
 
-    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["cache-control"] == "no-store, max-age=0"
     assert response.headers["pragma"] == "no-cache"
-    assert response.headers["vary"] == "Cookie"
+    assert "Cookie" in response.headers["vary"]
+
+
+async def test_cross_site_api_mutations_are_rejected_before_route_handling() -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/api/auth/login",
+            headers={"Sec-Fetch-Site": "cross-site", "Origin": "https://attacker.example"},
+            json={"email": "nobody@example.com", "password": "invalid-password"},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Cross-site request rejected."}
+    assert response.headers["cache-control"] == "no-store, max-age=0"
+
+
+async def test_same_origin_api_mutations_reach_route_handling() -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/api/auth/login",
+            headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://test"},
+            json={"email": "nobody@example.com", "password": "invalid-password"},
+        )
+
+    assert response.status_code != 403
 
 
 async def test_search_engines_are_blocked_by_default(monkeypatch) -> None:

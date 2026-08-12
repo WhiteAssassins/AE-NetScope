@@ -6,12 +6,15 @@ type AuditParameters = Record<string, string | number | boolean>;
 export const SUPPORTED_AUDIT_EVENT_TYPES = [
   "auth.email_change_failed",
   "auth.email_changed",
+  "auth.initial_setup",
   "auth.login_blocked",
   "auth.login_failed",
   "auth.login_locked",
   "auth.login_success",
   "auth.mfa_failed",
+  "auth.logout",
   "auth.passkey_added",
+  "auth.passkey_failed",
   "auth.passkey_login",
   "auth.passkey_removed",
   "auth.password_change_failed",
@@ -121,6 +124,9 @@ function auditParameters(eventType: string, message: string): AuditParameters | 
       return suffix(message);
     case "auth.totp_enabled":
     case "auth.totp_disabled":
+    case "auth.initial_setup":
+    case "auth.logout":
+    case "auth.passkey_failed":
       return {};
     case "inventory.exported":
       return message === "Inventory exported as JSON"

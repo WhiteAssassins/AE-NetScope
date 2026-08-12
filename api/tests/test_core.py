@@ -13,6 +13,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import engine
+from app.main import create_app
 
 
 def test_role_permissions_are_explicit_and_order_independent() -> None:
@@ -119,6 +120,10 @@ async def test_application_sqlite_enforces_foreign_keys() -> None:
     assert foreign_keys == 1
 
 
+def test_database_engine_hides_query_parameters_from_errors() -> None:
+    assert engine.sync_engine.hide_parameters is True
+
+
 def test_redis_url_supports_optional_password() -> None:
     without_password = Settings(redis_host="redis", redis_port=6379, redis_db=0)
     with_password = Settings(
@@ -134,3 +139,77 @@ def test_redis_url_supports_optional_password() -> None:
 
 def test_empty_setup_token_is_normalized() -> None:
     assert Settings(initial_setup_token="").initial_setup_token is None
+
+
+def test_managed_runtime_rejects_public_placeholder_secrets() -> None:
+    insecure = Settings(
+        app_env="docker",
+        session_secret="change-me-at-least-32-random-bytes-local-only",
+        postgres_password="change-me-local-only",
+        redis_password="change-me-redis-local-only",
+        redis_rate_limit_fail_open=True,
+    )
+    secure = Settings(
+        app_env="docker",
+        session_secret="session-secret-with-at-least-32-random-characters",
+        postgres_password="database-password-with-randomness",
+        redis_password="redis-password-with-randomness",
+        redis_rate_limit_fail_open=False,
+    )
+
+    assert len(insecure.runtime_security_errors()) == 4
+    assert secure.runtime_security_errors() == []
+
+
+def test_truenas_http_runtime_configuration_remains_supported() -> None:
+    truenas_settings = Settings(
+        app_env="production",
+        session_secret="truenas-session-secret-with-at-least-32-characters",
+        postgres_password="truenas-database-password-with-randomness",
+        redis_password="truenas-redis-password-with-randomness",
+        session_cookie_secure=False,
+        security_hsts_enabled=False,
+    )
+
+    assert truenas_settings.redis_rate_limit_fail_open is False
+    assert truenas_settings.effective_session_cookie_secure is False
+    assert truenas_settings.runtime_security_errors() == []
+
+
+def test_existing_truenas_installation_with_short_internal_passwords_is_supported() -> None:
+    truenas_settings = Settings(
+        app_env="production",
+        session_secret="truenas-session-secret-with-at-least-32-characters",
+        postgres_password="dbpass",
+        redis_password="redispass",
+        session_cookie_secure=False,
+        security_hsts_enabled=False,
+    )
+
+    assert truenas_settings.runtime_security_errors() == []
+
+
+def test_backup_encryption_key_prefers_dedicated_key_and_supports_fallbacks() -> None:
+    configured = Settings(
+        session_secret="session-secret-with-at-least-32-random-characters",
+        mfa_encryption_key="mfa-encryption-key-with-at-least-32-characters",
+        backup_encryption_key="backup-encryption-key-with-at-least-32-characters",
+        backup_decryption_fallback_keys="old-key-one,old-key-two",
+    )
+
+    assert configured.effective_backup_encryption_key.startswith("backup-encryption-key")
+    assert configured.backup_decryption_keys == [
+        "backup-encryption-key-with-at-least-32-characters",
+        "old-key-one",
+        "old-key-two",
+    ]
+
+
+def test_managed_deployments_do_not_expose_api_schema(monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "docker")
+    managed_app = create_app()
+
+    assert managed_app.docs_url is None
+    assert managed_app.openapi_url is None

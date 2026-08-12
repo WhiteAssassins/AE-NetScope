@@ -20,7 +20,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.1.9-alpha.md`. See `CHANGELOG.md` for release history.
+Current alpha release notes are available in `RELEASE_NOTES_v0.2.0-alpha.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -181,6 +181,8 @@ REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
 MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+DATA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_DATA_KEY
+DATA_DECRYPTION_FALLBACK_KEYS=
 MFA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_MFA_KEY
 MFA_DECRYPTION_FALLBACK_KEYS=
 INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
@@ -188,6 +190,8 @@ SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
 SESSION_TTL_SECONDS=28800
+SESSION_IDLE_TIMEOUT_SECONDS=1800
+SESSION_TOUCH_INTERVAL_SECONDS=60
 SECURITY_HEADERS_ENABLED=true
 SECURITY_HSTS_ENABLED=true
 SECURITY_HSTS_MAX_AGE=31536000
@@ -199,9 +203,12 @@ AE_NETSCOPE_MIGRATION_BACKUP_DIR=/app/backups
 AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT=10
 INVENTORY_BACKUP_DIR=/app/backups
 INVENTORY_BACKUP_RETENTION_COUNT=10
+BACKUP_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_BACKUP_KEY
+BACKUP_DECRYPTION_FALLBACK_KEYS=
 AE_NETSCOPE_AUTO_UPDATE_ENABLED=false
 AE_NETSCOPE_AUTO_UPDATE_COMMAND=
 AUTH_RATE_LIMIT_PER_MINUTE=5
+REDIS_RATE_LIMIT_FAIL_OPEN=false
 AUTH_LOCKOUT_MINUTES=15
 SESSION_RECORD_RETENTION_DAYS=30
 AUDIT_RETENTION_DAYS=365
@@ -225,21 +232,26 @@ Use `compose.yaml` for local HTTP container testing. Running the image directly 
 
 Passkeys are available when the deployment defines `WEBAUTHN_RP_ID` as the public hostname and `WEBAUTHN_ORIGIN` as the exact public origin, for example `netscope.example.com` and `https://netscope.example.com`. Production passkeys require HTTPS. TOTP remains available without these WebAuthn variables.
 
-Keep `SESSION_SECRET` stable across upgrades and container replacements. Changing it intentionally invalidates active sessions. Set a separate, stable `MFA_ENCRYPTION_KEY` before enrolling TOTP accounts so MFA secrets do not depend on the session key. Existing TOTP secrets encrypted with `SESSION_SECRET` remain readable and are migrated at startup when the dedicated key is introduced. During later MFA-key rotations, list previous keys temporarily in `MFA_DECRYPTION_FALLBACK_KEYS` until startup migration completes.
+Keep `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEY`, and `BACKUP_ENCRYPTION_KEY` stable across upgrades and container replacements. Changing `SESSION_SECRET` invalidates active sessions. Changing an encryption key without its previous value in the corresponding `*_DECRYPTION_FALLBACK_KEYS` variable can make protected data unreadable. Keep old fallback keys only until startup has migrated existing values to the new primary key, then remove them.
 
-Before a pending startup migration runs, the container creates a PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. It skips the backup when the schema is already current, creates files with mode `0600`, and retains the newest 10 by default. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
+When dedicated data or backup keys are omitted, AE NetScope derives domain-separated keys from the MFA key or session secret for compatibility. Dedicated independent keys are strongly recommended for managed installations. Generate each secret separately with a password manager or `openssl rand -base64 48`; never reuse the examples from this README.
+
+Before a pending startup migration runs, the container creates an AES-256-GCM encrypted PostgreSQL custom-format backup in `/app/backups` when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`. It skips the backup when the schema is already current, creates files with mode `0600`, removes the plaintext dump after encryption, and retains the newest 10 by default. The default Compose file mounts that directory as the persistent `ae_netscope_backups` volume.
 
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha
+ghcr.io/whiteassassins/ae-netscope:v0.2.0-alpha
 ```
 
 From the project root:
 
 ```bat
 set POSTGRES_PASSWORD=replace-with-local-postgres-password
+set REDIS_PASSWORD=replace-with-local-redis-password
 set SESSION_SECRET=replace-with-at-least-32-random-bytes
+set DATA_ENCRYPTION_KEY=replace-with-independent-data-key
+set BACKUP_ENCRYPTION_KEY=replace-with-independent-backup-key
 set INITIAL_SETUP_TOKEN=replace-with-one-time-installation-token
 docker compose pull
 docker compose up -d
@@ -307,7 +319,7 @@ Before updating the TrueNAS catalog app, verify:
 - Login/setup works and survives browser refresh.
 - Restarting the app keeps inventory data.
 - The update page says TrueNAS updates must use the TrueNAS Apps interface.
-- Migration backups are mounted and writable.
+- The migration backup directory is writable, or the temporary fallback is reported in the app log.
 
 Stop the stack:
 
@@ -344,7 +356,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.1.9-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.2.0-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.
@@ -457,6 +469,8 @@ REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD
 MAX_IMPORT_JSON_BYTES=2000000
 MAX_REQUEST_BODY_BYTES=1000000
 SESSION_SECRET=CHANGE_ME_LONG_RANDOM_VALUE
+DATA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_DATA_KEY
+DATA_DECRYPTION_FALLBACK_KEYS=
 MFA_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_MFA_KEY
 MFA_DECRYPTION_FALLBACK_KEYS=
 INITIAL_SETUP_TOKEN=CHANGE_ME_ONE_TIME_INSTALLATION_TOKEN
@@ -464,13 +478,18 @@ SESSION_COOKIE_NAME=ae_netscope_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=strict
 SESSION_TTL_SECONDS=28800
+SESSION_IDLE_TIMEOUT_SECONDS=1800
+SESSION_TOUCH_INTERVAL_SECONDS=60
 SECURITY_HEADERS_ENABLED=true
 SECURITY_HSTS_ENABLED=true
 SECURITY_HSTS_MAX_AGE=31536000
 AUTH_RATE_LIMIT_PER_MINUTE=5
+REDIS_RATE_LIMIT_FAIL_OPEN=false
 AUTH_LOCKOUT_MINUTES=15
 SESSION_RECORD_RETENTION_DAYS=30
 AUDIT_RETENTION_DAYS=365
+BACKUP_ENCRYPTION_KEY=CHANGE_ME_INDEPENDENT_BACKUP_KEY
+BACKUP_DECRYPTION_FALLBACK_KEYS=
 ```
 
 Secure the file:
@@ -530,18 +549,25 @@ sudo -u ae-netscope env VITE_API_BASE_URL=/api npm --prefix web run build
 ## Backup and Restore Policy
 
 - Export a JSON backup before every upgrade, restore, or migration.
-- Docker and TrueNAS installs create a PostgreSQL backup automatically before startup migrations when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`.
+- Docker and TrueNAS installs create an authenticated encrypted PostgreSQL backup automatically before startup migrations when `AE_NETSCOPE_PRE_MIGRATION_BACKUP=true`.
 - Docker migration backups are stored in `/app/backups`, backed by the `ae_netscope_backups` Compose volume by default.
-- Migration backups are created only when the schema is behind, use mode `0600`, and retain the newest 10 files by default. Change this with `AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT`.
+- Migration backups are created only when the schema is behind, are encrypted with AES-256-GCM, use mode `0600`, and retain the newest 10 files by default. Change retention with `AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT`.
 - The restore UI validates the JSON first and shows a preview before replacing data.
 - A restore replaces inventory records only: devices, interfaces, IPs, subnets, VLANs, and services.
 - A restore does not modify users, sessions, password hashes, secrets, or environment variables.
-- Before a restore is applied, the API persists a pre-restore JSON backup in `/app/backups` and the web UI also downloads it automatically.
+- Before a restore is applied, the API persists an encrypted pre-restore JSON backup in `/app/backups` and the web UI also downloads a plaintext copy directly to the authenticated administrator.
 - Restore backups use mode `0600` where supported and retain the newest 10 files by default. Change this with `INVENTORY_BACKUP_RETENTION_COUNT`.
 - Keep production backups outside the repository and outside the web root.
-- PostgreSQL dump files are not encrypted by the application. Store `/app/backups` on an encrypted dataset or encrypted host volume and restrict host access.
+- Keep encryption keys outside backup volumes. A backup and its key stored together provide no theft protection.
+- Application encryption does not replace host or dataset encryption. Use full-disk encryption or an encrypted TrueNAS dataset for PostgreSQL, Redis, and backup volumes.
 
-PostgreSQL migration backups are custom-format `pg_dump` files. Restore them with `pg_restore` into a prepared PostgreSQL database after stopping AE NetScope.
+PostgreSQL migration backups are encrypted custom-format `pg_dump` files. Decrypt one inside the application container before using `pg_restore`:
+
+```bash
+python -m app.backup_cli decrypt /app/backups/ae-netscope-pre-migration-TIMESTAMP.dump.enc --output /tmp/ae-netscope.dump
+```
+
+The command authenticates the backup before exposing plaintext and refuses to overwrite an existing output file. Copy the decrypted dump to the recovery host, restore it with `pg_restore`, then securely remove the temporary plaintext.
 
 ## SQLite Local to PostgreSQL Production
 
@@ -578,7 +604,7 @@ User=ae-netscope
 Group=ae-netscope
 WorkingDirectory=/opt/ae-netscope/api
 EnvironmentFile=/etc/ae-netscope/ae-netscope.env
-ExecStart=/opt/ae-netscope/api/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+ExecStart=/opt/ae-netscope/api/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --no-server-header
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
@@ -703,6 +729,10 @@ sudo systemctl reload nginx
 ## Security
 
 See `SECURITY.md` for the authentication, session, and post-quantum readiness model.
+
+AE NetScope encrypts sensitive device details, network locations and gateways, VLAN descriptions, session metadata, audit messages, audit IPs, and persisted backups with authenticated encryption. Passwords remain one-way Argon2id hashes and session tokens are stored only as keyed hashes. IP addresses, MAC addresses, CIDRs, account identifiers, and record names remain queryable database fields; protect the PostgreSQL/SQLite volume with host-level encryption if disclosure of the full network map is in scope.
+
+Managed environments reject public placeholder secrets, insecure production cookies, missing Redis authentication, and fail-open Redis rate limiting at startup. API responses are non-cacheable, cross-site mutations are rejected, idle sessions expire, and changes to account identity or security settings revoke other sessions.
 
 ## Contributing
 

@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="AE NetScope" \
     org.opencontainers.image.description="Open source LAN inventory and sysadmin network documentation web app." \
     org.opencontainers.image.source="https://github.com/WhiteAssassins/AE-NetScope" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="0.1.9-alpha"
+    org.opencontainers.image.version="0.2.0-alpha"
 
 WORKDIR /app
 
@@ -48,6 +48,7 @@ RUN mkdir -p /app/backups \
         > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && apt-get purge -y --auto-remove curl gnupg \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir /app/api \
@@ -59,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live', timeout=3).read()"
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "/app/api", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "/app/api", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--no-server-header"]

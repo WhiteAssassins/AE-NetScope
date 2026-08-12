@@ -1,6 +1,8 @@
 import time
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -10,6 +12,7 @@ from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
+from app.models.security import WebAuthnChallenge
 from app.models.user import User
 from app.services.mfa import (
     _totp_code,
@@ -134,6 +137,7 @@ async def test_totp_setup_confirmation_and_login_challenge(security_client: Asyn
     assert without_code.status_code == 428
     assert without_code.json()["detail"]["code"] == "totp_required"
 
+    login_code = _totp_code(secret, int(time.time()) // 30)
     with_code = await security_client.post(
         "/api/auth/login",
         json={
@@ -143,6 +147,84 @@ async def test_totp_setup_confirmation_and_login_challenge(security_client: Asyn
         },
     )
     assert with_code.status_code == 200
+
+    replay = await security_client.post(
+        "/api/auth/login",
+        json={
+            "email": "security@example.com",
+            "password": "correct-password",
+            "totp_code": login_code,
+        },
+    )
+    assert replay.status_code == 401
+
+
+async def test_invalid_totp_attempts_lock_the_account(
+    security_client: AsyncClient, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "auth_failed_login_limit", 2)
+    auth = await login(security_client)
+    setup = await security_client.post(
+        "/api/auth/totp/setup",
+        headers={"X-CSRF-Token": auth["csrf_token"]},
+        json={"current_password": "correct-password"},
+    )
+    secret = setup.json()["secret"]
+    code = _totp_code(secret, int(time.time()) // 30)
+    confirmation = await security_client.post(
+        "/api/auth/totp/confirm",
+        headers={"X-CSRF-Token": auth["csrf_token"]},
+        json={"code": code},
+    )
+    assert confirmation.status_code == 200
+
+    for _ in range(2):
+        response = await security_client.post(
+            "/api/auth/login",
+            json={
+                "email": "security@example.com",
+                "password": "correct-password",
+                "totp_code": "000000" if code != "000000" else "999999",
+            },
+        )
+        assert response.status_code == 401
+
+    locked = await security_client.post(
+        "/api/auth/login",
+        json={
+            "email": "security@example.com",
+            "password": "correct-password",
+            "totp_code": _totp_code(secret, int(time.time()) // 30),
+        },
+    )
+    assert locked.status_code == 423
+
+
+async def test_passkey_deletion_requires_current_password(
+    security_client: AsyncClient,
+) -> None:
+    auth = await login(security_client)
+    headers = {"X-CSRF-Token": auth["csrf_token"]}
+
+    missing = await security_client.request(
+        "DELETE", "/api/security/passkeys/999", headers=headers
+    )
+    wrong = await security_client.request(
+        "DELETE",
+        "/api/security/passkeys/999",
+        headers=headers,
+        json={"current_password": "wrong-password"},
+    )
+    verified = await security_client.request(
+        "DELETE",
+        "/api/security/passkeys/999",
+        headers=headers,
+        json={"current_password": "correct-password"},
+    )
+
+    assert missing.status_code == 422
+    assert wrong.status_code == 400
+    assert verified.status_code == 404
 
 
 async def test_maintenance_and_passkey_capability(
@@ -221,6 +303,23 @@ async def test_passkey_options_do_not_reveal_unknown_accounts(
     assert len(response.json()["options"]["allowCredentials"]) == 8
 
 
+async def test_failed_passkey_authentication_is_audited(
+    security_client: AsyncClient, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "webauthn_rp_id", "test")
+    monkeypatch.setattr(settings, "webauthn_origin", "http://test")
+    await login(security_client)
+
+    failed = await security_client.post(
+        "/api/security/passkeys/authenticate/verify",
+        json={"challenge_id": "x" * 32, "credential": {"id": "invalid"}},
+    )
+    events = await security_client.get("/api/audit/events?limit=20")
+
+    assert failed.status_code == 400
+    assert "auth.passkey_failed" in [event["event_type"] for event in events.json()]
+
+
 def test_totp_encryption_accepts_legacy_session_secret_during_key_rotation(monkeypatch) -> None:
     monkeypatch.setattr(settings, "session_secret", "legacy-session-secret")
     monkeypatch.setattr(settings, "mfa_encryption_key", None)
@@ -230,3 +329,43 @@ def test_totp_encryption_accepts_legacy_session_secret_during_key_rotation(monke
 
     assert decrypt_totp_secret(legacy_secret) == "JBSWY3DPEHPK3PXP"
     assert totp_secret_uses_primary_key(legacy_secret) is False
+
+
+async def test_webauthn_challenge_can_only_be_consumed_once() -> None:
+    from app.api.routes.security import _consume_challenge
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    async with session_factory() as session:
+        user = User(
+            email="challenge@example.com",
+            username="challenge-user",
+            password_hash=hash_password("correct-password"),
+            role="admin",
+        )
+        session.add(user)
+        await session.flush()
+        session.add(
+            WebAuthnChallenge(
+                id="single-use-challenge",
+                user_id=user.id,
+                purpose="authenticate",
+                challenge=b"challenge-bytes",
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        consumed = await _consume_challenge(
+            session, "single-use-challenge", "authenticate"
+        )
+        await session.commit()
+    assert consumed.challenge == b"challenge-bytes"
+
+    async with session_factory() as session:
+        with pytest.raises(HTTPException, match="Invalid or expired"):
+            await _consume_challenge(session, "single-use-challenge", "authenticate")
+    await engine.dispose()

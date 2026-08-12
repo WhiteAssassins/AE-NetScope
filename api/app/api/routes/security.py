@@ -1,5 +1,6 @@
 import json
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -35,6 +36,7 @@ from app.schemas.security import (
     PasskeyAuthenticationVerifyRequest,
     PasskeyCapabilityResponse,
     PasskeyCredentialResponse,
+    PasskeyDeleteRequest,
     PasskeyOptionsResponse,
     PasskeyRegistrationOptionsRequest,
     PasskeyRegistrationVerifyRequest,
@@ -48,6 +50,12 @@ from app.services.auth import create_user_session
 router = APIRouter(prefix="/security")
 MAX_PASSKEYS_PER_USER = 8
 PASSKEY_TRANSPORTS = {"ble", "cable", "hybrid", "internal", "nfc", "smart-card", "usb"}
+
+
+@dataclass(frozen=True)
+class ConsumedChallenge:
+    user_id: int
+    challenge: bytes
 
 
 def _webauthn_config() -> tuple[str, str]:
@@ -81,19 +89,38 @@ async def _create_challenge(
     return item
 
 
-async def _get_challenge(session: SessionDep, challenge_id: str, purpose: str) -> WebAuthnChallenge:
-    item = await session.get(WebAuthnChallenge, challenge_id)
+async def _consume_challenge(
+    session: SessionDep, challenge_id: str, purpose: str
+) -> ConsumedChallenge:
     now = datetime.now(UTC)
-    if item is None or item.purpose != purpose:
+    result = await session.execute(
+        delete(WebAuthnChallenge)
+        .where(
+            WebAuthnChallenge.id == challenge_id,
+            WebAuthnChallenge.purpose == purpose,
+            WebAuthnChallenge.expires_at > now,
+        )
+        .returning(WebAuthnChallenge.user_id, WebAuthnChallenge.challenge)
+    )
+    row = result.one_or_none()
+    if row is None:
         raise HTTPException(status_code=400, detail="Invalid or expired passkey challenge.")
-    expires_at = item.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-    if expires_at <= now:
-        await session.delete(item)
-        await session.commit()
-        raise HTTPException(status_code=400, detail="Invalid or expired passkey challenge.")
-    return item
+    return ConsumedChallenge(user_id=row.user_id, challenge=row.challenge)
+
+
+async def _audit_passkey_failure(
+    session: SessionDep,
+    request: Request,
+    *,
+    user_id: int | None = None,
+) -> None:
+    await write_audit_event(
+        session,
+        "auth.passkey_failed",
+        "Passkey login failed",
+        actor_user_id=user_id,
+        ip_address=request.client.host if request.client else None,
+    )
 
 
 @router.get("/passkeys/capability", response_model=PasskeyCapabilityResponse)
@@ -259,10 +286,9 @@ async def verify_passkey_registration(
     current_user: CurrentUser,
 ) -> PasskeyCredentialResponse:
     rp_id, origin = _webauthn_config()
-    challenge = await _get_challenge(session, payload.challenge_id, "register")
+    challenge = await _consume_challenge(session, payload.challenge_id, "register")
     if challenge.user_id != current_user.id:
         raise HTTPException(status_code=400, detail="Invalid passkey challenge.")
-    await session.delete(challenge)
     try:
         verified = verify_registration_response(
             credential=payload.credential,
@@ -302,13 +328,21 @@ async def verify_passkey_registration(
 @router.delete(
     "/passkeys/{credential_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_csrf)],
+    dependencies=[Depends(require_csrf), Depends(rate_limit("passkeys.delete", limit=10))],
 )
 async def delete_passkey(
     credential_id: int,
+    payload: PasskeyDeleteRequest,
     session: SessionDep,
     current_user: CurrentUser,
 ) -> None:
+    valid_password, updated_password_hash = verify_password_and_update(
+        payload.current_password, current_user.password_hash
+    )
+    if not valid_password:
+        raise HTTPException(status_code=400, detail="Current password is invalid.")
+    if updated_password_hash:
+        current_user.password_hash = updated_password_hash
     item = await session.get(WebAuthnCredential, credential_id)
     if item is None or item.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Passkey not found.")
@@ -376,11 +410,16 @@ async def verify_passkey_authentication(
     session: SessionDep,
 ) -> SessionResponse:
     rp_id, origin = _webauthn_config()
-    challenge = await _get_challenge(session, payload.challenge_id, "authenticate")
-    await session.delete(challenge)
+    try:
+        challenge = await _consume_challenge(session, payload.challenge_id, "authenticate")
+    except HTTPException:
+        await _audit_passkey_failure(session, request)
+        await session.commit()
+        raise
     try:
         credential_id = base64url_to_bytes(str(payload.credential.get("id", "")))
     except Exception as exc:
+        await _audit_passkey_failure(session, request, user_id=challenge.user_id)
         await session.commit()
         raise HTTPException(status_code=400, detail="Passkey authentication failed.") from exc
     credential = await session.scalar(
@@ -391,6 +430,7 @@ async def verify_passkey_authentication(
     )
     user = await session.get(User, challenge.user_id)
     if credential is None or user is None or not user.is_active:
+        await _audit_passkey_failure(session, request, user_id=challenge.user_id)
         await session.commit()
         raise HTTPException(status_code=401, detail="Passkey authentication failed.")
     try:
@@ -404,6 +444,7 @@ async def verify_passkey_authentication(
             require_user_verification=True,
         )
     except InvalidAuthenticationResponse as exc:
+        await _audit_passkey_failure(session, request, user_id=challenge.user_id)
         await session.commit()
         raise HTTPException(status_code=401, detail="Passkey authentication failed.") from exc
     credential.sign_count = verified.new_sign_count

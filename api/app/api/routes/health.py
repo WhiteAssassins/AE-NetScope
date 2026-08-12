@@ -20,12 +20,7 @@ async def health() -> dict[str, str]:
 
 @router.get("/health/live")
 async def live() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": settings.app_name,
-        "environment": settings.app_env,
-        "version": project_version(),
-    }
+    return {"status": "ok"}
 
 
 @router.get("/health/ready")

@@ -281,7 +281,6 @@ describe("UsersView", () => {
     const onCurrentUserChanged = vi.fn();
     const updatedAdmin = {
       ...managedUsers[0],
-      email: "owner@example.com",
       username: "owner",
     };
     let updated = false;
@@ -309,14 +308,13 @@ describe("UsersView", () => {
     const adminRow = (await screen.findByText("admin@example.com")).closest("tr");
     await user.click(within(adminRow!).getByRole("button", { name: "Manage" }));
     const managementPanel = screen.getByRole("heading", { name: "admin" }).closest("aside");
-    await user.clear(within(managementPanel!).getByLabelText("Email"));
-    await user.type(within(managementPanel!).getByLabelText("Email"), "owner@example.com");
+    expect(within(managementPanel!).getByLabelText("Email")).toBeDisabled();
     await user.clear(within(managementPanel!).getByLabelText("Username"));
     await user.type(within(managementPanel!).getByLabelText("Username"), "owner");
     await user.click(within(managementPanel!).getByRole("button", { name: "Save" }));
 
     expect(onCurrentUserChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "owner@example.com", username: "owner" }),
+      expect.objectContaining({ email: "admin@example.com", username: "owner" }),
     );
   });
 

@@ -98,16 +98,6 @@ if (!fs.existsSync(path.join(root, releaseNotesPath))) {
   expectIncludes(`${releaseNotesPath} image`, releaseNotes, image);
 }
 
-const truenasApp = readText("truenas/ix-dev/community/ae-netscope/app.yaml");
-expectIncludes("TrueNAS app version", truenasApp, `app_version: ${version}`);
-
-const truenasValues = readText("truenas/ix-dev/community/ae-netscope/ix_values.yaml");
-expectIncludes("TrueNAS image tag", truenasValues, `tag: ${tag}`);
-
-const truenasReadme = readText("truenas/README.md");
-expectIncludes("TrueNAS README image tag", truenasReadme, image);
-expectIncludes("TrueNAS README app version", truenasReadme, `App version: \`${version}\``);
-
 if (errors.length > 0) {
   console.error("Release metadata validation failed:");
   for (const error of errors) {

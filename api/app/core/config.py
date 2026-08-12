@@ -32,12 +32,14 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: str | None = Field(default=None, repr=False)
-    redis_rate_limit_fail_open: bool = True
+    redis_rate_limit_fail_open: bool = False
 
     max_import_json_bytes: int = Field(default=2_000_000, ge=1_024, le=100_000_000)
     max_request_body_bytes: int = Field(default=1_000_000, ge=1_024, le=100_000_000)
 
     session_secret: str = Field(default="change-me", repr=False)
+    data_encryption_key: str | None = Field(default=None, min_length=32, repr=False)
+    data_decryption_fallback_keys: str = Field(default="", repr=False)
     mfa_encryption_key: str | None = Field(default=None, repr=False)
     mfa_decryption_fallback_keys: str = Field(default="", repr=False)
     initial_setup_token: str | None = Field(
@@ -49,7 +51,9 @@ class Settings(BaseSettings):
     session_cookie_name: str = "ae_netscope_session"
     session_cookie_secure: bool | None = None
     session_cookie_samesite: str = "strict"
-    session_ttl_seconds: int = 28800
+    session_ttl_seconds: int = Field(default=28_800, ge=300, le=604_800)
+    session_idle_timeout_seconds: int = Field(default=1_800, ge=60, le=86_400)
+    session_touch_interval_seconds: int = Field(default=60, ge=10, le=3_600)
 
     security_headers_enabled: bool = True
     security_hsts_enabled: bool | None = None
@@ -64,6 +68,8 @@ class Settings(BaseSettings):
 
     inventory_backup_dir: str | None = None
     inventory_backup_retention_count: int = Field(default=10, ge=1, le=100)
+    backup_encryption_key: str | None = Field(default=None, min_length=32, repr=False)
+    backup_decryption_fallback_keys: str = Field(default="", repr=False)
 
     webauthn_rp_id: str | None = None
     webauthn_origin: str | None = None
@@ -74,7 +80,9 @@ class Settings(BaseSettings):
 
     @field_validator(
         "initial_setup_token",
+        "data_encryption_key",
         "mfa_encryption_key",
+        "backup_encryption_key",
         "inventory_backup_dir",
         mode="before",
     )
@@ -91,6 +99,35 @@ class Settings(BaseSettings):
         if self.app_env == "local":
             return Path(__file__).resolve().parents[2] / "var" / "backups"
         return Path("/app/backups")
+
+    @property
+    def effective_backup_encryption_key(self) -> str:
+        return (
+            self.backup_encryption_key
+            or self.data_encryption_key
+            or self.mfa_encryption_key
+            or self.session_secret
+        )
+
+    @property
+    def effective_data_encryption_key(self) -> str:
+        return self.data_encryption_key or self.mfa_encryption_key or self.session_secret
+
+    @property
+    def data_decryption_keys(self) -> list[str]:
+        values = [
+            self.effective_data_encryption_key,
+            *(item.strip() for item in self.data_decryption_fallback_keys.split(",")),
+        ]
+        return list(dict.fromkeys(item for item in values if item))
+
+    @property
+    def backup_decryption_keys(self) -> list[str]:
+        values = [
+            self.effective_backup_encryption_key,
+            *(item.strip() for item in self.backup_decryption_fallback_keys.split(",")),
+        ]
+        return list(dict.fromkeys(item for item in values if item))
 
     @cached_property
     def cors_origins(self) -> list[str]:
@@ -146,6 +183,42 @@ class Settings(BaseSettings):
         if self.security_hsts_enabled is not None:
             return self.security_hsts_enabled
         return self.app_env == "production"
+
+    def runtime_security_errors(self) -> list[str]:
+        if self.app_env in {"local", "test"}:
+            return []
+
+        errors: list[str] = []
+        if _is_unsafe_secret(self.session_secret, minimum_length=32):
+            errors.append(
+                "SESSION_SECRET must be a non-placeholder secret of at least 32 characters."
+            )
+        if not self.database_url_override and _is_missing_or_placeholder(
+            self.postgres_password
+        ):
+            errors.append("POSTGRES_PASSWORD must not use a public placeholder value.")
+        if _is_missing_or_placeholder(self.redis_password):
+            errors.append("REDIS_PASSWORD must be configured with a non-placeholder value.")
+        if self.redis_rate_limit_fail_open:
+            errors.append("REDIS_RATE_LIMIT_FAIL_OPEN must be false outside local development.")
+        return errors
+
+
+def _is_unsafe_secret(value: str | None, *, minimum_length: int = 16) -> bool:
+    normalized = (value or "").strip().lower()
+    return (
+        len(normalized) < minimum_length
+        or normalized.startswith("change-me")
+        or normalized.startswith("replace-with")
+        or normalized.startswith("changeme")
+    )
+
+
+def _is_missing_or_placeholder(value: str | None) -> bool:
+    normalized = (value or "").strip().lower()
+    return not normalized or normalized.startswith(
+        ("change-me", "replace-with", "changeme")
+    )
 
 
 settings = Settings()

@@ -11,6 +11,7 @@ from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
+from app.models.audit import AuditEvent
 from app.models.user import User
 
 
@@ -96,6 +97,23 @@ async def test_login_me_and_logout(auth_client: AsyncClient) -> None:
 
     me_after_logout = await auth_client.get("/api/auth/me")
     assert me_after_logout.status_code == 401
+
+    relogin = await auth_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert relogin.status_code == 200
+    password_change = await auth_client.post(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": relogin.json()["csrf_token"]},
+        json={
+            "current_password": "correct-password",
+            "new_password": "new-correct-password",
+        },
+    )
+    assert password_change.status_code == 200
+    events = await auth_client.get("/api/audit/events?limit=20")
+    assert "auth.logout" in [event["event_type"] for event in events.json()]
 
 
 async def test_login_rejects_wrong_password(auth_client: AsyncClient) -> None:
@@ -219,6 +237,13 @@ async def test_user_can_change_own_email(auth_client: AsyncClient) -> None:
     )
     csrf_token = login_response.json()["csrf_token"]
 
+    second_client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    second_login = await second_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert second_login.status_code == 200
+
     response = await auth_client.post(
         "/api/auth/email",
         headers={"X-CSRF-Token": csrf_token},
@@ -227,12 +252,14 @@ async def test_user_can_change_own_email(auth_client: AsyncClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["user"]["email"] == "admin@aewhitedevs.com"
+    assert (await second_client.get("/api/auth/me")).status_code == 401
 
     login_with_new_email = await auth_client.post(
         "/api/auth/login",
         json={"email": "admin@aewhitedevs.com", "password": "correct-password"},
     )
     assert login_with_new_email.status_code == 200
+    await second_client.aclose()
 
 
 async def test_change_email_rejects_wrong_password(auth_client: AsyncClient) -> None:
@@ -378,6 +405,10 @@ async def test_initial_setup_creates_first_admin_only_once() -> None:
         assert final_status.json()["setup_required"] is False
 
         async with session_factory() as session:
+            setup_event = await session.scalar(
+                select(AuditEvent).where(AuditEvent.event_type == "auth.initial_setup")
+            )
+            assert setup_event is not None
             await session.execute(delete(User))
             await session.commit()
 

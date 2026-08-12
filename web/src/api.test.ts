@@ -448,7 +448,7 @@ describe("api client", () => {
     await fetchPasskeys();
     await beginPasskeyRegistration("password", "csrf");
     await verifyPasskeyRegistration("challenge", "Laptop", { id: "key" }, "csrf");
-    await deletePasskey(7, "csrf");
+    await deletePasskey(7, "password", "csrf");
     await beginPasskeyAuthentication("admin@example.com");
     await verifyPasskeyAuthentication("challenge", { id: "key" });
 
@@ -458,7 +458,10 @@ describe("api client", () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/security/passkeys/7`,
-      expect.objectContaining({ method: "DELETE" }),
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ current_password: "password" }),
+      }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/security/passkeys/authenticate/verify`,

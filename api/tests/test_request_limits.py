@@ -86,3 +86,45 @@ async def test_import_uses_stricter_import_limit(monkeypatch) -> None:
     assert json.loads(response_messages[1]["body"])["detail"] == (
         "Inventory import JSON is too large."
     )
+
+
+async def test_delete_request_body_is_limited_without_content_length(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "max_request_body_bytes", 5)
+    request_messages = iter(
+        [
+            {"type": "http.request", "body": b"123", "more_body": True},
+            {"type": "http.request", "body": b"456", "more_body": False},
+        ]
+    )
+    response_messages = []
+
+    async def receive():
+        return next(request_messages)
+
+    async def send(message):
+        response_messages.append(message)
+
+    async def consuming_app(_scope, receive_body, send_response):
+        while (await receive_body()).get("more_body", False):
+            pass
+        await send_response({"type": "http.response.start", "status": 200, "headers": []})
+
+    middleware = RequestSizeLimitMiddleware(consuming_app)
+    await middleware(
+        {
+            "type": "http",
+            "method": "DELETE",
+            "path": "/api/auth/totp",
+            "headers": [],
+            "http_version": "1.1",
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("127.0.0.1", 50000),
+            "root_path": "",
+            "query_string": b"",
+        },
+        receive,
+        send,
+    )
+
+    assert response_messages[0]["status"] == 413

@@ -658,6 +658,7 @@ export default function UsersView({
               <label>
                 {t("common.email")}
                 <input
+                  disabled={isCurrentUser}
                   onChange={(event) => setEditForm({ ...editForm, email: event.target.value })}
                   required
                   type="email"
@@ -717,7 +718,7 @@ export default function UsersView({
               <div className="user-action-grid">
                 <button
                   className="user-action"
-                  disabled={Boolean(busyAction)}
+                  disabled={Boolean(busyAction) || isCurrentUser}
                   onClick={() => patchUser(selectedUser, { must_change_password: true }, "force")}
                 >
                   <KeyRound size={16} />
@@ -735,7 +736,7 @@ export default function UsersView({
                 )}
                 <button
                   className="user-action"
-                  disabled={Boolean(busyAction)}
+                  disabled={Boolean(busyAction) || isCurrentUser}
                   onClick={() => resetPassword(selectedUser)}
                 >
                   <RefreshCw size={16} />
@@ -743,7 +744,7 @@ export default function UsersView({
                 </button>
                 <button
                   className="user-action"
-                  disabled={Boolean(busyAction) || !hasMfa(selectedUser)}
+                  disabled={Boolean(busyAction) || isCurrentUser || !hasMfa(selectedUser)}
                   onClick={() => resetMfa(selectedUser)}
                 >
                   <ShieldCheck size={16} />

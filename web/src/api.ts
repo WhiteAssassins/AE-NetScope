@@ -269,10 +269,14 @@ export function verifyPasskeyRegistration(
   });
 }
 
-export async function deletePasskey(credentialId: number, csrfToken: string) {
+export async function deletePasskey(
+  credentialId: number,
+  currentPassword: string,
+  csrfToken: string,
+) {
   await apiJson<void>(`/security/passkeys/${credentialId}`, {
     method: "DELETE",
-    ...csrfJson(csrfToken),
+    ...csrfJson(csrfToken, { current_password: currentPassword }),
   });
 }
 

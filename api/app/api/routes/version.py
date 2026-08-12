@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
 from app.core.config import settings
+from app.core.rate_limit import rate_limit
 from app.core.version import (
     PROJECT_RELEASES_URL,
     PROJECT_REPOSITORY_URL,
@@ -36,10 +37,17 @@ GITHUB_RELEASES_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetSco
 RELEASE_TAG_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$")
 RELEASE_CACHE_TTL_SECONDS = 600
 MAX_RELEASE_BODY_CHARACTERS = 20_000
+MAX_GITHUB_RESPONSE_BYTES = 1_000_000
+MAX_RELEASE_OBJECTS = 20
+GITHUB_ERROR_CACHE_TTL_SECONDS = 30
 REPOSITORY_CACHE_TTL_SECONDS = 3600
 GITHUB_REPOSITORY_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetScope"
 _release_cache: tuple[float, list[ReleaseDetails]] | None = None
 _repository_cache: tuple[float, RepositoryInfo] | None = None
+_release_error_until = 0.0
+_repository_error_until = 0.0
+_release_refresh_task: asyncio.Task[list[ReleaseDetails]] | None = None
+_repository_refresh_task: asyncio.Task[RepositoryInfo] | None = None
 _update_monitor_tasks: set[asyncio.Task[None]] = set()
 
 
@@ -56,10 +64,14 @@ async def version() -> dict[str, str]:
     }
 
 
-@router.get("/version/repository", response_model=RepositoryInfo)
+@router.get(
+    "/version/repository",
+    response_model=RepositoryInfo,
+    dependencies=[Depends(rate_limit("version.repository", limit=30))],
+)
 async def repository_info() -> RepositoryInfo:
     try:
-        return await asyncio.to_thread(fetch_repository_info_cached)
+        return await fetch_repository_info_cached()
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -67,13 +79,17 @@ async def repository_info() -> RepositoryInfo:
         ) from exc
 
 
-@router.get("/version/updates", response_model=UpdateStatusResponse)
+@router.get(
+    "/version/updates",
+    response_model=UpdateStatusResponse,
+    dependencies=[Depends(rate_limit("version.updates", limit=30))],
+)
 async def update_status() -> UpdateStatusResponse:
     current_version = project_version()
     current_channel = release_channel(current_version)
     release_error: str | None = None
     try:
-        releases = await asyncio.to_thread(fetch_github_releases_cached)
+        releases = await fetch_github_releases_cached()
     except Exception:
         releases = []
         release_error = "GitHub releases could not be checked right now."
@@ -98,13 +114,17 @@ async def update_status() -> UpdateStatusResponse:
     )
 
 
-@router.get("/version/releases", response_model=list[ReleaseDetails])
+@router.get(
+    "/version/releases",
+    response_model=list[ReleaseDetails],
+    dependencies=[Depends(rate_limit("version.releases", limit=30))],
+)
 async def release_history(
     channel: Literal["all", "stable", "prerelease"] = "all",
     limit: Annotated[int, Query(ge=1, le=10)] = 5,
 ) -> list[ReleaseDetails]:
     try:
-        releases = await asyncio.to_thread(fetch_github_releases_cached)
+        releases = await fetch_github_releases_cached()
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -234,20 +254,37 @@ async def update_history(session: SessionDep) -> list[UpdateHistoryResponse]:
     ]
 
 
-def fetch_github_releases_cached() -> list[ReleaseDetails]:
-    global _release_cache
+async def fetch_github_releases_cached() -> list[ReleaseDetails]:
+    global _release_cache, _release_error_until, _release_refresh_task
     now = monotonic()
     if _release_cache and now - _release_cache[0] < RELEASE_CACHE_TTL_SECONDS:
         return _release_cache[1]
+    if now < _release_error_until:
+        raise RuntimeError("GitHub release refresh is temporarily unavailable.")
 
-    releases = fetch_github_releases()
+    task = _release_refresh_task
+    if task is None or task.done():
+        task = asyncio.create_task(asyncio.to_thread(fetch_github_releases))
+        _release_refresh_task = task
+    try:
+        releases = await asyncio.shield(task)
+    except Exception:
+        if _release_refresh_task is task:
+            _release_refresh_task = None
+        _release_error_until = monotonic() + GITHUB_ERROR_CACHE_TTL_SECONDS
+        raise
     _release_cache = (now, releases)
+    _release_error_until = 0.0
+    if _release_refresh_task is task:
+        _release_refresh_task = None
     return releases
 
 
 def clear_release_cache() -> None:
-    global _release_cache
+    global _release_cache, _release_error_until, _release_refresh_task
     _release_cache = None
+    _release_error_until = 0.0
+    _release_refresh_task = None
 
 
 def fetch_github_releases() -> list[ReleaseDetails]:
@@ -259,9 +296,13 @@ def fetch_github_releases() -> list[ReleaseDetails]:
         },
     )
     with urllib.request.urlopen(request, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+        payload = _read_json_response(response)
+    if not isinstance(payload, list):
+        raise ValueError("GitHub releases response must be a list.")
     releases: list[ReleaseDetails] = []
-    for item in payload:
+    for item in payload[:MAX_RELEASE_OBJECTS]:
+        if not isinstance(item, dict):
+            continue
         body = item.get("body")
         body_truncated = isinstance(body, str) and len(body) > MAX_RELEASE_BODY_CHARACTERS
         if body_truncated:
@@ -274,20 +315,37 @@ def fetch_github_releases() -> list[ReleaseDetails]:
     return releases
 
 
-def fetch_repository_info_cached() -> RepositoryInfo:
-    global _repository_cache
+async def fetch_repository_info_cached() -> RepositoryInfo:
+    global _repository_cache, _repository_error_until, _repository_refresh_task
     now = monotonic()
     if _repository_cache and now - _repository_cache[0] < REPOSITORY_CACHE_TTL_SECONDS:
         return _repository_cache[1]
+    if now < _repository_error_until:
+        raise RuntimeError("GitHub repository refresh is temporarily unavailable.")
 
-    repository = fetch_repository_info()
+    task = _repository_refresh_task
+    if task is None or task.done():
+        task = asyncio.create_task(asyncio.to_thread(fetch_repository_info))
+        _repository_refresh_task = task
+    try:
+        repository = await asyncio.shield(task)
+    except Exception:
+        if _repository_refresh_task is task:
+            _repository_refresh_task = None
+        _repository_error_until = monotonic() + GITHUB_ERROR_CACHE_TTL_SECONDS
+        raise
     _repository_cache = (now, repository)
+    _repository_error_until = 0.0
+    if _repository_refresh_task is task:
+        _repository_refresh_task = None
     return repository
 
 
 def clear_repository_cache() -> None:
-    global _repository_cache
+    global _repository_cache, _repository_error_until, _repository_refresh_task
     _repository_cache = None
+    _repository_error_until = 0.0
+    _repository_refresh_task = None
 
 
 def fetch_repository_info() -> RepositoryInfo:
@@ -299,8 +357,17 @@ def fetch_repository_info() -> RepositoryInfo:
         },
     )
     with urllib.request.urlopen(request, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+        payload = _read_json_response(response)
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub repository response must be an object.")
     return RepositoryInfo.model_validate(payload)
+
+
+def _read_json_response(response) -> object:
+    payload = response.read(MAX_GITHUB_RESPONSE_BYTES + 1)
+    if len(payload) > MAX_GITHUB_RESPONSE_BYTES:
+        raise ValueError("GitHub response exceeded the configured size limit.")
+    return json.loads(payload.decode("utf-8"))
 
 
 def update_capability(reason_prefix: str | None = None) -> UpdateCapability:

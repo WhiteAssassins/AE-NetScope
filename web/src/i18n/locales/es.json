@@ -176,6 +176,8 @@
         "login_blocked": "Intento de acceso con una cuenta inactiva: {{target}}",
         "login_locked": "Intento de acceso con una cuenta bloqueada: {{target}}",
         "mfa_failed": "Código de autenticación incorrecto para {{subject}}",
+        "initial_setup": "Cuenta administradora inicial creada",
+        "logout": "Sesión cerrada",
         "login_success": "Inicio de sesión correcto para {{subject}}",
         "password_change_failed": "No se pudo cambiar la contraseña de {{subject}}",
         "password_changed": "Contraseña cambiada para {{subject}}",
@@ -186,6 +188,7 @@
         "totp_enabled": "Autenticación TOTP activada",
         "totp_disabled": "Autenticación TOTP desactivada",
         "passkey_added": "Passkey agregada: {{target}}",
+        "passkey_failed": "Inicio de sesión con passkey fallido",
         "passkey_removed": "Passkey eliminada: {{target}}",
         "passkey_login": "Inicio de sesión con passkey correcto para {{subject}}"
       },
@@ -922,6 +925,7 @@
       "passkeyAdded": "Passkey agregada.",
       "passkeyRemoved": "Passkey eliminada.",
       "removePasskey": "Eliminar passkey",
+      "passwordRequiredForPasskeyRemoval": "Introduce tu contraseña actual antes de eliminar una passkey.",
       "passkeyUnsupported": "Este navegador no admite passkeys.",
       "loadFailed": "No se pudieron cargar los ajustes de seguridad.",
       "actionFailed": "No se pudo completar la acción de seguridad."

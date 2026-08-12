@@ -5,21 +5,22 @@ AE NetScope is designed for self-hosted sysadmin environments and may contain se
 ## Authentication baseline
 
 - Passwords are never encrypted or stored in plain text.
-- Password storage target: Argon2id.
-- Login state target: server-side sessions.
-- Session storage target: Redis.
-- Session cookies must be HttpOnly.
-- Production session cookies must be Secure.
-- Session cookies should use SameSite Strict by default.
+- Passwords are hashed with Argon2id.
+- Login state uses server-side, database-backed sessions.
+- Session and CSRF tokens are stored only as keyed hashes.
+- Session cookies are HttpOnly and use SameSite Strict by default.
+- Production session cookies are Secure and HSTS is enabled.
+- Sessions have absolute and idle expiration limits.
+- Identity, password, MFA, role, and account-status changes revoke affected sessions.
 - Login, logout, failed login, lockout, role changes, and recovery events must be audited.
 - Rate limiting and temporary lockout are required for authentication endpoints.
-- Multi-factor authentication should be added after the first session-based login is stable.
+- TOTP and WebAuthn credentials are protected by server-side verification and encrypted secret storage.
 
 ## Authorization baseline
 
 - Authorization must be enforced in the API, not only in the web UI.
 - Initial roles: admin, operator, viewer.
-- Dangerous actions should require fresh authentication.
+- Sensitive profile and security actions require the current password or a valid security ceremony.
 - Administrative changes should be written to the audit log.
 
 ## Post-quantum readiness
@@ -44,7 +45,13 @@ AE NetScope should be post-quantum ready through crypto-agility, not custom cryp
 - `.env` must never be committed.
 - `.env.example` must use safe placeholder values only.
 - Logs must not expose passwords, session IDs, API tokens, private LAN scan output, or internal credentials.
-- Backups should be encrypted outside the application before any production release that supports backups.
+- Sensitive descriptive inventory fields, session metadata, and audit details are encrypted with AES-256-GCM using domain-separated keys.
+- PostgreSQL migration dumps and persisted pre-restore backups are authenticated and encrypted before plaintext temporary files are removed.
+- Encryption keys must be stored separately from database and backup volumes and kept stable across upgrades.
+- Key rotation requires temporarily configuring the previous key as a decryption fallback.
+- IP addresses, MAC addresses, CIDRs, account identifiers, and names remain queryable. Full database confidentiality requires host full-disk or encrypted-dataset protection.
+- Redis and PostgreSQL are internal-only services in the supported Compose deployment and Redis authentication is mandatory outside local development.
+- Managed deployments reject placeholder secrets and fail-open rate limiting at startup.
 
 ## Current references
 

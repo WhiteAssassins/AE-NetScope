@@ -24,7 +24,7 @@ class RequestSizeLimitMiddleware:
         if path in IMPORT_PATHS:
             size_limit = settings.max_import_json_bytes
             error_detail = "Inventory import JSON is too large."
-        elif path.startswith("/api/") and method in {"POST", "PUT", "PATCH"}:
+        elif path.startswith("/api/") and method in {"POST", "PUT", "PATCH", "DELETE"}:
             size_limit = settings.max_request_body_bytes
             error_detail = "Request body is too large."
         else:

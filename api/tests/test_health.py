@@ -1,3 +1,7 @@
+import asyncio
+import time
+
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api.routes import health as health_route
@@ -21,7 +25,7 @@ async def test_live_health_endpoint() -> None:
         response = await client.get("/api/health/live")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json() == {"status": "ok"}
 
 
 async def test_version_endpoint() -> None:
@@ -32,12 +36,12 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.1.9-alpha"
+    assert response.json()["version"] == "0.2.0-alpha"
     assert response.json()["release_channel"] == "alpha"
     assert (
         response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
     )
-    assert response.json()["release_notes_url"].endswith("/tag/v0.1.9-alpha")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.2.0-alpha")
 
 
 async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
@@ -55,8 +59,8 @@ async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
                 draft=False,
             ),
             version_route.ReleaseDetails(
-                tag_name="v0.1.10-alpha",
-                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.10-alpha",
+                tag_name="v0.2.1-alpha",
+                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.2.1-alpha",
                 prerelease=True,
                 draft=False,
             ),
@@ -68,8 +72,8 @@ async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["latest_release"]["tag_name"] == "v0.1.4"
-    assert payload["latest_prerelease"]["tag_name"] == "v0.1.10-alpha"
-    assert payload["selected_release"]["tag_name"] == "v0.1.10-alpha"
+    assert payload["latest_prerelease"]["tag_name"] == "v0.2.1-alpha"
+    assert payload["selected_release"]["tag_name"] == "v0.2.1-alpha"
     assert payload["update_available"] is True
 
 
@@ -146,6 +150,60 @@ async def test_update_status_uses_cached_github_releases(monkeypatch) -> None:
     assert second.status_code == 200
     assert calls == 1
     version_route.clear_release_cache()
+
+
+async def test_concurrent_release_checks_share_one_github_request(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    version_route.clear_release_cache()
+    calls = 0
+
+    def slow_releases():
+        nonlocal calls
+        calls += 1
+        time.sleep(0.05)
+        return []
+
+    monkeypatch.setattr(version_route, "fetch_github_releases", slow_releases)
+    results = await asyncio.gather(
+        *(version_route.fetch_github_releases_cached() for _ in range(8))
+    )
+
+    assert results == [[]] * 8
+    assert calls == 1
+    version_route.clear_release_cache()
+
+
+async def test_failed_release_check_is_briefly_negative_cached(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    version_route.clear_release_cache()
+    calls = 0
+
+    def broken_releases():
+        nonlocal calls
+        calls += 1
+        raise OSError("network unavailable")
+
+    monkeypatch.setattr(version_route, "fetch_github_releases", broken_releases)
+    with pytest.raises(OSError):
+        await version_route.fetch_github_releases_cached()
+    with pytest.raises(RuntimeError):
+        await version_route.fetch_github_releases_cached()
+
+    assert calls == 1
+    version_route.clear_release_cache()
+
+
+def test_github_response_size_is_bounded() -> None:
+    from app.api.routes import version as version_route
+
+    class OversizedResponse:
+        def read(self, size: int) -> bytes:
+            return b"x" * size
+
+    with pytest.raises(ValueError, match="size limit"):
+        version_route._read_json_response(OversizedResponse())
 
 
 async def test_update_status_handles_github_failure(monkeypatch) -> None:
@@ -414,7 +472,7 @@ async def test_detailed_health_status_endpoint() -> None:
 
     payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.1.9-alpha"
+    assert payload["version"] == "0.2.0-alpha"
     assert payload["release_channel"] == "alpha"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"

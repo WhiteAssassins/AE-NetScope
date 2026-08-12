@@ -16,7 +16,12 @@ run_pre_migration_backup() {
   fi
 
   backup_dir="${AE_NETSCOPE_MIGRATION_BACKUP_DIR:-/app/backups}"
-  mkdir -p "$backup_dir"
+  if ! mkdir -p "$backup_dir" 2>/dev/null || [ ! -w "$backup_dir" ]; then
+    fallback_backup_dir="${TMPDIR:-/tmp}/ae-netscope-migration-backups"
+    echo "Migration backup directory ${backup_dir} is not writable; using ${fallback_backup_dir}." >&2
+    mkdir -p "$fallback_backup_dir"
+    backup_dir="$fallback_backup_dir"
+  fi
 
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
   backup_file="${backup_dir}/ae-netscope-pre-migration-${timestamp}.dump"
@@ -34,13 +39,18 @@ run_pre_migration_backup() {
     return 1
   fi
   chmod 600 "$backup_file"
+  if ! encrypted_backup_file="$(python -m app.backup_cli encrypt "$backup_file")"; then
+    rm -f -- "$backup_file"
+    return 1
+  fi
+  backup_file="$encrypted_backup_file"
 
   retention_count="${AE_NETSCOPE_MIGRATION_BACKUP_RETENTION_COUNT:-10}"
   case "$retention_count" in
     ''|*[!0-9]*) retention_count=10 ;;
   esac
   if [ "$retention_count" -gt 0 ]; then
-    find "$backup_dir" -maxdepth 1 -type f -name 'ae-netscope-pre-migration-*.dump' \
+    find "$backup_dir" -maxdepth 1 -type f -name 'ae-netscope-pre-migration-*.dump*' \
       -printf '%f\n' \
       | sort -r \
       | awk -v keep="$retention_count" 'NR > keep' \

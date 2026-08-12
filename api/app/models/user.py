@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -21,6 +21,7 @@ class User(Base):
     hour_format: Mapped[str] = mapped_column(String(2), nullable=False, default="24")
     totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     totp_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_totp_counter: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

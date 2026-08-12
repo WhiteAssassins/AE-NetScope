@@ -1,8 +1,9 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import generate_password, hash_password
 from app.models.security import WebAuthnCredential
 from app.models.session import UserSession
@@ -34,10 +35,15 @@ async def user_management_counts(
     session: AsyncSession,
 ) -> tuple[dict[int, int], dict[int, int]]:
     now = _now()
+    idle_cutoff = now - timedelta(seconds=settings.session_idle_timeout_seconds)
     session_rows = (
         await session.execute(
             select(UserSession.user_id, func.count(UserSession.id))
-            .where(UserSession.revoked_at.is_(None), UserSession.expires_at > now)
+            .where(
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+                UserSession.last_seen_at > idle_cutoff,
+            )
             .group_by(UserSession.user_id)
         )
     ).all()

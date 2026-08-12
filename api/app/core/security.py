@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+from functools import lru_cache
 
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
@@ -20,6 +21,15 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def verify_password_and_update(password: str, password_hash: str) -> tuple[bool, str | None]:
     return password_hasher.verify_and_update(password, password_hash)
+
+
+@lru_cache(maxsize=1)
+def _dummy_password_hash() -> str:
+    return hash_password("ae-netscope-invalid-account-password")
+
+
+def consume_password_verification_time(password: str) -> None:
+    verify_password(password, _dummy_password_hash())
 
 
 def generate_session_token() -> str:
@@ -42,6 +52,14 @@ def hash_csrf_token(token: str) -> str:
     return hmac.new(
         settings.session_secret.encode("utf-8"),
         token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def hash_rate_limit_identifier(identifier: str) -> str:
+    return hmac.new(
+        settings.session_secret.encode("utf-8"),
+        identifier.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
 

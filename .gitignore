@@ -39,3 +39,4 @@ Thumbs.db
 TRUENAS_SUBMISSION_CHECKLIST.md
 truenas/**/templates/rendered/
 TRUENAS_SUBMISSION_CHECKLIST.md
+api/app/models/inventory.py

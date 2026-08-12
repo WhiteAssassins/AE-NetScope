@@ -15,6 +15,7 @@ from app.middleware.maintenance_mode import maintenance_mode_middleware
 from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
 from app.services import search_indexing
+from app.services.data_protection import migrate_sensitive_fields_to_primary_key
 from app.services.maintenance import purge_expired_records, reconcile_interrupted_updates
 from app.services.mfa import migrate_totp_secrets_to_primary_key
 
@@ -23,11 +24,32 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    security_errors = settings.runtime_security_errors()
+    if security_errors:
+        raise RuntimeError("Unsafe runtime configuration: " + " ".join(security_errors))
+    if settings.app_env == "production" and not settings.effective_session_cookie_secure:
+        logger.warning(
+            "SESSION_COOKIE_SECURE is disabled in production. This is supported for "
+            "HTTP-only managed deployments, but HTTPS should be enabled whenever available."
+        )
+    if not settings.backup_encryption_key:
+        logger.warning(
+            "BACKUP_ENCRYPTION_KEY is not set; backups use a domain-separated key derived "
+            "from MFA_ENCRYPTION_KEY or SESSION_SECRET."
+        )
+    if not settings.data_encryption_key:
+        logger.warning(
+            "DATA_ENCRYPTION_KEY is not set; sensitive inventory fields use a "
+            "domain-separated key derived from MFA_ENCRYPTION_KEY or SESSION_SECRET."
+        )
+    async with SessionLocal() as session:
+        await migrate_totp_secrets_to_primary_key(session)
+        await migrate_sensitive_fields_to_primary_key(session)
+        await session.commit()
     try:
         async with SessionLocal() as session:
             await purge_expired_records(session)
             await reconcile_interrupted_updates(session)
-            await migrate_totp_secrets_to_primary_key(session)
             await session.commit()
     except Exception as exc:
         logger.warning("Database retention cleanup failed: %s", exc.__class__.__name__)
@@ -35,10 +57,12 @@ async def lifespan(_app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    expose_api_docs = settings.app_env in {"local", "test"}
     app = FastAPI(
         title=settings.app_name,
         version=project_version(),
-        docs_url="/docs" if settings.app_env != "production" else None,
+        docs_url="/docs" if expose_api_docs else None,
+        openapi_url="/openapi.json" if expose_api_docs else None,
         redoc_url=None,
         lifespan=lifespan,
     )
@@ -47,8 +71,10 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Accept", "Content-Type", "X-CSRF-Token"],
+        expose_headers=["Retry-After"],
+        max_age=600,
     )
     app.add_middleware(RequestSizeLimitMiddleware)
     app.middleware("http")(maintenance_mode_middleware)

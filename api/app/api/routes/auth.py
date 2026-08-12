@@ -45,6 +45,7 @@ from app.services.mfa import (
     decrypt_totp_secret,
     encrypt_totp_secret,
     generate_totp_secret,
+    match_totp_counter,
     totp_uri,
     verify_totp,
 )
@@ -54,9 +55,14 @@ from app.services.users import list_user_sessions, revoke_user_sessions
 router = APIRouter(prefix="/auth")
 
 
-def session_is_active(expires_at: datetime) -> bool:
+def session_is_active(expires_at: datetime, last_seen_at: datetime) -> bool:
+    now = datetime.now(UTC)
     aware_expiry = expires_at.replace(tzinfo=UTC) if expires_at.tzinfo is None else expires_at
-    return aware_expiry > datetime.now(UTC)
+    aware_last_seen = (
+        last_seen_at.replace(tzinfo=UTC) if last_seen_at.tzinfo is None else last_seen_at
+    )
+    idle_cutoff = now.timestamp() - settings.session_idle_timeout_seconds
+    return aware_expiry > now and aware_last_seen.timestamp() > idle_cutoff
 
 
 def serialize_user(user: User) -> UserResponse:
@@ -151,6 +157,13 @@ async def initial_setup(
         session,
         user=user,
         user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+    await write_audit_event(
+        session,
+        "auth.initial_setup",
+        f"Initial administrator created: {user.email}",
+        actor_user_id=user.id,
         ip_address=request.client.host if request.client else None,
     )
     await session.commit()
@@ -261,6 +274,7 @@ async def change_email(
     request: Request,
     session: SessionDep,
     current_user: CurrentUser,
+    current_session: CurrentSession,
 ) -> SessionResponse:
     try:
         await change_user_email(
@@ -269,6 +283,7 @@ async def change_email(
             current_password=payload.current_password,
             new_email=str(payload.new_email),
             ip_address=request.client.host if request.client else None,
+            current_session_id=current_session.id,
         )
     except AuthError as exc:
         await session.commit()
@@ -353,7 +368,7 @@ async def own_sessions(
             is_current=item.id == current_session.id,
         )
         for item in await list_user_sessions(session, current_user)
-        if item.revoked_at is None and session_is_active(item.expires_at)
+        if item.revoked_at is None and session_is_active(item.expires_at, item.last_seen_at)
     ]
 
 
@@ -396,6 +411,7 @@ async def setup_totp(
         raise HTTPException(status_code=400, detail="Current password is invalid.")
     secret = generate_totp_secret()
     current_user.totp_secret_encrypted = encrypt_totp_secret(secret)
+    current_user.last_totp_counter = None
     await session.commit()
     return TotpSetupResponse(secret=secret, otpauth_uri=totp_uri(secret, current_user.email))
 
@@ -409,16 +425,20 @@ async def confirm_totp(
     payload: TotpConfirmRequest,
     session: SessionDep,
     current_user: CurrentUser,
+    current_session: CurrentSession,
 ) -> SessionResponse:
     if not current_user.totp_secret_encrypted:
         raise HTTPException(status_code=409, detail="Authenticator setup has not been started.")
     try:
-        valid = verify_totp(decrypt_totp_secret(current_user.totp_secret_encrypted), payload.code)
+        counter = match_totp_counter(
+            decrypt_totp_secret(current_user.totp_secret_encrypted), payload.code
+        )
     except MfaSecretError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if not valid:
+    if counter is None:
         raise HTTPException(status_code=400, detail="Invalid authenticator code.")
     current_user.totp_enabled = True
+    await revoke_user_sessions(session, current_user, except_session_id=current_session.id)
     await write_audit_event(
         session, "auth.totp_enabled", "TOTP authentication enabled", actor_user_id=current_user.id
     )
@@ -435,6 +455,7 @@ async def disable_totp(
     payload: TotpDisableRequest,
     session: SessionDep,
     current_user: CurrentUser,
+    current_session: CurrentSession,
 ) -> SessionResponse:
     password_valid, _ = verify_password_and_update(
         payload.current_password, current_user.password_hash
@@ -449,6 +470,8 @@ async def disable_totp(
         raise HTTPException(status_code=400, detail="Password or authenticator code is invalid.")
     current_user.totp_enabled = False
     current_user.totp_secret_encrypted = None
+    current_user.last_totp_counter = None
+    await revoke_user_sessions(session, current_user, except_session_id=current_session.id)
     await write_audit_event(
         session, "auth.totp_disabled", "TOTP authentication disabled", actor_user_id=current_user.id
     )
@@ -458,11 +481,20 @@ async def disable_totp(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request: Request,
     response: Response,
     session: SessionDep,
+    current_user: CurrentUser,
     _: None = Depends(require_csrf),
     session_token: SessionCookie = None,
 ) -> None:
+    await write_audit_event(
+        session,
+        "auth.logout",
+        f"Logout succeeded for {current_user.email}",
+        actor_user_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+    )
     await revoke_user_session(session, session_token)
     await session.commit()
     clear_session_cookie(response)

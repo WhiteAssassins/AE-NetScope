@@ -55,5 +55,8 @@ async def test_login_rate_limit_uses_redis(monkeypatch) -> None:
         )
         assert limited.status_code == 429
 
+    assert fake_redis.values
+    assert all("127.0.0.1" not in key for key in fake_redis.values)
+
     app.dependency_overrides.clear()
     await engine.dispose()

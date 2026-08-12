@@ -144,10 +144,18 @@ async def update_user_endpoint(
     if user.id == current_user.id and (
         payload.is_active is False
         or (payload.role is not None and payload.role != current_user.role)
+        or (
+            payload.email is not None
+            and str(payload.email).lower() != current_user.email.lower()
+        )
+        or payload.must_change_password is True
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Use another administrator to change your own role or account status.",
+            detail=(
+                "Use account security settings for your own identity and credentials, "
+                "or another administrator for role and account-status recovery."
+            ),
         )
 
     previous_email = user.email
@@ -166,7 +174,11 @@ async def update_user_endpoint(
         ) from exc
     should_revoke_sessions = (
         payload.role is not None and payload.role != previous_role
-    ) or payload.is_active is False
+    ) or payload.is_active is False or (
+        payload.email is not None and str(payload.email).lower() != previous_email
+    ) or (
+        payload.username is not None and payload.username != previous_username
+    ) or payload.must_change_password is True
     if should_revoke_sessions:
         except_session_id = current_session.id if user.id == current_user.id else None
         await revoke_user_sessions(session, user, except_session_id=except_session_id)
@@ -194,15 +206,18 @@ async def reset_user_password_endpoint(
     user_id: int,
     session: SessionDep,
     current_user: CurrentUser,
-    current_session: CurrentSession,
 ) -> ManagedUserResetPasswordResponse:
     user = await get_user(session, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Use account security settings to change your own password.",
+        )
 
     user, temporary_password = await reset_managed_user_password(session, user)
-    except_session_id = current_session.id if user.id == current_user.id else None
-    await revoke_user_sessions(session, user, except_session_id=except_session_id)
+    await revoke_user_sessions(session, user)
     await write_audit_event(
         session,
         "users.password_reset",
@@ -225,19 +240,20 @@ async def reset_user_mfa_endpoint(
     user_id: int,
     session: SessionDep,
     current_user: CurrentUser,
-    current_session: CurrentSession,
 ) -> None:
     user = await get_user(session, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Use account security settings to change your own MFA methods.",
+        )
     user.totp_enabled = False
     user.totp_secret_encrypted = None
+    user.last_totp_counter = None
     await session.execute(delete(WebAuthnCredential).where(WebAuthnCredential.user_id == user.id))
-    await revoke_user_sessions(
-        session,
-        user,
-        except_session_id=current_session.id if user.id == current_user.id else None,
-    )
+    await revoke_user_sessions(session, user)
     await write_audit_event(
         session,
         "users.mfa_reset",

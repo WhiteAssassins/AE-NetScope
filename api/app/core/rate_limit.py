@@ -6,6 +6,7 @@ from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.redis import get_redis_client
+from app.core.security import hash_rate_limit_identifier
 
 
 def rate_limit(scope: str, *, limit: int | None = None, window_seconds: int = 60) -> Callable:
@@ -13,7 +14,8 @@ def rate_limit(scope: str, *, limit: int | None = None, window_seconds: int = 60
         max_requests = limit or settings.auth_rate_limit_per_minute
         client_ip = request.client.host if request.client else "unknown"
         bucket = int(time.time() // window_seconds)
-        key = f"ae_netscope:rate:{scope}:{client_ip}:{bucket}"
+        client_key = hash_rate_limit_identifier(client_ip)
+        key = f"ae_netscope:rate:{scope}:{client_key}:{bucket}"
 
         redis = get_redis_client()
         try:

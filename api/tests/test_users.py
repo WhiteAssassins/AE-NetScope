@@ -81,7 +81,6 @@ async def test_admin_manages_users_by_role(users_client) -> None:
     assert updated.json()["username"] == "viewer-account"
     assert updated.json()["role"] == "viewer"
     assert updated.json()["is_active"] is False
-
     reset = await client.post(
         f"/api/users/{user_id}/reset-password",
         headers={"X-CSRF-Token": csrf_token},
@@ -106,6 +105,32 @@ async def test_admin_manages_users_by_role(users_client) -> None:
     users = await client.get("/api/users")
     assert users.status_code == 200
     assert len(users.json()) == 2
+
+
+async def test_admin_cannot_use_user_management_for_self_recovery(users_client) -> None:
+    client, csrf_token = users_client
+    users = await client.get("/api/users")
+    admin = next(item for item in users.json() if item["email"] == "admin@example.com")
+    headers = {"X-CSRF-Token": csrf_token}
+
+    identity = await client.patch(
+        f"/api/users/{admin['id']}",
+        headers=headers,
+        json={"email": "hijacked@example.com"},
+    )
+    password = await client.post(f"/api/users/{admin['id']}/reset-password", headers=headers)
+    mfa = await client.post(f"/api/users/{admin['id']}/reset-mfa", headers=headers)
+    username = await client.patch(
+        f"/api/users/{admin['id']}",
+        headers=headers,
+        json={"username": "renamed-admin"},
+    )
+
+    assert identity.status_code == 409
+    assert password.status_code == 409
+    assert mfa.status_code == 409
+    assert username.status_code == 200
+    assert username.json()["username"] == "renamed-admin"
 
 
 async def test_admin_can_revoke_user_sessions(users_client) -> None:

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Cookie, Depends, Header, HTTPException, status
@@ -43,11 +43,14 @@ async def get_current_session(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required.",
         )
+    now = datetime.now(UTC)
+    idle_cutoff = now - timedelta(seconds=settings.session_idle_timeout_seconds)
     result = await session.execute(
         select(UserSession).where(
             UserSession.token_hash.in_(session_token_hash_candidates(session_token)),
             UserSession.revoked_at.is_(None),
-            UserSession.expires_at > datetime.now(UTC),
+            UserSession.expires_at > now,
+            UserSession.last_seen_at > idle_cutoff,
         )
     )
     user_session = result.scalar_one_or_none()
@@ -57,9 +60,18 @@ async def get_current_session(
             detail="Authentication required.",
         )
     current_hash = hash_session_token(session_token)
+    session_changed = False
     if user_session.token_hash != current_hash:
         user_session.token_hash = current_hash
-        await session.flush()
+        session_changed = True
+    last_seen_at = user_session.last_seen_at
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=UTC)
+    if last_seen_at <= now - timedelta(seconds=settings.session_touch_interval_seconds):
+        user_session.last_seen_at = now
+        session_changed = True
+    if session_changed:
+        await session.commit()
     return user_session
 
 

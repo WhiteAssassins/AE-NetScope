@@ -107,3 +107,82 @@ async def test_retention_removes_only_old_sessions_and_audit(monkeypatch) -> Non
     assert remaining_audit == 1
 
     await engine.dispose()
+
+
+async def test_idle_session_is_rejected_even_before_absolute_expiry(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "session_idle_timeout_seconds", 1_800)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    now = datetime.now(UTC)
+    raw_token = "idle-session-token"
+    async with session_factory() as session:
+        user = User(
+            email="idle@example.com",
+            username="idle",
+            password_hash=hash_password("correct-password"),
+            role="admin",
+        )
+        session.add(user)
+        await session.flush()
+        session.add(
+            UserSession(
+                user_id=user.id,
+                token_hash=hash_session_token(raw_token),
+                csrf_token_hash=hash_csrf_token("csrf-token"),
+                expires_at=now + timedelta(hours=4),
+                last_seen_at=now - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        assert await get_user_by_session_token(session, raw_token) is None
+
+    await engine.dispose()
+
+
+async def test_active_session_touch_is_persisted_at_a_bounded_interval(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "session_idle_timeout_seconds", 1_800)
+    monkeypatch.setattr(settings, "session_touch_interval_seconds", 60)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    now = datetime.now(UTC)
+    previous_seen = now - timedelta(minutes=5)
+    raw_token = "active-session-token"
+    async with session_factory() as session:
+        user = User(
+            email="active@example.com",
+            username="active",
+            password_hash=hash_password("correct-password"),
+            role="admin",
+        )
+        session.add(user)
+        await session.flush()
+        session.add(
+            UserSession(
+                user_id=user.id,
+                token_hash=hash_session_token(raw_token),
+                csrf_token_hash=hash_csrf_token("csrf-token"),
+                expires_at=now + timedelta(hours=4),
+                last_seen_at=previous_seen,
+            )
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        assert await get_user_by_session_token(session, raw_token) is not None
+
+    async with session_factory() as session:
+        stored_seen = await session.scalar(select(UserSession.last_seen_at))
+
+    assert stored_seen is not None
+    if stored_seen.tzinfo is None:
+        stored_seen = stored_seen.replace(tzinfo=UTC)
+    assert stored_seen > previous_seen
+    await engine.dispose()

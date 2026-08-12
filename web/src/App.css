@@ -2218,11 +2218,17 @@ th {
   font-size: 14px;
 }
 
-.legend-row span {
+.legend-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
 }
+
+.legend-dot.blue { background: #3857f6; }
+.legend-dot.green { background: #30b866; }
+.legend-dot.purple { background: #7446dc; }
+.legend-dot.orange { background: #f39a16; }
+.legend-dot.cyan { background: #12a7ad; }
 
 .legend-row p {
   margin: 0;
@@ -2403,17 +2409,31 @@ th {
 
 .subnet-usage {
   display: block;
+  width: 100%;
   overflow: hidden;
   height: 7px;
+  border: 0;
   border-radius: 999px;
+  background: #eef2f8;
+  appearance: none;
+}
+
+.subnet-usage::-webkit-progress-bar,
+.topology-meter::-webkit-progress-bar {
+  border-radius: inherit;
   background: #eef2f8;
 }
 
-.subnet-usage span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
+.subnet-usage::-webkit-progress-value,
+.topology-meter::-webkit-progress-value {
   background: linear-gradient(90deg, #30b866, #1747ff);
+  border-radius: inherit;
+}
+
+.subnet-usage::-moz-progress-bar,
+.topology-meter::-moz-progress-bar {
+  background: linear-gradient(90deg, #30b866, #1747ff);
+  border-radius: inherit;
 }
 
 .subnet-node-foot {
@@ -2659,17 +2679,13 @@ th {
 
 .topology-meter {
   display: block;
+  width: 100%;
   overflow: hidden;
   height: 7px;
+  border: 0;
   border-radius: 999px;
   background: #eef2f8;
-}
-
-.topology-meter span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #30b866, #1747ff);
+  appearance: none;
 }
 
 .topology-children {

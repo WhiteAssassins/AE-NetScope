@@ -101,10 +101,16 @@ def _totp_code(secret: str, counter: int) -> str:
     return f"{value:06d}"
 
 
-def verify_totp(secret: str, code: str, *, now: int | None = None) -> bool:
+def match_totp_counter(secret: str, code: str, *, now: int | None = None) -> int | None:
     if not code.isdigit() or len(code) != 6:
-        return False
+        return None
     counter = (now if now is not None else int(time.time())) // 30
-    return any(
-        hmac.compare_digest(_totp_code(secret, counter + drift), code) for drift in (-1, 0, 1)
-    )
+    for drift in (-1, 0, 1):
+        candidate = counter + drift
+        if hmac.compare_digest(_totp_code(secret, candidate), code):
+            return candidate
+    return None
+
+
+def verify_totp(secret: str, code: str, *, now: int | None = None) -> bool:
+    return match_totp_counter(secret, code, now=now) is not None

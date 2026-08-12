@@ -22,6 +22,10 @@ class PasskeyRegistrationOptionsRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
 
 
+class PasskeyDeleteRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=1024)
+
+
 class PasskeyOptionsResponse(BaseModel):
     challenge_id: str
     options: dict[str, Any]

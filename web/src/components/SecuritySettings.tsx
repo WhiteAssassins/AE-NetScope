@@ -137,8 +137,13 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
   }
 
   async function removePasskey(credentialId: number) {
+    if (!password) {
+      setError(t("settings.security.passwordRequiredForPasskeyRemoval"));
+      return;
+    }
     try {
-      await deletePasskey(credentialId, csrfToken);
+      await deletePasskey(credentialId, password, csrfToken);
+      setPassword("");
       await refresh();
       setMessage(t("settings.security.passkeyRemoved"));
     } catch {

@@ -162,7 +162,7 @@ export default function DashboardView({
             <div className="legend">
               {chartData.map((entry) => (
                 <div className="legend-row" key={entry.name}>
-                  <span style={{ background: entry.color }} />
+                  <span className={`legend-dot ${entry.tone}`} />
                   <p>{entry.name}</p>
                   <strong>
                     {entry.value} (
@@ -211,12 +211,12 @@ export default function DashboardView({
                       <span>{network.ip_count}/{network.usable_hosts || 0} IPs</span>
                       {network.vlan && <span>VLAN {network.vlan.vlan_id}</span>}
                     </span>
-                    <span
+                    <progress
                       className="subnet-usage"
                       aria-label={t("dashboard.percentUsed", { value: network.utilization_percent })}
-                    >
-                      <span style={{ width: `${Math.min(network.utilization_percent, 100)}%` }} />
-                    </span>
+                      max="100"
+                      value={Math.min(network.utilization_percent, 100)}
+                    />
                   </button>
                 ))
               ) : (
@@ -306,11 +306,11 @@ function buildStats(
 
 function buildChartData(dashboard: DashboardSummary | null, t: TFunction) {
   return [
-    { name: t("navigation.devices"), value: dashboard?.stats.devices ?? 0, color: "#3857f6" },
-    { name: t("navigation.ipMacs"), value: dashboard?.stats.ip_addresses ?? 0, color: "#30b866" },
-    { name: t("navigation.networks"), value: dashboard?.stats.networks ?? 0, color: "#7446dc" },
-    { name: t("navigation.vlans"), value: dashboard?.stats.vlans ?? 0, color: "#f39a16" },
-    { name: t("navigation.services"), value: dashboard?.stats.services ?? 0, color: "#12a7ad" },
+    { name: t("navigation.devices"), value: dashboard?.stats.devices ?? 0, color: "#3857f6", tone: "blue" },
+    { name: t("navigation.ipMacs"), value: dashboard?.stats.ip_addresses ?? 0, color: "#30b866", tone: "green" },
+    { name: t("navigation.networks"), value: dashboard?.stats.networks ?? 0, color: "#7446dc", tone: "purple" },
+    { name: t("navigation.vlans"), value: dashboard?.stats.vlans ?? 0, color: "#f39a16", tone: "orange" },
+    { name: t("navigation.services"), value: dashboard?.stats.services ?? 0, color: "#12a7ad", tone: "cyan" },
   ];
 }
 
