@@ -73,4 +73,25 @@ describe("HardwareView", () => {
     await user.type(screen.getByPlaceholderText(/search by serial/i), "arm");
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
   });
+
+  it("includes English, mixed-case and custom physical device types", () => {
+    const englishServer = { ...baseDevice, id: 2, name: "SRV-EN-01", device_type: "physical server" };
+    const mixedCaseRouter = { ...baseDevice, id: 3, name: "RTR-01", device_type: "rOuTeR" };
+    const customCamera = { ...baseDevice, id: 4, name: "CAM-POE-01", device_type: "PoE security camera" };
+    const customAsset = { ...baseDevice, id: 5, name: "APPLIANCE-01", device_type: "Custom appliance" };
+    const virtualServer = { ...baseDevice, id: 6, name: "VM-01", device_type: "virtual server" };
+
+    render(
+      <HardwareView
+        devices={[englishServer, mixedCaseRouter, customCamera, customAsset, virtualServer]}
+        onOpenDevice={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("SRV-EN-01")).toBeInTheDocument();
+    expect(screen.getByText("RTR-01")).toBeInTheDocument();
+    expect(screen.getByText("CAM-POE-01")).toBeInTheDocument();
+    expect(screen.getByText("APPLIANCE-01")).toBeInTheDocument();
+    expect(screen.queryByText("VM-01")).not.toBeInTheDocument();
+  });
 });

@@ -3,34 +3,19 @@ import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DeviceRecord } from "../types";
-import { deviceTypeLabel, typeTone } from "../utils";
+import { deviceTypeLabel, isHardwareDevice, typeTone } from "../utils";
 
 type HardwareViewProps = {
   devices: DeviceRecord[];
   onOpenDevice: (deviceId: number) => void;
 };
 
-const hardwareFocusedTypes = new Set([
-  "Servidor",
-  "Switch",
-  "Router",
-  "Firewall",
-  "Access Point",
-  "Cámara IP",
-  "NVR",
-  "DVR",
-  "NAS",
-  "SAN",
-  "UPS",
-  "Equipo",
-]);
-
 export default function HardwareView({ devices, onOpenDevice }: HardwareViewProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const hardwareDevices = devices.filter((device) => hardwareFocusedTypes.has(device.device_type));
+  const hardwareDevices = devices.filter(isHardwareDevice);
   const missingSerial = hardwareDevices.filter((device) => !device.serial_number?.trim()).length;
   const missingAssetTag = hardwareDevices.filter((device) => !device.asset_tag?.trim()).length;
   const warrantySoon = hardwareDevices.filter((device) => warrantyState(device.warranty_expires) === "soon").length;

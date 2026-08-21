@@ -669,6 +669,8 @@ function App() {
             <label className="search-box">
               <Search size={20} strokeWidth={1.8} />
               <input
+                autoComplete="off"
+                name="global-search"
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
                   setActiveSearchIndex(0);
@@ -677,6 +679,7 @@ function App() {
                 onKeyDown={handleSearchKeyDown}
                 placeholder={t("search.placeholder")}
                 ref={searchInputRef}
+                type="search"
                 value={searchQuery}
               />
               <kbd>Ctrl K</kbd>

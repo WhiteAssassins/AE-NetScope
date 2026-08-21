@@ -181,8 +181,8 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
         <p>{user.totp_enabled ? t("settings.security.totpActive") : t("settings.security.totpDescription")}</p>
         {!totpSetup && (
           <div className="settings-inline-form">
-            <input onChange={(event) => setPassword(event.target.value)} placeholder={t("auth.password")} type="password" value={password} />
-            {user.totp_enabled && <input inputMode="numeric" maxLength={6} onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />}
+            <input autoComplete="current-password" name="totp-current-password" onChange={(event) => setPassword(event.target.value)} placeholder={t("auth.password")} type="password" value={password} />
+            {user.totp_enabled && <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />}
             <button className="user-action" onClick={() => void (user.totp_enabled ? removeTotp() : startTotp())} type="button">
               {user.totp_enabled ? t("settings.security.disableTotp") : t("settings.security.setupTotp")}
             </button>
@@ -193,7 +193,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
             <QRCodeSVG size={160} value={totpSetup.otpauth_uri} />
             <code>{totpSetup.secret}</code>
             <div className="settings-inline-form">
-              <input inputMode="numeric" maxLength={6} onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />
+              <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />
               <button className="user-action" onClick={() => void finishTotp()} type="button">{t("settings.security.confirmTotp")}</button>
             </div>
           </div>
@@ -210,8 +210,8 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
         {passkeys.map((passkey) => <div className="security-session-row" key={passkey.id}><KeyRound size={18} /><div><strong>{passkey.name}</strong><span>{formatDateTime(passkey.created_at, i18n.resolvedLanguage)}</span></div><button aria-label={t("settings.security.removePasskey")} className="icon-button danger" onClick={() => void removePasskey(passkey.id)} type="button"><Trash2 size={16} /></button></div>)}
         {capability?.enabled && (
           <div className="settings-inline-form">
-            <input onChange={(event) => setPasskeyName(event.target.value)} placeholder={t("settings.security.passkeyName")} value={passkeyName} />
-            <input onChange={(event) => setPassword(event.target.value)} placeholder={t("auth.password")} type="password" value={password} />
+            <input autoComplete="off" name="passkey-name" onChange={(event) => setPasskeyName(event.target.value)} placeholder={t("settings.security.passkeyName")} value={passkeyName} />
+            <input autoComplete="current-password" name="passkey-current-password" onChange={(event) => setPassword(event.target.value)} placeholder={t("auth.password")} type="password" value={password} />
             <button className="user-action" onClick={() => void registerPasskey()} type="button">{t("settings.security.addPasskey")}</button>
           </div>
         )}

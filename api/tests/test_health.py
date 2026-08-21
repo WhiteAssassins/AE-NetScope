@@ -36,12 +36,12 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.2.0-alpha"
+    assert response.json()["version"] == "0.2.0-alpha.1"
     assert response.json()["release_channel"] == "alpha"
     assert (
         response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
     )
-    assert response.json()["release_notes_url"].endswith("/tag/v0.2.0-alpha")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.2.0-alpha.1")
 
 
 async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
@@ -472,7 +472,7 @@ async def test_detailed_health_status_endpoint() -> None:
 
     payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.2.0-alpha"
+    assert payload["version"] == "0.2.0-alpha.1"
     assert payload["release_channel"] == "alpha"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"

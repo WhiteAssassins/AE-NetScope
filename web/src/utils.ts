@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import type { DeviceRecord } from "./types";
 
 export function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -65,6 +66,58 @@ export function typeTone(type: string) {
   if (["Impresora", "VoIP", "IoT"].includes(type)) return "device";
   if (type === "Equipo") return "workstation";
   return "network";
+}
+
+const physicalDeviceTypeTerms = [
+  "access point",
+  "camera",
+  "camara",
+  "computer",
+  "dvr",
+  "equipment",
+  "equipo",
+  "firewall",
+  "nas",
+  "nvr",
+  "router",
+  "san",
+  "server",
+  "servidor",
+  "switch",
+  "ups",
+  "workstation",
+];
+
+const nonPhysicalDeviceTypeTerms = ["container", "contenedor", "virtual", "virtualizacion", "vm"];
+
+function normalizedDeviceType(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function isHardwareDevice(device: DeviceRecord) {
+  const type = normalizedDeviceType(device.device_type);
+  const words = new Set(type.split(" ").filter(Boolean));
+  const matchesTerm = (term: string) => term.includes(" ") ? type.includes(term) : words.has(term);
+
+  if (nonPhysicalDeviceTypeTerms.some(matchesTerm)) return false;
+  if (physicalDeviceTypeTerms.some(matchesTerm)) return true;
+
+  return [
+    device.vendor,
+    device.model,
+    device.serial_number,
+    device.asset_tag,
+    device.cpu,
+    device.memory,
+    device.storage,
+    device.warranty_expires,
+    device.rack_position,
+  ].some((value) => Boolean(value?.trim()));
 }
 
 export function hasPermission(permissions: string[], permission: string) {

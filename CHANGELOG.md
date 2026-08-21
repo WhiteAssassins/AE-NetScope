@@ -4,6 +4,23 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+## v0.2.0-alpha.1 - 2026-08-21
+
+### Fixed
+
+- Fixed the Hardware view silently hiding physical assets whose imported or API-created device types use English, mixed case, aliases, or custom labels.
+- Fixed browser password managers treating the global navigation search as a credential username field when opening Settings.
+
+### Changed
+
+- Classified hardware through normalized physical-device aliases and populated asset metadata while continuing to exclude virtual machines and containers.
+- Added explicit search, password, passkey-name, and one-time-code autocomplete semantics to account security controls.
+
+### Verified
+
+- Added regression coverage for localized, aliased, mixed-case, custom, and virtual device classifications.
+- Verified the complete API and web test suites, lint checks, frontend production build, dependency audits, secret scan, tracked-artifact check, coverage thresholds, and release metadata alignment.
+
 ## v0.2.0-alpha - 2026-08-12
 
 ### Security
