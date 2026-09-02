@@ -1,5 +1,6 @@
 import base64
 import secrets
+from functools import lru_cache
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
@@ -42,6 +43,7 @@ class DataDecryptionError(ValueError):
     pass
 
 
+@lru_cache(maxsize=8)
 def _derive_data_key(key_material: str) -> bytes:
     return HKDF(
         algorithm=hashes.SHA256(),

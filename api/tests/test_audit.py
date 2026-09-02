@@ -74,3 +74,45 @@ async def test_viewer_cannot_read_audit_events(audit_client: AsyncClient) -> Non
 
     events = await audit_client.get("/api/audit/events")
     assert events.status_code == 403
+
+
+async def test_audit_search_matches_encrypted_message(audit_client: AsyncClient) -> None:
+    login = await audit_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert login.status_code == 200
+
+    matches = await audit_client.get("/api/audit/events", params={"q": "succeeded"})
+    assert matches.status_code == 200
+    assert [item["event_type"] for item in matches.json()] == ["auth.login_success"]
+
+    by_actor = await audit_client.get("/api/audit/events", params={"q": "ADMIN@EXAMPLE.COM"})
+    assert by_actor.status_code == 200
+    assert len(by_actor.json()) == 1
+
+    misses = await audit_client.get("/api/audit/events", params={"q": "no-such-text"})
+    assert misses.status_code == 200
+    assert misses.json() == []
+
+
+async def test_audit_search_respects_the_requested_limit(audit_client: AsyncClient) -> None:
+    for _ in range(3):
+        failed = await audit_client.post(
+            "/api/auth/login",
+            json={"email": "admin@example.com", "password": "wrong-password"},
+        )
+        assert failed.status_code == 401
+
+    login = await audit_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    assert login.status_code == 200
+
+    limited = await audit_client.get(
+        "/api/audit/events",
+        params={"q": "admin@example.com", "limit": 2},
+    )
+    assert limited.status_code == 200
+    assert len(limited.json()) == 2

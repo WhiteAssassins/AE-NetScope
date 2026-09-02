@@ -61,6 +61,7 @@ from app.services.inventory import (
     get_vlan,
     inventory_quality_report,
     ip_address_to_response,
+    ip_addresses_outside_network,
     ip_belongs_to_network,
     list_devices,
     list_interfaces,
@@ -896,6 +897,16 @@ async def update_network_endpoint(
             status_code=422,
             detail="Gateway must belong to the network CIDR.",
         )
+    if payload.cidr is not None and payload.cidr != network.cidr:
+        stranded = await ip_addresses_outside_network(session, network.id, next_cidr)
+        if stranded:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{len(stranded)} assigned IP address(es) would fall outside the new "
+                    "network CIDR. Reassign or remove them first."
+                ),
+            )
 
     try:
         network = await update_network(session, network, payload)
