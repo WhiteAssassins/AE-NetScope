@@ -4,6 +4,20 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+### Security
+
+- Updated the transitive `browserslist` dependency to a patched release that fixes unbounded cache growth and an untrusted custom-stats prototype write.
+
+### Changed
+
+- Updated the web runtime and tooling dependencies, including React, i18next, react-i18next, Lucide, Recharts, Vite, Vitest, ESLint, typescript-eslint, Testing Library, jsdom, and the Node type definitions.
+- Raised the API dependency floors for FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, Redis, psycopg, cryptography, pydantic-settings, pwdlib, aiosqlite, setuptools, Dramatiq, and the development toolchain.
+- Held TypeScript on the 6.x line because typescript-eslint does not yet support TypeScript 7.
+
+### Verified
+
+- Verified the complete API and web test suites, lint checks, frontend production build, SQLite migration upgrade and check, dependency audits, secret scan, tracked-artifact check, and release metadata alignment.
+
 ## v0.2.0-alpha.1 - 2026-08-21
 
 ### Fixed
