@@ -343,6 +343,8 @@ def test_release_version_helpers() -> None:
     assert version_route.is_release_newer("v0.1.8-alpha.9", "0.1.8-alpha.10") is False
     assert version_route.is_valid_release_tag("v0.1.8-alpha") is True
     assert version_route.is_valid_release_tag("v0.1.8-alpha;rm -rf /") is False
+    # Validation trims, so the update route must substitute the trimmed value too.
+    assert version_route.is_valid_release_tag(" v0.1.8-alpha\n") is True
 
 
 def test_optional_health_check_does_not_degrade_readiness() -> None:
@@ -379,6 +381,59 @@ async def test_start_update_rejects_invalid_tag(monkeypatch) -> None:
         assert exc.detail == "Invalid release tag."
     else:
         raise AssertionError("Invalid update tag was accepted.")
+
+
+async def test_start_update_rejects_blank_tag(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    launched: list[object] = []
+
+    def fake_popen(args, *, shell, cwd):
+        launched.append(args)
+        raise AssertionError("A blank release tag must not launch the update command.")
+
+    monkeypatch.setattr(version_route.settings, "deployment_platform", "docker")
+    monkeypatch.setattr(version_route.settings, "auto_update_enabled", True)
+    monkeypatch.setattr(
+        version_route.settings,
+        "auto_update_command",
+        "docker compose up -d ae-netscope:{tag}",
+    )
+    monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+
+    for blank_tag in ("", "   ", "\n"):
+        with pytest.raises(version_route.HTTPException) as excinfo:
+            await version_route.start_update(
+                version_route.UpdateRequest(tag_name=blank_tag), None, None
+            )
+        assert excinfo.value.status_code == 400
+        assert excinfo.value.detail == "Invalid release tag."
+
+    assert launched == []
+
+
+async def test_start_update_is_refused_on_truenas(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    def fake_popen(args, *, shell, cwd):
+        raise AssertionError("TrueNAS installations must never launch the update command.")
+
+    monkeypatch.setattr(version_route.settings, "deployment_platform", "truenas")
+    monkeypatch.setattr(version_route.settings, "auto_update_enabled", True)
+    monkeypatch.setattr(
+        version_route.settings,
+        "auto_update_command",
+        "docker compose up -d ae-netscope:{tag}",
+    )
+    monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+
+    for tag in (None, "v0.1.8-alpha", "   "):
+        with pytest.raises(version_route.HTTPException) as excinfo:
+            await version_route.start_update(
+                version_route.UpdateRequest(tag_name=tag), None, None
+            )
+        assert excinfo.value.status_code == 409
+        assert "TrueNAS Apps interface" in excinfo.value.detail
 
 
 async def test_start_update_executes_without_shell(monkeypatch) -> None:
