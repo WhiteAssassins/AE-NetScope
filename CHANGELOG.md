@@ -13,6 +13,7 @@ All notable changes to AE NetScope will be documented in this file.
 - Updated the web runtime and tooling dependencies, including React, i18next, react-i18next, Lucide, Recharts, Vite, Vitest, ESLint, typescript-eslint, Testing Library, jsdom, and the Node type definitions.
 - Raised the API dependency floors for FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, Redis, psycopg, cryptography, pydantic-settings, pwdlib, aiosqlite, setuptools, Dramatiq, and the development toolchain.
 - Held TypeScript on the 6.x line because typescript-eslint does not yet support TypeScript 7.
+- Documented Node.js 24.15 as the minimum supported version for the web toolchain and declared the supported range in `web/package.json`, matching the engine requirement of the updated jsdom release.
 
 ### Verified
 

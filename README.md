@@ -398,7 +398,12 @@ sudo apt install -y \
   redis-server nginx
 ```
 
-### 3. Install Node.js 24
+### 3. Install Node.js 24.15 or newer
+
+The web toolchain requires Node.js `24.15.0` or newer on the 24 line, or `26.0.0`
+or newer. The command below installs the current 24.x release, which satisfies
+this. If you already have an older Node 24 installed, upgrade it before
+continuing.
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
