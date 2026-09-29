@@ -23,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -169,6 +169,57 @@ function App() {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusInfo | null>(null);
   const [maintenanceStatus, setMaintenanceStatus] = useState<MaintenanceStatus | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const authEpochRef = useRef(0);
+  const activeUserRef = useRef<User | null>(null);
+
+  const refreshInventory = useCallback(async () => {
+    const epoch = authEpochRef.current;
+    const inventoryData = await fetchInventoryData();
+    if (epoch !== authEpochRef.current || !activeUserRef.current) return;
+    setDashboard(inventoryData.dashboard);
+    setDevices(inventoryData.devices);
+    setNetworks(inventoryData.networks);
+    setVlans(inventoryData.vlans);
+    setServices(inventoryData.services);
+    setIpMacs(inventoryData.ipMacs);
+    setInterfaces(inventoryData.interfaces);
+    setQuality(inventoryData.quality);
+    setLastUpdatedAt(new Date());
+  }, []);
+
+  const updateCurrentUser = useCallback((nextUser: User | null) => {
+    const previousUser = activeUserRef.current;
+    const boundaryChanged = previousUser?.id !== nextUser?.id
+      || previousUser?.role !== nextUser?.role
+      || previousUser?.must_change_password !== nextUser?.must_change_password
+      || previousUser?.permissions.length !== nextUser?.permissions.length
+      || previousUser?.permissions.some((permission) => !nextUser?.permissions.includes(permission));
+    activeUserRef.current = nextUser;
+    setUser(nextUser);
+    if (!boundaryChanged) return;
+    authEpochRef.current += 1;
+    setDashboard(null);
+    setDevices([]);
+    setNetworks([]);
+    setVlans([]);
+    setServices([]);
+    setIpMacs([]);
+    setInterfaces([]);
+    setQuality(null);
+    setManagedUsers([]);
+    setAuditEvents([]);
+    setTopbarHealth(null);
+    setUpdateStatus(null);
+    setLastUpdatedAt(null);
+    setSearchQuery("");
+    setActiveSearchIndex(0);
+    setActiveTopbarMenu(null);
+    setFocusTarget(null);
+    setView("dashboard");
+    if (previousUser && nextUser && !previousUser.must_change_password && !nextUser.must_change_password) {
+      refreshInventory().catch(() => undefined);
+    }
+  }, [refreshInventory]);
 
   useEffect(() => {
     fetchVersionInfo()
@@ -191,14 +242,14 @@ function App() {
           setSetupTokenRequired(setupData.token_required);
           if (setupData.setup_required) {
             setSetupRequired(true);
-            setUser(null);
+            updateCurrentUser(null);
             return;
           }
         }
 
         const meResponse = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
         if (!meResponse.ok) {
-          setUser(null);
+          updateCurrentUser(null);
           if (meResponse.status === 401) {
             setSessionMessage(i18n.t("auth.sessionExpired"));
           }
@@ -212,7 +263,7 @@ function App() {
           date_format: data.user.date_format ?? "locale",
           hour_format: data.user.hour_format ?? "24",
         });
-        setUser(data.user);
+        updateCurrentUser(data.user);
         await refreshCsrfToken().catch(() => setCsrfToken(""));
         if (!data.user.must_change_password) {
           await refreshInventory().catch(() => {
@@ -221,11 +272,11 @@ function App() {
         }
       })
       .catch(() => {
-        setUser(null);
+        updateCurrentUser(null);
         setSessionMessage(i18n.t("auth.sessionExpired"));
       })
       .finally(() => setIsLoading(false));
-  }, [i18n]);
+  }, [i18n, refreshInventory, updateCurrentUser]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -303,23 +354,13 @@ function App() {
     };
   }, [user]);
 
-  async function refreshInventory() {
-    const inventoryData = await fetchInventoryData();
-    setDashboard(inventoryData.dashboard);
-    setDevices(inventoryData.devices);
-    setNetworks(inventoryData.networks);
-    setVlans(inventoryData.vlans);
-    setServices(inventoryData.services);
-    setIpMacs(inventoryData.ipMacs);
-    setInterfaces(inventoryData.interfaces);
-    setQuality(inventoryData.quality);
-    setLastUpdatedAt(new Date());
-  }
-
   async function refreshCsrfToken() {
+    const epoch = authEpochRef.current;
     const csrfResponse = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
+    if (epoch !== authEpochRef.current) return;
     if (csrfResponse.ok) {
       const csrfData = (await csrfResponse.json()) as { csrf_token: string };
+      if (epoch !== authEpochRef.current) return;
       setCsrfToken(csrfData.csrf_token);
       return;
     }
@@ -327,18 +368,30 @@ function App() {
   }
 
   async function refreshManagedUsers() {
+    if (!activeUserRef.current?.permissions.includes("users:manage")) {
+      setManagedUsers([]);
+      return;
+    }
+    const epoch = authEpochRef.current;
     const response = await fetch(`${API_BASE_URL}/users`, { credentials: "include" });
-    if (response.ok) {
-      setManagedUsers((await response.json()) as ManagedUser[]);
+    const data = response.ok ? (await response.json()) as ManagedUser[] : [];
+    if (epoch === authEpochRef.current && activeUserRef.current?.permissions.includes("users:manage")) {
+      setManagedUsers(data);
     }
   }
 
   async function refreshAuditEvents() {
+    if (!activeUserRef.current?.permissions.includes("audit:read")) {
+      setAuditEvents([]);
+      return;
+    }
+    const epoch = authEpochRef.current;
     const response = await fetch(`${API_BASE_URL}/audit/events?limit=8`, {
       credentials: "include",
     });
-    if (response.ok) {
-      setAuditEvents((await response.json()) as AuditEvent[]);
+    const data = response.ok ? (await response.json()) as AuditEvent[] : [];
+    if (epoch === authEpochRef.current && activeUserRef.current?.permissions.includes("audit:read")) {
+      setAuditEvents(data);
     }
   }
 
@@ -348,10 +401,16 @@ function App() {
       credentials: "include",
       headers: { "X-CSRF-Token": csrfToken },
     });
-    setUser(null);
+    updateCurrentUser(null);
     setCsrfToken("");
   }
 
+  const visibleManagedUsers = user?.permissions.includes("users:manage") && !user.must_change_password
+    ? managedUsers
+    : [];
+  const visibleAuditEvents = user?.permissions.includes("audit:read") && !user.must_change_password
+    ? auditEvents
+    : [];
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const searchResults: SearchResult[] = normalizedSearch
     ? [
@@ -431,12 +490,12 @@ function App() {
           meta: `${service.device_name} - ${service.port ?? t("search.withoutPort")}/${service.protocol}`,
           target: { view: "services" as ViewName, id: service.id },
         })),
-        ...managedUsers.map((managedUser) => ({
+        ...visibleManagedUsers.map((managedUser) => ({
           title: managedUser.email,
           meta: `${managedUser.username} - ${roleLabel(managedUser.role, t)}`,
           target: { view: "users" as ViewName, id: managedUser.id },
         })),
-        ...auditEvents.map((event) => ({
+        ...visibleAuditEvents.map((event) => ({
           title: auditEventMessage(event, t),
           meta: `${event.event_type} - ${event.actor_email ?? t("common.system")} - ${formatDateTime(
             event.created_at,
@@ -543,7 +602,7 @@ function App() {
           onSetupComplete={(nextUser, nextCsrfToken) => {
             void setLanguage(nextUser.preferred_language);
             setSetupRequired(false);
-            setUser(nextUser);
+            updateCurrentUser(nextUser);
             setCsrfToken(nextCsrfToken);
             refreshInventory().catch(() => undefined);
           }}
@@ -564,7 +623,7 @@ function App() {
               date_format: nextUser.date_format ?? "locale",
               hour_format: nextUser.hour_format ?? "24",
             });
-            setUser(nextUser);
+            updateCurrentUser(nextUser);
             setCsrfToken(nextCsrfToken);
             setSetupRequired(false);
             setSessionMessage("");
@@ -583,7 +642,7 @@ function App() {
         <ChangePasswordScreen
           csrfToken={csrfToken}
           onPasswordChanged={(nextUser) => {
-            setUser(nextUser);
+            updateCurrentUser(nextUser);
             refreshInventory().catch(() => undefined);
           }}
         />
@@ -723,7 +782,8 @@ function App() {
             )}
             {localSettings.showGitHubButton && <GitHubButton />}
             <NotificationCenter
-              auditEvents={auditEvents}
+              key={currentUser.id}
+              auditEvents={visibleAuditEvents}
               health={topbarHealth}
               isOpen={activeTopbarMenu === "notifications"}
               onOpenAudit={() => goToView("audit")}
@@ -796,7 +856,7 @@ function App() {
                     className="topbar-menu-item"
                     onClick={() => {
                       setActiveTopbarMenu(null);
-                      setUser({ ...currentUser, must_change_password: true });
+                      updateCurrentUser({ ...currentUser, must_change_password: true });
                     }}
                   >
                     <strong>{t("auth.changePassword")}</strong>
@@ -855,7 +915,7 @@ function App() {
       return (
         <Suspense fallback={<div className="auth-loading">{t("loading.dashboard")}</div>}>
           <DashboardView
-            auditEvents={auditEvents}
+            auditEvents={visibleAuditEvents}
             dashboard={dashboard}
             lastUpdatedAt={lastUpdatedAt}
             onOpenAudit={() => goToView("audit")}
@@ -1044,7 +1104,7 @@ function App() {
             csrfToken={csrfToken}
             currentUser={currentUser}
             focusUserId={focusTarget?.view === "users" ? focusTarget.id : undefined}
-            onCurrentUserChanged={setUser}
+            onCurrentUserChanged={updateCurrentUser}
           />
         </Suspense>
       );
@@ -1054,8 +1114,8 @@ function App() {
         <Suspense fallback={<div className="auth-loading">{t("loading.profile")}</div>}>
           <ProfileView
             csrfToken={csrfToken}
-            onChangePassword={() => setUser({ ...currentUser, must_change_password: true })}
-            onUserChanged={setUser}
+            onChangePassword={() => updateCurrentUser({ ...currentUser, must_change_password: true })}
+            onUserChanged={updateCurrentUser}
             user={currentUser}
           />
         </Suspense>
@@ -1082,7 +1142,7 @@ function App() {
     if (view === "settings") {
       return (
         <Suspense fallback={<div className="auth-loading">{t("loading.settings")}</div>}>
-          <SettingsView csrfToken={csrfToken} onUserChanged={setUser} user={currentUser} />
+          <SettingsView csrfToken={csrfToken} onUserChanged={updateCurrentUser} user={currentUser} />
         </Suspense>
       );
     }
