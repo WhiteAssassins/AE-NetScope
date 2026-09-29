@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.integration import IntegrationToken
 from app.models.user import User
 
+TOKEN_PREFIX = "aens_"
+
 INTEGRATION_PERMISSIONS = {
     "inventory:read",
     *(
@@ -20,7 +22,7 @@ INTEGRATION_PERMISSIONS = {
 
 
 def generate_token() -> tuple[str, str]:
-    token = "aens_" + secrets.token_urlsafe(48)
+    token = TOKEN_PREFIX + secrets.token_urlsafe(48)
     return token, token_digest(token)
 
 
@@ -28,10 +30,18 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def authenticate_integration(request: Request, session: AsyncSession) -> User:
+def integration_credential(request: Request) -> str | None:
     authorization = request.headers.get("Authorization", "")
     scheme, _, credential = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not credential or len(credential) > 256:
+    credential = credential.strip()
+    if scheme.lower() == "bearer" and credential.startswith(TOKEN_PREFIX):
+        return credential
+    return None
+
+
+async def authenticate_integration(request: Request, session: AsyncSession) -> User:
+    credential = integration_credential(request)
+    if credential is None or len(credential) > 256:
         raise HTTPException(401, "Invalid integration token.")
     result = await session.execute(
         select(IntegrationToken, User)

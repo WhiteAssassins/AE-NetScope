@@ -12,7 +12,11 @@ from app.db.session import get_session
 from app.models.session import UserSession
 from app.models.user import User
 from app.services.auth import get_user_by_session_token, verify_csrf_token
-from app.services.integrations import authenticate_integration, check_integration_permission
+from app.services.integrations import (
+    authenticate_integration,
+    check_integration_permission,
+    integration_credential,
+)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SessionCookie = Annotated[str | None, Cookie(alias=settings.session_cookie_name)]
@@ -24,7 +28,7 @@ async def get_current_user(
     session: SessionDep,
     session_token: SessionCookie = None,
 ) -> User:
-    if request.headers.get("Authorization") is not None:
+    if integration_credential(request) is not None:
         if not request.url.path.startswith("/api/inventory/"):
             raise HTTPException(403, "Integration tokens are restricted to inventory.")
         return await authenticate_integration(request, session)
@@ -90,7 +94,7 @@ async def require_csrf(
     session_token: SessionCookie = None,
     csrf_token: CsrfHeader = None,
 ) -> None:
-    if request.headers.get("Authorization") is not None:
+    if integration_credential(request) is not None:
         await get_current_user(request, session, session_token)
         return
     if not await verify_csrf_token(session, session_token, csrf_token):

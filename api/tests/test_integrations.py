@@ -123,7 +123,7 @@ async def test_token_rechecks_expiry_and_account_state(integration_api, change, 
 async def test_invalid_bearer_does_not_fall_back_to_browser_session(integration_api):
     client, _, _ = integration_api
     response = await client.get(
-        "/api/inventory/devices", headers={"Authorization": "Bearer invalid"}
+        "/api/inventory/devices", headers={"Authorization": "Bearer aens_invalid"}
     )
     assert response.status_code == 401
 
@@ -206,3 +206,72 @@ async def test_search_pages_distinct_records_and_escapes_wildcards(integration_a
             "/api/inventory/search", headers=headers, params={"resource": "devices", "limit": 101}
         )
     ).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        "Basic cHJveHk6cGFzc3dvcmQ=",
+        "Bearer proxy-credential",
+        "Digest proxy-credential",
+    ],
+)
+async def test_proxy_authorization_preserves_cookie_auth_and_csrf(integration_api, authorization):
+    client, csrf, _ = integration_api
+    headers = {"Authorization": authorization}
+    assert (await client.get("/api/inventory/devices", headers=headers)).status_code == 200
+    assert (await client.get("/api/integrations/tokens", headers=headers)).status_code == 200
+    payload = {"name": "behind-proxy", "device_type": "server"}
+    assert (
+        await client.post("/api/inventory/devices", headers=headers, json=payload)
+    ).status_code == 403
+    assert (
+        await client.post(
+            "/api/inventory/devices", headers={**headers, "X-CSRF-Token": "bad"}, json=payload
+        )
+    ).status_code == 403
+    assert (
+        await client.post(
+            "/api/inventory/devices", headers={**headers, "X-CSRF-Token": csrf}, json=payload
+        )
+    ).status_code == 201
+    assert (
+        await client.post(
+            "/api/integrations/tokens",
+            headers={**headers, "X-CSRF-Token": csrf},
+            json={"name": "Proxy session", "password": "integration-test-password"},
+        )
+    ).status_code == 201
+    client.cookies.clear()
+    assert (await client.get("/api/inventory/devices", headers=headers)).status_code == 401
+
+
+@pytest.mark.parametrize("credential", ["aens_invalid", "aens_", "aens_" + "x" * 300])
+async def test_invalid_integration_credentials_cannot_use_cookie_or_csrf(
+    integration_api, credential
+):
+    client, csrf, _ = integration_api
+    headers = {"Authorization": f"Bearer {credential}", "X-CSRF-Token": csrf}
+    assert (await client.get("/api/inventory/devices", headers=headers)).status_code == 401
+    assert (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={"name": "denied", "device_type": "server"},
+        )
+    ).status_code == 401
+
+
+async def test_recognized_bearer_uses_integration_permissions_even_with_cookie(integration_api):
+    client, csrf, _ = integration_api
+    token = (await issue(client, csrf)).json()["token"]
+    headers = {"Authorization": f"bEaReR {token}", "X-CSRF-Token": csrf}
+    assert (await client.get("/api/inventory/devices", headers=headers)).status_code == 200
+    assert (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={"name": "denied", "device_type": "server"},
+        )
+    ).status_code == 403
+    assert (await client.get("/api/integrations/tokens", headers=headers)).status_code == 403
