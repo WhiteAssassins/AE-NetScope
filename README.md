@@ -20,7 +20,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current alpha release notes are available in `RELEASE_NOTES_v0.2.0-alpha.1.md`. See `CHANGELOG.md` for release history.
+Current release notes are available in `RELEASE_NOTES_v0.3.0.md`. See `CHANGELOG.md` for release history.
 
 ## Current Status
 
@@ -233,11 +233,11 @@ VITE_API_BASE_URL=/api
 
 ## Docker Installation
 
-These Docker instructions are the supported alpha container installation path for local testing and TrueNAS packaging validation.
+These Docker instructions describe the container installation path for local testing and deployment validation.
 
 AE NetScope includes an early production-style container path. The public image serves the built Vite web app and FastAPI API from one HTTP port, starts with PostgreSQL and Redis, and runs Alembic migrations on startup.
 
-This path is intended for local validation, public alpha testing, and future TrueNAS packaging work. It is still alpha software.
+Version 0.3.0 uses the stable release channel. The project remains an early public preview; deployment validation and the precautions below still apply.
 
 Use `compose.yaml` for local HTTP container testing. Running the image directly with `docker run` uses the image defaults and requires explicit environment variables for the target deployment. For real HTTPS production, set `APP_ENV=production`, `APP_URL=https://...`, `SESSION_COOKIE_SECURE=true`, and `SECURITY_HSTS_ENABLED=true`.
 
@@ -252,7 +252,7 @@ Before a pending startup migration runs, the container creates an AES-256-GCM en
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.2.0-alpha.1
+ghcr.io/whiteassassins/ae-netscope:v0.3.0
 ```
 
 From the project root:
@@ -367,7 +367,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.2.0-alpha.1 .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.3.0 .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.

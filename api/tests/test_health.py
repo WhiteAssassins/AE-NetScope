@@ -36,31 +36,36 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.2.0-alpha.1"
-    assert response.json()["release_channel"] == "alpha"
+    assert response.json()["version"] == "0.3.0"
+    assert response.json()["release_channel"] == "stable"
     assert (
         response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
     )
-    assert response.json()["release_notes_url"].endswith("/tag/v0.2.0-alpha.1")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.3.0")
 
 
-async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "installed,selected",
+    [("0.2.0-alpha.1", "v0.4.0-alpha"), ("0.3.0", "v0.3.1")],
+)
+async def test_update_status_selects_configured_channel(monkeypatch, installed, selected) -> None:
     from app.api.routes import version as version_route
 
     version_route.clear_release_cache()
+    monkeypatch.setattr(version_route, "project_version", lambda: installed)
     monkeypatch.setattr(
         version_route,
         "fetch_github_releases",
         lambda: [
             version_route.ReleaseDetails(
-                tag_name="v0.1.4",
-                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.4",
+                tag_name="v0.3.1",
+                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.3.1",
                 prerelease=False,
                 draft=False,
             ),
             version_route.ReleaseDetails(
-                tag_name="v0.2.1-alpha",
-                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.2.1-alpha",
+                tag_name="v0.4.0-alpha",
+                html_url="https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.4.0-alpha",
                 prerelease=True,
                 draft=False,
             ),
@@ -71,9 +76,9 @@ async def test_update_status_selects_prerelease_for_alpha(monkeypatch) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["latest_release"]["tag_name"] == "v0.1.4"
-    assert payload["latest_prerelease"]["tag_name"] == "v0.2.1-alpha"
-    assert payload["selected_release"]["tag_name"] == "v0.2.1-alpha"
+    assert payload["latest_release"]["tag_name"] == "v0.3.1"
+    assert payload["latest_prerelease"]["tag_name"] == "v0.4.0-alpha"
+    assert payload["selected_release"]["tag_name"] == selected
     assert payload["update_available"] is True
 
 
@@ -81,6 +86,7 @@ async def test_update_status_selects_highest_semantic_versions(monkeypatch) -> N
     from app.api.routes import version as version_route
 
     version_route.clear_release_cache()
+    monkeypatch.setattr(version_route, "project_version", lambda: "0.1.0-alpha")
     monkeypatch.setattr(
         version_route,
         "fetch_github_releases",
@@ -429,9 +435,7 @@ async def test_start_update_is_refused_on_truenas(monkeypatch) -> None:
 
     for tag in (None, "v0.1.8-alpha", "   "):
         with pytest.raises(version_route.HTTPException) as excinfo:
-            await version_route.start_update(
-                version_route.UpdateRequest(tag_name=tag), None, None
-            )
+            await version_route.start_update(version_route.UpdateRequest(tag_name=tag), None, None)
         assert excinfo.value.status_code == 409
         assert "TrueNAS Apps interface" in excinfo.value.detail
 
@@ -527,8 +531,8 @@ async def test_detailed_health_status_endpoint() -> None:
 
     payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.2.0-alpha.1"
-    assert payload["release_channel"] == "alpha"
+    assert payload["version"] == "0.3.0"
+    assert payload["release_channel"] == "stable"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"
     assert payload["checks"]["api"]["message_code"] == "health.checkMessages.apiOk"

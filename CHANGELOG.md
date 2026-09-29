@@ -4,8 +4,18 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+## v0.3.0 - 2026-09-29
+
+### Added
+
+- Added an optional MCP gateway with 15 inventory tools over stdio and Streamable HTTP for search, device details, dashboard totals, passive quality checks, and inventory creation or editing.
+- Added named, expiring and revocable read-only or read/write integration tokens in Settings, with password verification, hash-only storage, and enforcement of the owner's current permissions.
+- Added SQL-filtered, paginated inventory search and migration `0012_integration_tokens` for token storage.
+- Added English and Spanish integration settings and gateway setup documentation.
+
 ### Fixed
 
+- Preserved browser cookie authentication and CSRF protection when proxies forward Basic, Digest or unrelated Bearer credentials; recognized integration tokens retain their scope and cannot fall back to browser cookies.
 - Fixed audit log search returning no results when matching text inside audit messages, which are stored encrypted and cannot be matched by a database `LIKE`.
 - Fixed the device list and device responses reporting an arbitrary interface address when a device has more than one interface.
 - Fixed a network CIDR change silently leaving assigned IP addresses outside the new range; the change is now rejected while those addresses remain assigned.
@@ -14,10 +24,13 @@ All notable changes to AE NetScope will be documented in this file.
 
 ### Security
 
+- Restricted integration tokens to inventory reads and permitted writes, excluding deletion, exports, restores, administration and token management.
+- Updated the transitive development dependency `undici` to a patched release.
 - Updated the transitive `browserslist` dependency to a patched release that fixes unbounded cache growth and an untrusted custom-stats prototype write.
 
 ### Changed
 
+- Moved version 0.3.0 to the stable release channel while retaining the project's early-preview deployment guidance.
 - Updated the web runtime and tooling dependencies, including React, i18next, react-i18next, Lucide, Recharts, Vite, Vitest, ESLint, typescript-eslint, Testing Library, jsdom, and the Node type definitions.
 - Raised the API dependency floors for FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, Redis, psycopg, cryptography, pydantic-settings, pwdlib, aiosqlite, setuptools, Dramatiq, and the development toolchain.
 - Held TypeScript on the 6.x line because typescript-eslint does not yet support TypeScript 7.
@@ -26,6 +39,8 @@ All notable changes to AE NetScope will be documented in this file.
 
 ### Verified
 
+- Added MCP protocol, token authorization and proxy-session regression coverage.
+- Validated the official TrueNAS catalog runtime contract in isolated containers, including migration from schema 0011, encrypted inventory preservation, browser and token access, restart persistence and custom runtime IDs; validation on a physical TrueNAS appliance remains outstanding.
 - Verified the complete API and web test suites, lint checks, frontend production build, SQLite migration upgrade and check, dependency audits, secret scan, tracked-artifact check, and release metadata alignment.
 - Added regression coverage for encrypted audit search, stable device primary addressing, network CIDR changes that would strand IP addresses, and maintenance-mode error handling.
 
