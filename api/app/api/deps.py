@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.db.session import get_session
 from app.models.session import UserSession
 from app.models.user import User
 from app.services.auth import get_user_by_session_token, verify_csrf_token
+from app.services.integrations import authenticate_integration, check_integration_permission
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SessionCookie = Annotated[str | None, Cookie(alias=settings.session_cookie_name)]
@@ -19,9 +20,14 @@ CsrfHeader = Annotated[str | None, Header(alias="X-CSRF-Token")]
 
 
 async def get_current_user(
+    request: Request,
     session: SessionDep,
     session_token: SessionCookie = None,
 ) -> User:
+    if request.headers.get("Authorization") is not None:
+        if not request.url.path.startswith("/api/inventory/"):
+            raise HTTPException(403, "Integration tokens are restricted to inventory.")
+        return await authenticate_integration(request, session)
     user = await get_user_by_session_token(session, session_token)
     if user is None:
         raise HTTPException(
@@ -79,21 +85,26 @@ CurrentSession = Annotated[UserSession, Depends(get_current_session)]
 
 
 async def require_csrf(
+    request: Request,
     session: SessionDep,
     session_token: SessionCookie = None,
     csrf_token: CsrfHeader = None,
 ) -> None:
+    if request.headers.get("Authorization") is not None:
+        await get_current_user(request, session, session_token)
+        return
     if not await verify_csrf_token(session, session_token, csrf_token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid CSRF token.")
 
 
 def require_permission(permission: str):
-    async def dependency(current_user: CurrentUser) -> User:
+    async def dependency(request: Request, current_user: CurrentUser) -> User:
         if current_user.must_change_password:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Password change required.",
             )
+        check_integration_permission(request, permission)
         if not role_has_permission(current_user.role, permission):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied.")
         return current_user

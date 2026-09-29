@@ -311,3 +311,31 @@ export function updateSearchIndexingPolicy(
 export function fetchUpdateHistory() {
   return apiJson<UpdateHistoryItem[]>("/version/update-history");
 }
+
+export type IntegrationToken = {
+  id: number;
+  name: string;
+  allow_write: boolean;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+};
+
+export function fetchIntegrationTokens() {
+  return apiJson<IntegrationToken[]>("/integrations/tokens");
+}
+
+export function createIntegrationToken(
+  payload: { name: string; password: string; allow_write: boolean; expires_in_days: number },
+  csrfToken: string,
+) {
+  return apiJson<IntegrationToken & { token: string }>("/integrations/tokens", {
+    method: "POST", ...csrfJson(csrfToken, payload),
+  });
+}
+
+export function revokeIntegrationToken(id: number, csrfToken: string) {
+  return apiJson<void>(`/integrations/tokens/${id}`, {
+    method: "DELETE", ...csrfJson(csrfToken),
+  });
+}
