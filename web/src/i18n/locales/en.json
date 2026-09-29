@@ -1122,5 +1122,23 @@
     "settings": "Loading settings...",
     "about": "Loading project information...",
     "support": "Loading support..."
+  },
+  "integrations": {
+    "title": "MCP integrations",
+    "description": "Connect tools to your inventory using revocable access tokens.",
+    "name": "Token name",
+    "password": "Current password",
+    "days": "Expires in days",
+    "write": "Read and write",
+    "writeDescription": "Allow creating and editing inventory within your account permissions.",
+    "create": "Create token",
+    "failed": "Unable to complete the request. Check your password and try again.",
+    "showOnce": "Save this token securely. It is shown only once.",
+    "token": "Access token",
+    "hide": "Hide token",
+    "read": "Read only",
+    "expires": "Expires: {{date}}",
+    "revoked": "Revoked",
+    "revoke": "Revoke"
   }
 }

@@ -39,6 +39,7 @@ def test_alembic_upgrade_head_creates_core_tables(tmp_path, monkeypatch) -> None
 
     assert {
         "users",
+        "integration_tokens",
         "user_sessions",
         "audit_events",
         "devices",
@@ -216,3 +217,47 @@ def test_sensitive_data_migration_can_downgrade_encrypted_values(
 
     assert serial == "ROLLBACK-SERIAL"
     assert serial_type.length == 120
+
+
+def test_integration_migration_preserves_existing_inventory_and_users(tmp_path, monkeypatch):
+    database_path = tmp_path / "integration-upgrade.db"
+    sync_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{database_path.as_posix()}")
+    config = migration_config(sync_url)
+    command.upgrade(config, "0011_auth_replay")
+    engine = create_engine(sync_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text("""
+            INSERT INTO users (id, email, username, password_hash, role, is_active,
+                must_change_password, failed_login_count, created_at, updated_at)
+            VALUES (1, 'existing@example.com', 'existing', 'preserved-hash', 'operator',
+                1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """)
+        )
+        connection.execute(
+            text("""
+            INSERT INTO devices (id, name, device_type, status, created_at, updated_at)
+            VALUES (1, 'existing-router', 'router', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """)
+        )
+        before_users = connection.execute(text("SELECT * FROM users ORDER BY id")).all()
+        before_devices = connection.execute(text("SELECT * FROM devices ORDER BY id")).all()
+    command.upgrade(config, "head")
+    try:
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT * FROM users ORDER BY id")).all() == before_users
+            assert (
+                connection.execute(text("SELECT * FROM devices ORDER BY id")).all()
+                == before_devices
+            )
+            assert connection.execute(text("SELECT COUNT(*) FROM integration_tokens")).scalar() == 0
+        command.downgrade(config, "0011_auth_replay")
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT * FROM users ORDER BY id")).all() == before_users
+            assert (
+                connection.execute(text("SELECT * FROM devices ORDER BY id")).all()
+                == before_devices
+            )
+    finally:
+        engine.dispose()

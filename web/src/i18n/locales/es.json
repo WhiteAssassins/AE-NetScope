@@ -1122,5 +1122,23 @@
     "settings": "Cargando ajustes...",
     "about": "Cargando información del proyecto...",
     "support": "Cargando soporte..."
+  },
+  "integrations": {
+    "title": "Integraciones MCP",
+    "description": "Conecta herramientas a tu inventario con tokens de acceso revocables.",
+    "name": "Nombre del token",
+    "password": "Contraseña actual",
+    "days": "Vence en días",
+    "write": "Lectura y escritura",
+    "writeDescription": "Permite crear y editar inventario según los permisos de tu cuenta.",
+    "create": "Crear token",
+    "failed": "No se pudo completar la solicitud. Comprueba tu contraseña e inténtalo de nuevo.",
+    "showOnce": "Guarda este token de forma segura. Solo se muestra una vez.",
+    "token": "Token de acceso",
+    "hide": "Ocultar token",
+    "read": "Solo lectura",
+    "expires": "Vence: {{date}}",
+    "revoked": "Revocado",
+    "revoke": "Revocar"
   }
 }

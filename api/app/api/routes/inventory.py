@@ -3,9 +3,9 @@ import csv
 import ipaddress
 from datetime import UTC, datetime
 from io import StringIO
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
@@ -78,6 +78,7 @@ from app.services.inventory import (
     update_vlan,
     vlan_to_summary_response,
 )
+from app.services.inventory_search import SearchResource, search_inventory
 
 router = APIRouter(
     prefix="/inventory",
@@ -88,6 +89,23 @@ ExportResource = Literal["devices", "ip-addresses", "networks", "vlans", "servic
 BACKUP_FORMAT = "ae-netscope.inventory.v1"
 BACKUP_KEYS = ("vlans", "networks", "devices", "interfaces", "ip_addresses", "services")
 CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+@router.get("/search")
+async def search_inventory_endpoint(
+    session: SessionDep,
+    _: CurrentUser,
+    resource: SearchResource,
+    query: Annotated[str, Query(max_length=200)] = "",
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+) -> dict[str, object]:
+    return await search_inventory(session, resource, query, limit, offset)
+
+
+@router.get("/access")
+async def inventory_access(_: CurrentUser) -> dict[str, bool]:
+    return {"authenticated": True}
 
 
 @router.get("/dashboard", response_model=DashboardSummary)

@@ -48,6 +48,17 @@ Current alpha release notes are available in `RELEASE_NOTES_v0.2.0-alpha.1.md`. 
 - Inventory-quality scoring with direct navigation from each finding to the affected record.
 - Floating GitHub repository link with a backend-cached star count.
 
+## MCP Integration
+
+An optional MCP gateway provides inventory search, device details, quality checks,
+and creation or editing of devices, interfaces, IP addresses, subnets, VLANs and
+services. Access uses expiring, revocable tokens managed in **Settings > MCP integrations**
+and respects the account's existing permissions.
+
+See [MCP setup and tools](docs/mcp.md) for stdio and Streamable HTTP configuration.
+For TrueNAS catalog installations, run the gateway externally and connect it to
+the existing application web address.
+
 ## Languages
 
 English is AE NetScope's canonical interface language, default language, and runtime fallback. Spanish is included and can be selected manually from **Settings > Language**.

@@ -446,14 +446,19 @@ async def delete_device(session: AsyncSession, device: Device) -> None:
     await session.flush()
 
 
-async def list_services(session: AsyncSession) -> list[ServiceRecordResponse]:
-    result = await session.execute(
+async def list_services(
+    session: AsyncSession, *, record_ids: list[int] | None = None
+) -> list[ServiceRecordResponse]:
+    statement = (
         select(Service, Device, IpAddress.address)
         .join(Device, Service.device_id == Device.id)
         .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
         .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
         .order_by(Service.name, Device.name)
     )
+    if record_ids is not None:
+        statement = statement.where(Service.id.in_(record_ids))
+    result = await session.execute(statement)
     seen: set[int] = set()
     responses: list[ServiceRecordResponse] = []
     for service, device, primary_ip in result.all():
@@ -552,8 +557,10 @@ async def add_device_interface(
     return interface
 
 
-async def list_ip_addresses(session: AsyncSession) -> list[IpAddressRecordResponse]:
-    result = await session.execute(
+async def list_ip_addresses(
+    session: AsyncSession, *, record_ids: list[int] | None = None
+) -> list[IpAddressRecordResponse]:
+    statement = (
         select(IpAddress, NetworkInterface, Device, Network, Vlan)
         .outerjoin(NetworkInterface, IpAddress.interface_id == NetworkInterface.id)
         .outerjoin(Device, NetworkInterface.device_id == Device.id)
@@ -561,18 +568,26 @@ async def list_ip_addresses(session: AsyncSession) -> list[IpAddressRecordRespon
         .outerjoin(Vlan, Network.vlan_id == Vlan.id)
         .order_by(IpAddress.address)
     )
+    if record_ids is not None:
+        statement = statement.where(IpAddress.id.in_(record_ids))
+    result = await session.execute(statement)
     return [
         ip_address_to_record(ip_address, interface, device, network, vlan)
         for ip_address, interface, device, network, vlan in result.all()
     ]
 
 
-async def list_interfaces(session: AsyncSession) -> list[InterfaceRecordResponse]:
-    result = await session.execute(
+async def list_interfaces(
+    session: AsyncSession, *, record_ids: list[int] | None = None
+) -> list[InterfaceRecordResponse]:
+    statement = (
         select(NetworkInterface, Device)
         .join(Device, NetworkInterface.device_id == Device.id)
         .order_by(Device.name, NetworkInterface.name)
     )
+    if record_ids is not None:
+        statement = statement.where(NetworkInterface.id.in_(record_ids))
+    result = await session.execute(statement)
     return [
         InterfaceRecordResponse(
             id=interface.id,
@@ -695,8 +710,13 @@ def device_select() -> Select[tuple[Device, str | None, str | None]]:
     )
 
 
-async def list_devices(session: AsyncSession) -> list[DeviceResponse]:
-    result = await session.execute(device_select())
+async def list_devices(
+    session: AsyncSession, *, record_ids: list[int] | None = None
+) -> list[DeviceResponse]:
+    statement = device_select()
+    if record_ids is not None:
+        statement = statement.where(Device.id.in_(record_ids))
+    result = await session.execute(statement)
     seen: set[int] = set()
     devices: list[DeviceResponse] = []
     for device, ip_address, mac_address in result.all():

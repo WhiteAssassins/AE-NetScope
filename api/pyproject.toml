@@ -15,7 +15,7 @@ dependencies = [
   "email-validator>=2.3.0",
   "redis>=8.1.0",
   "starlette>=1.6.0",
-  "sqlalchemy>=2.0.52",
+  "sqlalchemy[asyncio]>=2.0.52",
   "uvicorn[standard]>=0.52.4",
   "webauthn>=3.0.0",
 ]
@@ -27,7 +27,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[project.scripts]
+ae-netscope-mcp = "app.mcp.server:main"
+
 [project.optional-dependencies]
+mcp = ["mcp>=1.30,<2", "httpx>=0.28.1,<1"]
 dev = [
   "httpx>=0.28.1",
   "msgpack>=1.2.2",
