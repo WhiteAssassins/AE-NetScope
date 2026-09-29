@@ -578,7 +578,7 @@ PostgreSQL migration backups are encrypted custom-format `pg_dump` files. Decryp
 python -m app.backup_cli decrypt /app/backups/ae-netscope-pre-migration-TIMESTAMP.dump.enc --output /tmp/ae-netscope.dump
 ```
 
-The command authenticates the backup before exposing plaintext and refuses to overwrite an existing output file. Copy the decrypted dump to the recovery host, restore it with `pg_restore`, then securely remove the temporary plaintext.
+The command writes plaintext to an owner-only temporary file and authenticates the backup before presenting the final output. It refuses to overwrite an existing output file. Copy the decrypted dump to the recovery host, restore it with `pg_restore`, then securely remove the temporary plaintext.
 
 ## SQLite Local to PostgreSQL Production
 

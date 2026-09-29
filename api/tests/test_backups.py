@@ -1,23 +1,25 @@
 import json
+import os
+import stat
 import sys
 
 import pytest
 
 from app.backup_cli import main as backup_cli_main
 from app.core.config import settings
+from app.services import backups as backup_service
 from app.services.backups import (
     BACKUP_MAGIC,
     BackupDecryptionError,
     decrypt_backup_bytes,
     decrypt_backup_file,
+    encrypt_backup_bytes,
     encrypt_backup_file,
     persist_inventory_backup,
 )
 
 
-def test_inventory_backups_are_encrypted_atomically_with_retention(
-    tmp_path, monkeypatch
-) -> None:
+def test_inventory_backups_are_encrypted_atomically_with_retention(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(settings, "inventory_backup_dir", str(tmp_path))
     monkeypatch.setattr(settings, "inventory_backup_retention_count", 2)
     monkeypatch.setattr(settings, "backup_encryption_key", "backup-key-a" * 4)
@@ -72,9 +74,7 @@ def test_backup_key_rotation_accepts_fallback_key(tmp_path, monkeypatch) -> None
     )
 
 
-def test_large_file_backup_is_stream_encrypted_and_plaintext_removed(
-    tmp_path, monkeypatch
-) -> None:
+def test_large_file_backup_is_stream_encrypted_and_plaintext_removed(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(settings, "backup_encryption_key", "stream-key" * 4)
     source = tmp_path / "ae-netscope-pre-migration.dump"
     plaintext = b"database-secret\x00" * 100_000
@@ -123,3 +123,44 @@ def test_backup_cli_requires_decryption_output(tmp_path, monkeypatch) -> None:
 
     with pytest.raises(SystemExit, match="2"):
         backup_cli_main()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes required")
+def test_decryption_output_is_private_before_writing_and_on_auth_failure(
+    tmp_path, monkeypatch
+) -> None:
+    plaintext = b"private backup contents"
+    source = tmp_path / "backup.dump.enc"
+    source.write_bytes(encrypt_backup_bytes(plaintext, key_material="test-backup-key"))
+    original_open = backup_service._open_private_file
+    created_modes = []
+
+    def record_mode(path):
+        handle = original_open(path)
+        created_modes.append(stat.S_IMODE(path.stat().st_mode))
+        return handle
+
+    monkeypatch.setattr(backup_service, "_open_private_file", record_mode)
+    old_umask = os.umask(0o022)
+    try:
+        destination = tmp_path / "restored.dump"
+        assert (
+            decrypt_backup_file(source, destination, key_materials=["test-backup-key"])
+            == destination
+        )
+        assert destination.read_bytes() == plaintext
+        assert stat.S_IMODE(destination.stat().st_mode) == 0o600
+
+        tampered = tmp_path / "tampered.dump.enc"
+        payload = bytearray(source.read_bytes())
+        payload[-1] ^= 1
+        tampered.write_bytes(payload)
+        rejected = tmp_path / "rejected.dump"
+        with pytest.raises(BackupDecryptionError):
+            decrypt_backup_file(tampered, rejected, key_materials=["test-backup-key"])
+        assert not rejected.exists()
+        assert list(tmp_path.glob(".*.tmp")) == []
+    finally:
+        os.umask(old_umask)
+
+    assert created_modes == [0o600, 0o600]

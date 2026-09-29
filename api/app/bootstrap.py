@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from sqlalchemy import select
@@ -8,6 +9,7 @@ from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.models.user import User
+from app.services.private_files import open_private_file
 from app.services.setup import ensure_app_state
 
 LOCAL_ADMIN_FILE = Path(".local-admin.txt")
@@ -44,10 +46,7 @@ async def ensure_local_admin() -> None:
         session.add(admin)
         await session.flush()
         await ensure_app_state(session)
-        await session.commit()
-
-    LOCAL_ADMIN_FILE.write_text(
-        "\n".join(
+        credential_text = "\n".join(
             [
                 "AE NetScope local admin",
                 "Email: admin@example.com",
@@ -55,9 +54,19 @@ async def ensure_local_admin() -> None:
                 "",
                 "This file is local only and must not be committed.",
             ]
-        ),
-        encoding="utf-8",
-    )
+        )
+        created = False
+        try:
+            with open_private_file(LOCAL_ADMIN_FILE) as handle:
+                created = True
+                handle.write(credential_text.encode("utf-8"))
+                handle.flush()
+                os.fsync(handle.fileno())
+            await session.commit()
+        except Exception:
+            if created:
+                LOCAL_ADMIN_FILE.unlink(missing_ok=True)
+            raise
 
 
 async def ensure_demo_inventory() -> None:

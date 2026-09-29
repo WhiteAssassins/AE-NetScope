@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.core.config import settings
+from app.services.private_files import open_private_file as _open_private_file
 
 BACKUP_MAGIC = b"AENSB1\x00"
 BACKUP_NONCE_BYTES = 12
@@ -31,9 +32,7 @@ def _derive_backup_key(key_material: str) -> bytes:
 
 def encrypt_backup_bytes(data: bytes, *, key_material: str | None = None) -> bytes:
     nonce = secrets.token_bytes(BACKUP_NONCE_BYTES)
-    encryption_key = _derive_backup_key(
-        key_material or settings.effective_backup_encryption_key
-    )
+    encryption_key = _derive_backup_key(key_material or settings.effective_backup_encryption_key)
     encryptor = Cipher(
         algorithms.AES(encryption_key),
         modes.GCM(nonce),
@@ -76,9 +75,7 @@ def encrypt_backup_file(source: Path, *, key_material: str | None = None) -> Pat
     destination = source.with_name(f"{source.name}.enc")
     temporary = destination.with_name(f".{destination.name}.{secrets.token_hex(6)}.tmp")
     nonce = secrets.token_bytes(BACKUP_NONCE_BYTES)
-    encryption_key = _derive_backup_key(
-        key_material or settings.effective_backup_encryption_key
-    )
+    encryption_key = _derive_backup_key(key_material or settings.effective_backup_encryption_key)
     encryptor = Cipher(
         algorithms.AES(encryption_key),
         modes.GCM(nonce),
@@ -86,7 +83,7 @@ def encrypt_backup_file(source: Path, *, key_material: str | None = None) -> Pat
     encryptor.authenticate_additional_data(BACKUP_MAGIC)
 
     try:
-        with source.open("rb") as input_handle, temporary.open("xb") as output_handle:
+        with source.open("rb") as input_handle, _open_private_file(temporary) as output_handle:
             output_handle.write(BACKUP_MAGIC)
             output_handle.write(nonce)
             while chunk := input_handle.read(BACKUP_CHUNK_BYTES):
@@ -134,7 +131,7 @@ def decrypt_backup_file(
         ).decryptor()
         decryptor.authenticate_additional_data(BACKUP_MAGIC)
         try:
-            with source.open("rb") as input_handle, temporary.open("xb") as output_handle:
+            with source.open("rb") as input_handle, _open_private_file(temporary) as output_handle:
                 input_handle.seek(header_size)
                 remaining = ciphertext_size
                 while remaining:
@@ -168,7 +165,7 @@ def persist_inventory_backup(payload: dict[str, object], filename: str) -> Path:
     encrypted = encrypt_backup_bytes(encoded)
 
     try:
-        with temporary.open("xb") as handle:
+        with _open_private_file(temporary) as handle:
             handle.write(encrypted)
             handle.flush()
             os.fsync(handle.fileno())
