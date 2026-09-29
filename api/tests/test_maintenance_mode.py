@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -84,3 +85,33 @@ async def test_maintenance_only_allows_explicit_public_auth_routes(monkeypatch) 
     assert login.status_code == 200
     assert preferences.status_code == 503
     assert totp.status_code == 503
+
+
+async def test_maintenance_does_not_swallow_downstream_errors(monkeypatch) -> None:
+    state = SimpleNamespace(maintenance_enabled=False, maintenance_message="Maintenance")
+    monkeypatch.setattr(maintenance_mode, "SessionLocal", lambda: FakeSession(state))
+
+    calls = 0
+
+    async def failing_next(_request):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("downstream failure")
+
+    with pytest.raises(RuntimeError, match="downstream failure"):
+        await maintenance_mode.maintenance_mode_middleware(request(), failing_next)
+
+    assert calls == 1
+
+
+async def test_maintenance_lookup_failure_lets_the_request_through(monkeypatch) -> None:
+    def broken_session():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(maintenance_mode, "SessionLocal", broken_session)
+
+    async def next_response(_request):
+        return Response("ok")
+
+    allowed = await maintenance_mode.maintenance_mode_middleware(request(), next_response)
+    assert allowed.status_code == 200

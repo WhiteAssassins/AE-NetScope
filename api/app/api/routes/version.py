@@ -159,13 +159,17 @@ async def start_update(
         )
 
     command = settings.auto_update_command
-    if payload.tag_name:
-        if not is_valid_release_tag(payload.tag_name):
+    tag_name: str | None = None
+    # Validate whenever the field was supplied. A blank value must not fall through
+    # to the unsubstituted command, which would launch it with a literal {tag}.
+    if payload.tag_name is not None:
+        tag_name = payload.tag_name.strip()
+        if not is_valid_release_tag(tag_name):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid release tag.",
             )
-        command = command.replace("{tag}", payload.tag_name)
+        command = command.replace("{tag}", tag_name)
 
     command_args = shlex.split(command)
     if not command_args:
@@ -174,7 +178,7 @@ async def start_update(
             detail="Automatic update command is empty.",
         )
 
-    target_tag = payload.tag_name or "configured-target"
+    target_tag = tag_name or "configured-target"
     try:
         process = subprocess.Popen(command_args, shell=False, cwd="/app")  # noqa: S603
     except OSError as exc:
@@ -203,7 +207,7 @@ async def start_update(
     return UpdateStartResponse(
         started=True,
         message="Update command started. The app may restart when the container is replaced.",
-        tag_name=payload.tag_name,
+        tag_name=tag_name,
     )
 
 

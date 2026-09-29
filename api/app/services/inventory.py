@@ -612,6 +612,20 @@ async def delete_ip_address(session: AsyncSession, ip_address: IpAddress) -> Non
     await session.flush()
 
 
+async def ip_addresses_outside_network(
+    session: AsyncSession,
+    network_id: int,
+    cidr: str,
+) -> list[str]:
+    addresses = await session.scalars(
+        select(IpAddress.address).where(IpAddress.network_id == network_id)
+    )
+    network = ipaddress.ip_network(cidr, strict=False)
+    return [
+        address for address in addresses if ipaddress.ip_address(address) not in network
+    ]
+
+
 async def ip_belongs_to_network(session: AsyncSession, address: str, network_id: int) -> bool:
     network = await session.get(Network, network_id)
     if network is None:
@@ -672,7 +686,12 @@ def device_select() -> Select[tuple[Device, str | None, str | None]]:
         select(Device, IpAddress.address, NetworkInterface.mac_address)
         .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
         .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
-        .order_by(Device.updated_at.desc())
+        .order_by(
+            Device.updated_at.desc(),
+            Device.id.desc(),
+            NetworkInterface.id.asc(),
+            IpAddress.id.asc(),
+        )
     )
 
 

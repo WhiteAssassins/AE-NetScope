@@ -30,25 +30,31 @@ async def maintenance_mode_middleware(request: Request, call_next):
     if not request.url.path.startswith("/api") or request.url.path in PUBLIC_API_PATHS:
         return await call_next(request)
 
+    # Only the maintenance lookup belongs in the try block. Wrapping call_next
+    # would also swallow downstream application errors and re-enter the app.
+    maintenance_message: str | None = None
     try:
         async with SessionLocal() as session:
             state = await session.get(SystemSetting, 1)
-            if state is None or not state.maintenance_enabled:
-                return await call_next(request)
-            token = request.cookies.get(settings.session_cookie_name)
-            user = await get_user_by_session_token(session, token)
-            if user is not None and user.role == "admin":
-                return await call_next(request)
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "detail": {
-                        "code": "maintenance_mode",
-                        "message": state.maintenance_message,
-                    }
-                },
-                headers={"Retry-After": "300"},
-            )
+            if state is not None and state.maintenance_enabled:
+                token = request.cookies.get(settings.session_cookie_name)
+                user = await get_user_by_session_token(session, token)
+                if user is None or user.role != "admin":
+                    maintenance_message = state.maintenance_message
     except Exception as exc:
         logger.warning("Maintenance mode check failed: %s", exc.__class__.__name__)
+        maintenance_message = None
+
+    if maintenance_message is None:
         return await call_next(request)
+
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": {
+                "code": "maintenance_mode",
+                "message": maintenance_message,
+            }
+        },
+        headers={"Retry-After": "300"},
+    )

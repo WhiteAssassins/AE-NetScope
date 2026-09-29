@@ -8,7 +8,6 @@ import type {
   RepositoryInfo,
   ServiceRecord,
   GitHubReleaseDetails,
-  GitHubReleaseInfo,
   HealthStatus,
   UpdateStatusInfo,
   User,
@@ -23,8 +22,6 @@ import type {
 } from "./types";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
-export const GITHUB_RELEASES_API_URL =
-  "https://api.github.com/repos/WhiteAssassins/AE-NetScope/releases";
 
 export async function fetchInventoryData() {
   const [
@@ -97,18 +94,6 @@ export async function fetchHealthStatus() {
     }
   }
   throw new Error("health-unavailable");
-}
-
-export async function fetchLatestGitHubRelease() {
-  const response = await fetch(GITHUB_RELEASES_API_URL, {
-    headers: { Accept: "application/vnd.github+json" },
-  });
-  if (!response.ok) {
-    throw new Error("latest-release-unavailable");
-  }
-
-  const releases = (await response.json()) as GitHubReleaseInfo[];
-  return releases.find((release) => !release.draft) ?? null;
 }
 
 export async function fetchUpdateStatus() {

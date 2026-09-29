@@ -4,6 +4,14 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed audit log search returning no results when matching text inside audit messages, which are stored encrypted and cannot be matched by a database `LIKE`.
+- Fixed the device list and device responses reporting an arbitrary interface address when a device has more than one interface.
+- Fixed a network CIDR change silently leaving assigned IP addresses outside the new range; the change is now rejected while those addresses remain assigned.
+- Fixed the maintenance-mode middleware wrapping the downstream request in its own error handler, so application errors no longer re-enter its fallback path.
+- Fixed the automatic update route substituting the untrimmed release tag into the configured command after validating the trimmed value, and rejecting a supplied blank tag instead of launching the command with an unsubstituted placeholder.
+
 ### Security
 
 - Updated the transitive `browserslist` dependency to a patched release that fixes unbounded cache growth and an untrusted custom-stats prototype write.
@@ -13,10 +21,13 @@ All notable changes to AE NetScope will be documented in this file.
 - Updated the web runtime and tooling dependencies, including React, i18next, react-i18next, Lucide, Recharts, Vite, Vitest, ESLint, typescript-eslint, Testing Library, jsdom, and the Node type definitions.
 - Raised the API dependency floors for FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, Redis, psycopg, cryptography, pydantic-settings, pwdlib, aiosqlite, setuptools, Dramatiq, and the development toolchain.
 - Held TypeScript on the 6.x line because typescript-eslint does not yet support TypeScript 7.
+- Removed the unused browser-side GitHub releases request, which the API content security policy blocks through `connect-src 'self'`.
+- Cached the derived field-encryption key so reading a list of records no longer runs one key derivation per encrypted value.
 
 ### Verified
 
 - Verified the complete API and web test suites, lint checks, frontend production build, SQLite migration upgrade and check, dependency audits, secret scan, tracked-artifact check, and release metadata alignment.
+- Added regression coverage for encrypted audit search, stable device primary addressing, network CIDR changes that would strand IP addresses, and maintenance-mode error handling.
 
 ## v0.2.0-alpha.1 - 2026-08-21
 

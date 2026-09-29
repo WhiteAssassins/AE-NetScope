@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   API_BASE_URL,
-  GITHUB_RELEASES_API_URL,
   beginPasskeyAuthentication,
   beginPasskeyRegistration,
   beginTotpSetup,
@@ -10,7 +9,6 @@ import {
   disableTotp,
   fetchInventoryData,
   fetchHealthStatus,
-  fetchLatestGitHubRelease,
   fetchMaintenanceStatus,
   fetchOwnSessions,
   fetchPasskeyCapability,
@@ -201,35 +199,6 @@ describe("api client", () => {
       checks: { database: { status: "error" } },
     });
     expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_BASE_URL}/health/summary`);
-  });
-
-  it("returns the first non-draft GitHub release", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          jsonResponse([
-            { tag_name: "v0.2.0-alpha", draft: true },
-            {
-              tag_name: "v0.1.6-alpha",
-              html_url: "https://github.com/WhiteAssassins/AE-NetScope/releases/tag/v0.1.6-alpha",
-              name: "AE NetScope v0.1.6-alpha",
-              prerelease: true,
-              draft: false,
-              published_at: "2026-06-03T00:00:00Z",
-            },
-          ]),
-        ),
-      ),
-    );
-
-    await expect(fetchLatestGitHubRelease()).resolves.toMatchObject({
-      tag_name: "v0.1.6-alpha",
-      prerelease: true,
-    });
-    expect(fetch).toHaveBeenCalledWith(GITHUB_RELEASES_API_URL, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
   });
 
   it("fetches update status with credentials", async () => {

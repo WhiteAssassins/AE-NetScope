@@ -570,3 +570,89 @@ async def test_import_preview_reports_invalid_references(inventory_client) -> No
     assert "Interface 1 references a missing device." in response.json()["errors"]
     assert "IP 1 references a missing interface." in response.json()["errors"]
     assert "Service 1 references a missing device." in response.json()["errors"]
+
+
+async def test_network_cidr_change_rejects_stranded_ip_addresses(inventory_client) -> None:
+    client, csrf_token = inventory_client
+
+    network = await client.post(
+        "/api/inventory/networks",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": "10.0.0.0/24", "name": "Core"},
+    )
+    assert network.status_code == 201
+    network_id = network.json()["id"]
+
+    assigned = await client.post(
+        "/api/inventory/ip-addresses",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"address": "10.0.0.50", "network_id": network_id},
+    )
+    assert assigned.status_code == 201
+
+    stranding = await client.patch(
+        f"/api/inventory/networks/{network_id}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": "192.168.5.0/24"},
+    )
+    assert stranding.status_code == 422
+    assert "outside" in stranding.json()["detail"]
+
+    unchanged = await client.get("/api/inventory/networks")
+    assert unchanged.json()[0]["cidr"] == "10.0.0.0/24"
+
+    widening = await client.patch(
+        f"/api/inventory/networks/{network_id}",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": "10.0.0.0/16"},
+    )
+    assert widening.status_code == 200
+    assert widening.json()["cidr"] == "10.0.0.0/16"
+
+
+async def test_device_primary_address_is_stable_across_interfaces(inventory_client) -> None:
+    client, csrf_token = inventory_client
+
+    network = await client.post(
+        "/api/inventory/networks",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": "10.0.0.0/24", "name": "Core"},
+    )
+    assert network.status_code == 201
+    network_id = network.json()["id"]
+
+    device = await client.post(
+        "/api/inventory/devices",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "name": "SW-Multi-01",
+            "device_type": "Switch",
+            "interface": {
+                "name": "eth0",
+                "mac_address": "00:11:22:33:44:01",
+                "ip_address": "10.0.0.11",
+                "network_id": network_id,
+            },
+        },
+    )
+    assert device.status_code == 201
+    device_id = device.json()["id"]
+
+    second = await client.post(
+        f"/api/inventory/devices/{device_id}/interfaces",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "name": "eth1",
+            "mac_address": "00:11:22:33:44:02",
+            "ip_address": "10.0.0.12",
+            "network_id": network_id,
+        },
+    )
+    assert second.status_code == 201
+
+    for _ in range(3):
+        listed = await client.get("/api/inventory/devices")
+        assert listed.status_code == 200
+        entry = next(item for item in listed.json() if item["id"] == device_id)
+        assert entry["primary_ip"] == "10.0.0.11"
+        assert entry["primary_mac"] == "00:11:22:33:44:01"
