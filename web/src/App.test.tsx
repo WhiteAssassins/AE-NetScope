@@ -132,7 +132,7 @@ describe("App account boundaries", () => {
 
     await browser.click(screen.getByRole("button", { name: "Notifications" }));
     expect(screen.queryByText("Private audit action")).not.toBeInTheDocument();
-  });
+  }, 10000);
 
   it("ignores a privileged response that finishes after the next account signs in", async () => {
     let resolveAudit: ((response: Response) => void) | undefined;

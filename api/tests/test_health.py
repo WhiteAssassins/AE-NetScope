@@ -36,12 +36,12 @@ async def test_version_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["app_name"] == "AE NetScope"
-    assert response.json()["version"] == "0.3.0"
-    assert response.json()["release_channel"] == "stable"
+    assert response.json()["version"] == "0.3.1-alpha"
+    assert response.json()["release_channel"] == "alpha"
     assert (
         response.json()["releases_url"] == "https://github.com/WhiteAssassins/AE-NetScope/releases"
     )
-    assert response.json()["release_notes_url"].endswith("/tag/v0.3.0")
+    assert response.json()["release_notes_url"].endswith("/tag/v0.3.1-alpha")
 
 
 @pytest.mark.parametrize(
@@ -531,8 +531,8 @@ async def test_detailed_health_status_endpoint() -> None:
 
     payload = await health_route.collect_health_status()
     assert payload["service"] == "AE NetScope"
-    assert payload["version"] == "0.3.0"
-    assert payload["release_channel"] == "stable"
+    assert payload["version"] == "0.3.1-alpha"
+    assert payload["release_channel"] == "alpha"
     assert payload["status"] in {"ready", "degraded"}
     assert payload["checks"]["api"]["status"] == "ok"
     assert payload["checks"]["api"]["message_code"] == "health.checkMessages.apiOk"

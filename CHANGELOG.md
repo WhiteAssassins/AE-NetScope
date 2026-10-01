@@ -4,6 +4,24 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+## v0.3.1-alpha - 2026-10-01
+
+### Security
+
+- Created decrypted backup output and temporary plaintext files with owner-only permissions from the moment they are opened, including when the process umask permits access to other local users.
+- Created the initial administrator password file with owner-only permissions before committing the account, rejected existing files or symlinks, and removed a newly created credential file if setup fails.
+- Cleared user-management and audit caches when the signed-in account or its permissions change, and ignored late responses from the previous session to prevent cross-account data from appearing in the browser.
+- Updated the transitive development dependency `brace-expansion` to a patched release.
+
+### Changed
+
+- Advanced the development version to the 0.3.1 prerelease channel. Version 0.3.0 remains the latest stable release.
+
+### Verified
+
+- Added regression tests for private backup and bootstrap files, account switching, late responses, and permission changes.
+- Confirmed the fixes against the existing container runtime contract used by the official TrueNAS SCALE catalog; no catalog definition or database migration changed.
+
 ## v0.3.0 - 2026-09-29
 
 ### Added
