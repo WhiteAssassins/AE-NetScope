@@ -8,6 +8,10 @@ All notable changes to AE NetScope will be documented in this file.
 
 - Added a dedicated MCP page for managing integration tokens and finding client setup guidance, with navigation limited to accounts that can read inventory.
 
+### Security
+
+- Updated the transitive development dependency `source-map-js` to a patched release.
+
 ## v0.3.1-alpha - 2026-10-01
 
 ### Security
