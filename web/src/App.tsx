@@ -15,6 +15,7 @@ import {
   Monitor,
   Network,
   PackageCheck,
+  Plug,
   Route,
   Search,
   Settings,
@@ -98,7 +99,10 @@ const navGroups: Array<{ translationKey?: string; items: NavItem[] }> = [
   },
   {
     translationKey: "navigation.tools",
-    items: [{ translationKey: "navigation.data", icon: Import, view: "importExport" }],
+    items: [
+      { translationKey: "navigation.data", icon: Import, view: "importExport" },
+      { translationKey: "navigation.mcp", icon: Plug, view: "mcp" },
+    ],
   },
   {
     translationKey: "navigation.configuration",
@@ -122,6 +126,7 @@ const HealthView = lazy(() => import("./views/HealthView"));
 const ImportExportView = lazy(() => import("./views/ImportExportView"));
 const IpMacsView = lazy(() => import("./views/IpMacsView"));
 const LoginScreen = lazy(() => import("./views/LoginScreen"));
+const McpView = lazy(() => import("./views/McpView"));
 const NetworksView = lazy(() => import("./views/NetworksView"));
 const NotesView = lazy(() => import("./views/NotesView"));
 const ProfileView = lazy(() => import("./views/ProfileView"));
@@ -508,6 +513,9 @@ function App() {
           { title: t("navigation.topology"), meta: t("search.pages.topology"), view: "topology" },
           { title: t("navigation.quality"), meta: t("search.pages.quality"), view: "quality" },
           { title: t("navigation.data"), meta: t("search.pages.data"), view: "importExport" },
+          ...(user?.permissions.includes("inventory:read")
+            ? [{ title: t("navigation.mcp"), meta: t("search.pages.mcp"), view: "mcp" }]
+            : []),
           { title: t("navigation.audit"), meta: t("search.pages.audit"), view: "audit" },
           { title: t("navigation.users"), meta: t("search.pages.users"), view: "users" },
           { title: t("topbar.profile"), meta: t("search.pages.profile"), view: "profile" },
@@ -680,6 +688,9 @@ function App() {
             <div className="nav-group" key={group.translationKey ?? "main"}>
               {group.translationKey && <p className="nav-label">{t(group.translationKey)}</p>}
               {group.items.map((item) => {
+                if (item.view === "mcp" && !currentUser.permissions.includes("inventory:read")) {
+                  return null;
+                }
                 return (
                   <button
                     className={
@@ -1085,6 +1096,16 @@ function App() {
           <ImportExportView
             csrfToken={csrfToken}
             onImported={refreshInventory}
+            permissions={currentUser.permissions}
+          />
+        </Suspense>
+      );
+    }
+    if (view === "mcp") {
+      return (
+        <Suspense fallback={<div className="auth-loading">{t("loading.mcp")}</div>}>
+          <McpView
+            csrfToken={csrfToken}
             permissions={currentUser.permissions}
           />
         </Suspense>

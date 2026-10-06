@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { updateAccountPreferences } from "../api";
 import AdminSettings from "../components/AdminSettings";
-import IntegrationSettings from "../components/IntegrationSettings";
 import SecuritySettings from "../components/SecuritySettings";
 import { storeRegionalPreferences } from "../dateTime";
 import type { RegionalPreferences } from "../dateTime";
@@ -207,7 +206,6 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
         </label>
 
         <SecuritySettings csrfToken={csrfToken} onUserChanged={onUserChanged} user={user} />
-        {user.permissions.includes("inventory:read") && <IntegrationSettings csrfToken={csrfToken} canWrite={user.permissions.includes("devices:create")} />}
         {user.permissions.includes("settings:manage") && <AdminSettings csrfToken={csrfToken} />}
 
         <div className="settings-section-heading">

@@ -52,7 +52,7 @@ Current prerelease notes are available in `RELEASE_NOTES_v0.3.1-alpha.md`. See `
 
 An optional MCP gateway provides inventory search, device details, quality checks,
 and creation or editing of devices, interfaces, IP addresses, subnets, VLANs and
-services. Access uses expiring, revocable tokens managed in **Settings > MCP integrations**
+services. Access uses expiring, revocable tokens managed on the **MCP** page
 and respects the account's existing permissions.
 
 See [MCP setup and tools](docs/mcp.md) for stdio and Streamable HTTP configuration.

@@ -4,6 +4,10 @@ All notable changes to AE NetScope will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Added a dedicated MCP page for managing integration tokens and finding client setup guidance, with navigation limited to accounts that can read inventory.
+
 ## v0.3.1-alpha - 2026-10-01
 
 ### Security

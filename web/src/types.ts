@@ -317,6 +317,7 @@ export type ViewName =
   | "hardware"
   | "notes"
   | "audit"
+  | "mcp"
   | "backups"
   | "importExport"
   | "roles"

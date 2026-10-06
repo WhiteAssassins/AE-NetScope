@@ -1,4 +1,4 @@
-import { Plug } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -68,8 +68,8 @@ export default function IntegrationSettings({ csrfToken, canWrite }: {
 
   return <>
     <div className="settings-section-heading">
-      <Plug size={20} /><div><h2>{t("integrations.title")}</h2>
-        <span>{t("integrations.description")}</span></div>
+      <KeyRound size={20} /><div><h2>{t("integrations.tokensTitle")}</h2>
+        <span>{t("integrations.tokensDescription")}</span></div>
     </div>
     <form onSubmit={(event) => void create(event)}>
       <label className="settings-row"><strong>{t("integrations.name")}</strong>

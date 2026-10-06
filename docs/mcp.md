@@ -20,7 +20,7 @@ cd api
 .venv/bin/python -m alembic upgrade head
 ```
 
-Start the application normally and sign in. In **Settings > MCP integrations**,
+Start the application normally and sign in. On the **MCP** page,
 create a named token. Select **Read and write** to allow inventory creation and
 editing. Your current password is required. Save the token when displayed;
 it cannot be retrieved later. Tokens expire after 1–365 days, defaulting to 30.
@@ -28,7 +28,7 @@ it cannot be retrieved later. Tokens expire after 1–365 days, defaulting to 30
 A viewer can create only read tokens. Operators and administrators can create
 write tokens. Tokens remain limited by their owner's current permissions, and
 stop working when expired, revoked, or when the account is deactivated or
-requires a password change. Revoke a token in the same Settings section.
+requires a password change. Revoke a token on the same page.
 Changing the password alone does not revoke integration tokens.
 
 ## TrueNAS SCALE catalog installations

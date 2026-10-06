@@ -87,6 +87,7 @@ function mockAuthenticatedApi(
     if (url.endsWith("/auth/csrf")) return Promise.resolve(jsonResponse({ csrf_token: "csrf" }));
     if (url.endsWith("/users")) return usersResponse();
     if (url.includes("/audit/events")) return auditResponse();
+    if (url.endsWith("/integrations/tokens")) return Promise.resolve(jsonResponse([]));
     if (url.endsWith("/auth/logout")) {
       activeUser = null;
       return Promise.resolve(jsonResponse({}));
@@ -111,10 +112,23 @@ async function signInAsViewer() {
   return browser;
 }
 
-describe("App account boundaries", () => {
+describe("App navigation and account boundaries", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
+  });
+
+  it("opens MCP token management from the sidebar", async () => {
+    const fetchMock = mockAuthenticatedApi();
+    const browser = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText("Private audit action");
+    await browser.click(screen.getByRole("button", { name: "MCP" }));
+
+    expect(await screen.findByRole("heading", { name: "MCP integrations" })).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) =>
+      String(url).endsWith("/integrations/tokens"))).toBe(true));
   });
 
   it("removes privileged users and audit data after switching to a viewer", async () => {

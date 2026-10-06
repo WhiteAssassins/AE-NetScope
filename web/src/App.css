@@ -3845,6 +3845,29 @@ th {
   gap: 18px;
 }
 
+.mcp-guide ol {
+  margin: 0;
+  padding-left: 24px;
+  color: #172033;
+  line-height: 1.6;
+}
+
+.mcp-guide li + li {
+  margin-top: 8px;
+}
+
+.mcp-guide p {
+  margin: 0;
+  color: #66728a;
+}
+
+.mcp-guide-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+}
+
 .settings-section-heading {
   display: flex;
   align-items: flex-start;
