@@ -14,6 +14,22 @@ Explore AE NetScope without installing it at **[netscope-demo.aewhitedevs.com](h
 
 The public demo uses fictional, non-sensitive inventory data and is intended only for evaluating the current early preview. Do not enter real credentials or sensitive network information.
 
+## Screenshots
+
+All screenshots use fictional homelab data.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+| Devices | IPs and MACs |
+| --- | --- |
+| ![Devices](docs/screenshots/devices.png) | ![IPs and MACs](docs/screenshots/ips-macs.png) |
+| **Subnets** | **Topology** |
+| ![Subnets](docs/screenshots/subnets.png) | ![Topology](docs/screenshots/topology.png) |
+| **Inventory quality** | **Services** |
+| ![Inventory quality](docs/screenshots/inventory-quality.png) | ![Services](docs/screenshots/services.png) |
+| **Audit history** | |
+| ![Audit history](docs/screenshots/audit-log.png) | |
+
 ## Early Public Preview
 
 AE NetScope is in early public preview and is not production ready yet.
