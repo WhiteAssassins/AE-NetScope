@@ -8,7 +8,7 @@ const devices: DeviceRecord[] = [
   {
     id: 1,
     name: "SRV-APP-01",
-    device_type: "Servidor",
+    device_type: "server",
     status: "active",
     vendor: "Dell",
     model: "R740",
@@ -30,7 +30,7 @@ const devices: DeviceRecord[] = [
   {
     id: 2,
     name: "CAM-DOOR-01",
-    device_type: "Cámara IP",
+    device_type: "ip_camera",
     status: "active",
     vendor: "Axis",
     model: "P3265",

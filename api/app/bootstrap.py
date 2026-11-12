@@ -105,18 +105,18 @@ async def ensure_demo_inventory() -> None:
         await session.flush()
 
         demo_devices = [
-            ("SW-Core-01", "Switch", "10.0.0.2", "00:11:22:33:44:55", net_core.id, ["SSH"]),
-            ("RTR-Edge-01", "Router", "10.0.0.1", "00:11:22:33:44:66", net_core.id, ["SSH", "DNS"]),
+            ("SW-Core-01", "switch", "10.0.0.2", "00:11:22:33:44:55", net_core.id, ["SSH"]),
+            ("RTR-Edge-01", "router", "10.0.0.1", "00:11:22:33:44:66", net_core.id, ["SSH", "DNS"]),
             (
                 "SRV-APP-01",
-                "Servidor",
+                "server",
                 "10.0.1.10",
                 "00:11:22:33:44:77",
                 net_srv.id,
                 ["SSH", "HTTP/HTTPS"],
             ),
-            ("AP-LAB-01", "Access Point", "10.0.2.15", "00:11:22:33:44:88", net_lab.id, ["SSH"]),
-            ("PC-LAB-07", "Equipo", "10.0.2.107", "00:11:22:33:44:99", net_lab.id, ["RDP"]),
+            ("AP-LAB-01", "access_point", "10.0.2.15", "00:11:22:33:44:88", net_lab.id, ["SSH"]),
+            ("PC-LAB-07", "workstation", "10.0.2.107", "00:11:22:33:44:99", net_lab.id, ["RDP"]),
         ]
 
         for name, device_type, ip_address, mac_address, network_id, service_names in demo_devices:

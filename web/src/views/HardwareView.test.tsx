@@ -7,7 +7,7 @@ import HardwareView from "./HardwareView";
 const baseDevice: DeviceRecord = {
   id: 1,
   name: "CAM-DOOR-01",
-  device_type: "Cámara IP",
+  device_type: "ip_camera",
   status: "active",
   vendor: "Axis",
   model: "P3265",

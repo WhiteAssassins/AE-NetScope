@@ -8,6 +8,14 @@ All notable changes to AE NetScope will be documented in this file.
 
 - Added a dedicated MCP page for managing integration tokens and finding client setup guidance, with navigation limited to accounts that can read inventory.
 
+### Changed
+
+- Stored device types as language-neutral keys such as `server`, `workstation` and `access_point`. The API, imports, backups and MCP tools accept the previous Spanish labels and common English names and normalize them, and reject unknown types with the list of accepted values. Migration `0013_device_type_keys` converts existing devices; unrecognized custom types become `other`.
+
+### Fixed
+
+- Fixed devices created through the API or MCP tools with English type names showing an untranslated badge and the wrong type in the edit form.
+
 ### Security
 
 - Updated the transitive development dependency `source-map-js` to a patched release.

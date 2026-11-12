@@ -15,32 +15,8 @@ export function stateLabel(value: string, t?: TFunction) {
   return titleCase(value);
 }
 
-const deviceTypeKeys: Record<string, string> = {
-  Equipo: "workstation",
-  Servidor: "server",
-  Switch: "switch",
-  Router: "router",
-  Firewall: "firewall",
-  "Access Point": "accessPoint",
-  "Cámara IP": "ipCamera",
-  NVR: "nvr",
-  DVR: "dvr",
-  NAS: "nas",
-  SAN: "san",
-  Impresora: "printer",
-  VoIP: "voip",
-  UPS: "ups",
-  IoT: "iot",
-  "Virtualización": "virtualization",
-  Contenedor: "container",
-  Sensor: "sensor",
-  "Control de acceso": "accessControl",
-  Otro: "other",
-};
-
 export function deviceTypeLabel(value: string, t: TFunction) {
-  const key = deviceTypeKeys[value];
-  return key ? t(`values.deviceTypes.${key}`) : value;
+  return t(`values.deviceTypes.${value}`, { defaultValue: value });
 }
 
 export function assignmentTypeLabel(value: string, t: TFunction) {
@@ -58,13 +34,13 @@ export function stateTone(value: string) {
 }
 
 export function typeTone(type: string) {
-  if (type === "Servidor") return "server";
-  if (type === "Access Point") return "access";
-  if (["Cámara IP", "NVR", "DVR", "Sensor", "Control de acceso"].includes(type)) return "camera";
-  if (["Firewall", "UPS"].includes(type)) return "security";
-  if (["NAS", "SAN", "Virtualización", "Contenedor"].includes(type)) return "storage";
-  if (["Impresora", "VoIP", "IoT"].includes(type)) return "device";
-  if (type === "Equipo") return "workstation";
+  if (type === "server") return "server";
+  if (type === "access_point") return "access";
+  if (["ip_camera", "nvr", "dvr", "sensor", "access_control"].includes(type)) return "camera";
+  if (["firewall", "ups"].includes(type)) return "security";
+  if (["nas", "san", "virtualization", "container"].includes(type)) return "storage";
+  if (["printer", "voip", "iot"].includes(type)) return "device";
+  if (type === "workstation") return "workstation";
   return "network";
 }
 
@@ -88,7 +64,14 @@ const physicalDeviceTypeTerms = [
   "workstation",
 ];
 
-const nonPhysicalDeviceTypeTerms = ["container", "contenedor", "virtual", "virtualizacion", "vm"];
+const nonPhysicalDeviceTypeTerms = [
+  "container",
+  "contenedor",
+  "virtual",
+  "virtualization",
+  "virtualizacion",
+  "vm",
+];
 
 function normalizedDeviceType(value: string) {
   return value

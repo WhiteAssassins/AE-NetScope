@@ -54,8 +54,8 @@
       "switch": "Switch",
       "router": "Router",
       "firewall": "Firewall",
-      "accessPoint": "Access Point",
-      "ipCamera": "Cámara IP",
+      "access_point": "Access Point",
+      "ip_camera": "Cámara IP",
       "nvr": "NVR",
       "dvr": "DVR",
       "nas": "NAS",
@@ -67,7 +67,7 @@
       "virtualization": "Virtualización",
       "container": "Contenedor",
       "sensor": "Sensor",
-      "accessControl": "Control de acceso",
+      "access_control": "Control de acceso",
       "other": "Otro"
     }
   },

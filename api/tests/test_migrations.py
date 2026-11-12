@@ -243,7 +243,7 @@ def test_integration_migration_preserves_existing_inventory_and_users(tmp_path, 
         )
         before_users = connection.execute(text("SELECT * FROM users ORDER BY id")).all()
         before_devices = connection.execute(text("SELECT * FROM devices ORDER BY id")).all()
-    command.upgrade(config, "head")
+    command.upgrade(config, "0012_integration_tokens")
     try:
         with engine.connect() as connection:
             assert connection.execute(text("SELECT * FROM users ORDER BY id")).all() == before_users
@@ -259,5 +259,59 @@ def test_integration_migration_preserves_existing_inventory_and_users(tmp_path, 
                 connection.execute(text("SELECT * FROM devices ORDER BY id")).all()
                 == before_devices
             )
+    finally:
+        engine.dispose()
+
+
+def test_device_type_migration_stores_language_neutral_keys(tmp_path, monkeypatch):
+    database_path = tmp_path / "device-type-upgrade.db"
+    sync_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{database_path.as_posix()}")
+    config = migration_config(sync_url)
+    command.upgrade(config, "0012_integration_tokens")
+    engine = create_engine(sync_url)
+    legacy_types = {
+        1: "Servidor",
+        2: "Equipo",
+        3: "Access Point",
+        4: "Cámara IP",
+        5: "Virtualización",
+        6: "Control de acceso",
+        7: "Switch",
+        8: "Virtual Machine",
+        9: "Toaster",
+    }
+    with engine.begin() as connection:
+        for device_id, device_type in legacy_types.items():
+            connection.execute(
+                text("""
+                INSERT INTO devices (id, name, device_type, status, created_at, updated_at)
+                VALUES (:id, :name, :device_type, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """),
+                {"id": device_id, "name": f"device-{device_id}", "device_type": device_type},
+            )
+    try:
+        command.upgrade(config, "0013_device_type_keys")
+        with engine.connect() as connection:
+            rows = dict(connection.execute(text("SELECT id, device_type FROM devices")).all())
+        assert rows == {
+            1: "server",
+            2: "workstation",
+            3: "access_point",
+            4: "ip_camera",
+            5: "virtualization",
+            6: "access_control",
+            7: "switch",
+            8: "virtualization",
+            9: "other",
+        }
+
+        command.downgrade(config, "0012_integration_tokens")
+        with engine.connect() as connection:
+            rows = dict(connection.execute(text("SELECT id, device_type FROM devices")).all())
+        assert rows[1] == "Servidor"
+        assert rows[3] == "Access Point"
+        assert rows[7] == "Switch"
+        assert rows[9] == "Otro"
     finally:
         engine.dispose()
