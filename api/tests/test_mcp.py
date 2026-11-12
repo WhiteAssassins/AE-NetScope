@@ -1,8 +1,8 @@
 import asyncio
-from datetime import UTC, datetime, timedelta
 import os
 import socket
 import sys
+from datetime import UTC, datetime, timedelta
 from contextlib import asynccontextmanager
 
 import httpx
@@ -336,7 +336,7 @@ async def test_builtin_server_cannot_be_enabled_without_sdk(integration_api, mon
         assert response.status_code == 409
 
 
-async def test_http_transport_rejects_revoked_token_after_connection(integration_api):
+async def test_http_transport_rejects_revoked_token_on_subsequent_request(integration_api):
     client, csrf, factory = integration_api
     token = await token_for(client, csrf, write=True)
     backend = InventoryClient("http://test", transport=httpx.ASGITransport(app=app))
@@ -358,7 +358,6 @@ async def test_http_transport_rejects_revoked_token_after_connection(integration
 
             rejected = await http.post(f"{base_url}/mcp", headers=headers, json={})
             assert rejected.status_code == 401
-
 
 
 async def test_http_transport_rejects_expired_token(integration_api):
