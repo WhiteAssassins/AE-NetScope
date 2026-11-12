@@ -7,6 +7,10 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 import uvicorn
+from sqlalchemy import select
+
+from app.models.integration import IntegrationToken
+from app.models.user import User
 
 pytest.importorskip("mcp")
 from mcp import ClientSession, StdioServerParameters  # noqa: E402
@@ -341,6 +345,8 @@ async def test_http_transport_rejects_revoked_token_after_connection(integration
     async with serve(application) as base_url:
         async with httpx.AsyncClient() as http:
             headers = {"Authorization": f"Bearer {token}"}
+            # A harmless unauthenticated MCP request is expected to be rejected only
+            # by the MCP protocol after the outer bearer-token check succeeds.
             first = await http.post(f"{base_url}/mcp", headers=headers, json={})
             assert first.status_code != 401
 
