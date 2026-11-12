@@ -2,8 +2,8 @@ import asyncio
 import os
 import socket
 import sys
-from datetime import UTC, datetime, timedelta
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -380,7 +380,6 @@ async def test_http_transport_rejects_expired_token(integration_api):
                 json={},
             )
             assert response.status_code == 401
-
 
 
 async def test_http_transport_rejects_deactivated_account(integration_api):
