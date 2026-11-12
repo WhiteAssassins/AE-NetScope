@@ -2,7 +2,7 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
-## Unreleased
+## v0.3.2-alpha - 2026-11-12
 
 ### Added
 
@@ -16,6 +16,8 @@ All notable changes to AE NetScope will be documented in this file.
 ### Fixed
 
 - Fixed devices created through the API or MCP tools with English type names showing an untranslated badge and the wrong type in the edit form.
+- Fixed searches in the device, hardware, note and service lists so they also match the displayed device type label, such as "Access Point" or "Servidor", not only the stored key.
+- Fixed the inventory API search and the MCP `search_inventory` tool so device and service searches also match device type labels and legacy names, such as "Access Point" or "Servidor".
 
 ### Security
 
