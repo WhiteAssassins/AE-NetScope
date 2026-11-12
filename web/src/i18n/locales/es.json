@@ -226,7 +226,8 @@
       },
       "settings": {
         "maintenance_updated": "Modo mantenimiento: {{state}}",
-        "search_indexing_updated": "Indexación en buscadores: {{state}}"
+        "search_indexing_updated": "Indexación en buscadores: {{state}}",
+        "mcp_server_updated": "Servidor MCP integrado: {{state}}"
       }
     }
   },
@@ -1133,11 +1134,11 @@
     "tokensTitle": "Tokens de acceso",
     "tokensDescription": "Crea y revoca tokens de tu propia cuenta.",
     "connectTitle": "Conectar un cliente MCP",
-    "connectDescription": "El gateway se ejecuta por separado y usa la dirección actual de la aplicación.",
+    "connectDescription": "Usa el servidor integrado o el gateway independiente con tu token de acceso.",
     "connectToken": "Crea un token con el nivel de acceso que necesites y guárdalo cuando aparezca.",
-    "connectGateway": "Ejecuta el gateway MCP en tu equipo u otro host. Apúntalo a la dirección web de esta aplicación.",
-    "connectClient": "Añade el gateway a tu cliente MCP y proporciona el token mediante su configuración local.",
-    "truenasHint": "En TrueNAS SCALE, mantén el gateway fuera de la aplicación gestionada. No hace falta cambiar el catálogo.",
+    "connectServer": "Activa arriba el servidor MCP integrado, o ejecuta el gateway independiente en otro equipo apuntando a la dirección web de esta aplicación.",
+    "connectClient": "Añade el endpoint integrado o el gateway a tu cliente MCP y proporciona el token mediante su configuración local.",
+    "truenasHint": "En TrueNAS SCALE, usa el servidor integrado cuando tu aplicación ejecute una versión que lo incluya, o mantén el gateway independiente fuera de la aplicación gestionada. No hace falta cambiar el catálogo.",
     "openGuide": "Abrir guía de configuración",
     "name": "Nombre del token",
     "password": "Contraseña actual",
@@ -1153,5 +1154,18 @@
     "expires": "Vence: {{date}}",
     "revoked": "Revocado",
     "revoke": "Revocar"
+  },
+  "mcpServer": {
+    "title": "Servidor MCP integrado",
+    "description": "Sirve el endpoint MCP desde esta aplicación, en la misma dirección y puerto. No hace falta un gateway aparte.",
+    "toggle": "Activar servidor MCP",
+    "status": "Estado",
+    "enabled": "Activado. Los clientes MCP pueden conectarse con un token de acceso.",
+    "disabled": "Desactivado. El endpoint /mcp no se sirve.",
+    "unavailable": "No disponible en esta instalación. Instala el extra MCP o usa el gateway independiente.",
+    "adminOnly": "Solo los administradores pueden cambiar este ajuste.",
+    "endpoint": "Endpoint",
+    "endpointHint": "Usa esta URL con un token de acceso en la cabecera Authorization.",
+    "failed": "No se pudo actualizar el ajuste del servidor MCP."
   }
 }

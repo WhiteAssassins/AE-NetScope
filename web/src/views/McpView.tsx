@@ -1,6 +1,7 @@
 import { ExternalLink, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import IntegrationSettings from "../components/IntegrationSettings";
+import McpServerSettings from "../components/McpServerSettings";
 
 type McpViewProps = {
   csrfToken: string;
@@ -27,6 +28,13 @@ export default function McpView({ csrfToken, permissions }: McpViewProps) {
       </div>
 
       <section className="panel settings-panel">
+        <McpServerSettings
+          csrfToken={csrfToken}
+          canManage={permissions.includes("settings:manage")}
+        />
+      </section>
+
+      <section className="panel settings-panel">
         <IntegrationSettings
           csrfToken={csrfToken}
           canWrite={permissions.includes("devices:create")}
@@ -43,7 +51,7 @@ export default function McpView({ csrfToken, permissions }: McpViewProps) {
         </div>
         <ol>
           <li>{t("integrations.connectToken")}</li>
-          <li>{t("integrations.connectGateway")}</li>
+          <li>{t("integrations.connectServer")}</li>
           <li>{t("integrations.connectClient")}</li>
         </ol>
         <p>{t("integrations.truenasHint")}</p>

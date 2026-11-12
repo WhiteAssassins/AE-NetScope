@@ -1,8 +1,49 @@
 # Inventory MCP integration
 
-The optional MCP gateway exposes 15 inventory tools over stdio or Streamable HTTP.
-It calls the regular inventory API, preserving its validation, role permissions,
-relationship checks and audit events. The gateway needs no database credentials.
+AE NetScope exposes 15 inventory MCP tools in two ways:
+
+- The **built-in server**, served by the application at `/mcp` once an administrator
+  enables it on the **MCP** page.
+- The **standalone gateway**, a separate process using stdio or Streamable HTTP.
+
+Both call the regular inventory API, preserving its validation, role permissions,
+relationship checks and audit events. Neither needs database credentials.
+
+## Built-in server
+
+The official container image includes the MCP SDK. For a source installation, install
+the `mcp` extra (`pip install -e 'api[mcp]'`); without it the page reports the server
+as not available.
+
+1. Sign in as an administrator and open the **MCP** page.
+2. Turn on **Enable MCP server**. The change is recorded in the audit history.
+3. Create an access token on the same page.
+4. Point your MCP client at the endpoint shown, for example
+   `https://netscope.example.com/mcp`, and send the token as
+   `Authorization: Bearer <integration-token>`.
+
+The endpoint uses the application's existing address and port, so reverse proxies and
+TrueNAS installations need no new port. It is disabled by default and returns 404
+while disabled. With several application workers, a change can take up to 30 seconds
+to reach every worker. Every request is authenticated with an integration token;
+browser sessions are not accepted. Use HTTPS when the application is reachable over
+an untrusted network.
+
+For clients configured with JSON, an HTTP server entry looks like this:
+
+```json
+{
+  "mcpServers": {
+    "ae_netscope": {
+      "type": "http",
+      "url": "https://netscope.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${NETSCOPE_API_TOKEN}" }
+    }
+  }
+}
+```
+
+## Standalone gateway
 
 ## Prepare the application
 
@@ -38,17 +79,19 @@ The authoritative application definition is in
 The `truenas/` directory in this project contains an older staging package and is
 not the configuration used by catalog installations.
 
-For a catalog installation, keep using the application managed by TrueNAS. Run
-the MCP gateway on the client computer or a separate machine, and point
-`NETSCOPE_API_URL` at the app's existing web address and configured port. The
-gateway's HTTP listener, if used, runs on that separate machine.
+For a catalog installation, keep using the application managed by TrueNAS. Once the
+catalog runs an image that includes the built-in server, enable it on the **MCP**
+page; it uses the app's existing web port. Until then, run the standalone gateway on
+the client computer or a separate machine, and point `NETSCOPE_API_URL` at the app's
+existing web address and configured port. The gateway's HTTP listener, if used, runs
+on that separate machine.
 
 Do not install Python dependencies on the TrueNAS host or inside its managed app,
 replace its Compose definition, or add a gateway process to its application
 container. This integration does not require a new port, dataset, database user,
 secret or question in the official catalog. Token records use the application's
-existing PostgreSQL database. The normal API image does not install or import
-the optional gateway SDK.
+existing PostgreSQL database. The application imports the MCP SDK only when it is
+installed, and serves nothing at `/mcp` until an administrator enables it.
 
 These features become available on TrueNAS only after an application image
 containing them is released and adopted by the official catalog. An existing

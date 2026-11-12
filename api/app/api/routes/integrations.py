@@ -10,11 +10,14 @@ from app.core.permissions import permissions_for_role
 from app.core.rate_limit import rate_limit
 from app.core.security import verify_password
 from app.models.integration import IntegrationToken
+from app.models.security import SystemSetting
 from app.models.user import User
+from app.services import embedded_mcp
 from app.services.audit import write_audit_event
 from app.services.integrations import generate_token
 
 TokenUser = Annotated[User, Depends(require_permission("inventory:read"))]
+SettingsUser = Annotated[User, Depends(require_permission("settings:manage"))]
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -39,6 +42,16 @@ class TokenResponse(BaseModel):
 
 class TokenCreated(TokenResponse):
     token: str
+
+
+class McpServerStatus(BaseModel):
+    enabled: bool
+    available: bool
+    path: str = embedded_mcp.MCP_PATH
+
+
+class McpServerUpdate(BaseModel):
+    enabled: bool
 
 
 @router.post(
@@ -98,3 +111,41 @@ async def revoke_token(
         session, "integration.token_revoked", "Integration token revoked", actor_user_id=user.id
     )
     await session.commit()
+
+
+@router.get("/mcp-server", response_model=McpServerStatus)
+async def mcp_server_status(session: SessionDep, _: TokenUser) -> McpServerStatus:
+    state = await session.get(SystemSetting, 1)
+    enabled = bool(state and state.mcp_server_enabled)
+    embedded_mcp.cache_embedded_mcp_enabled(enabled)
+    return McpServerStatus(enabled=enabled, available=embedded_mcp.is_running())
+
+
+@router.patch(
+    "/mcp-server",
+    response_model=McpServerStatus,
+    dependencies=[Depends(require_csrf)],
+)
+async def update_mcp_server(
+    payload: McpServerUpdate,
+    session: SessionDep,
+    user: SettingsUser,
+) -> McpServerStatus:
+    if payload.enabled and not embedded_mcp.is_running():
+        raise HTTPException(409, "The MCP server is not installed in this deployment.")
+    state = await session.get(SystemSetting, 1)
+    if state is None:
+        state = SystemSetting(id=1)
+        session.add(state)
+    state.mcp_server_enabled = payload.enabled
+    state.updated_by_user_id = user.id
+    state.updated_at = datetime.now(UTC)
+    await write_audit_event(
+        session,
+        "settings.mcp_server_updated",
+        f"Built-in MCP server {'enabled' if payload.enabled else 'disabled'}",
+        actor_user_id=user.id,
+    )
+    await session.commit()
+    embedded_mcp.cache_embedded_mcp_enabled(payload.enabled)
+    return McpServerStatus(enabled=payload.enabled, available=embedded_mcp.is_running())

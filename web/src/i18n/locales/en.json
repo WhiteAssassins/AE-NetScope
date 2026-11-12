@@ -226,7 +226,8 @@
       },
       "settings": {
         "maintenance_updated": "Maintenance mode: {{state}}",
-        "search_indexing_updated": "Search engine indexing: {{state}}"
+        "search_indexing_updated": "Search engine indexing: {{state}}",
+        "mcp_server_updated": "Built-in MCP server: {{state}}"
       }
     }
   },
@@ -1133,11 +1134,11 @@
     "tokensTitle": "Access tokens",
     "tokensDescription": "Create and revoke tokens for your own account.",
     "connectTitle": "Connect an MCP client",
-    "connectDescription": "The gateway runs separately and uses the existing application address.",
+    "connectDescription": "Use the built-in server or the standalone gateway with your access token.",
     "connectToken": "Create a token with the access level you need and save it when shown.",
-    "connectGateway": "Run the MCP gateway on your computer or another host. Point it at this application's web address.",
-    "connectClient": "Add the gateway to your MCP client and provide the token through its local configuration.",
-    "truenasHint": "On TrueNAS SCALE, keep the gateway outside the managed app. No catalog settings need to change.",
+    "connectServer": "Enable the built-in MCP server above, or run the standalone gateway on another host pointed at this application's web address.",
+    "connectClient": "Add the built-in endpoint or the gateway to your MCP client and provide the token through its local configuration.",
+    "truenasHint": "On TrueNAS SCALE, use the built-in server once your app runs a release that includes it, or keep the standalone gateway outside the managed app. No catalog settings need to change.",
     "openGuide": "Open setup guide",
     "name": "Token name",
     "password": "Current password",
@@ -1153,5 +1154,18 @@
     "expires": "Expires: {{date}}",
     "revoked": "Revoked",
     "revoke": "Revoke"
+  },
+  "mcpServer": {
+    "title": "Built-in MCP server",
+    "description": "Serve the MCP endpoint from this application, at the same address and port. No separate gateway is needed.",
+    "toggle": "Enable MCP server",
+    "status": "Status",
+    "enabled": "Enabled. MCP clients can connect with an access token.",
+    "disabled": "Disabled. The /mcp endpoint is not served.",
+    "unavailable": "Not available in this installation. Install the MCP extra or use the standalone gateway.",
+    "adminOnly": "Only administrators can change this setting.",
+    "endpoint": "Endpoint",
+    "endpointHint": "Use this URL with an access token in the Authorization header.",
+    "failed": "Unable to update the MCP server setting."
   }
 }

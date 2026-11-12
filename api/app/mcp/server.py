@@ -147,8 +147,23 @@ class AuthenticateHTTP:
         await self.app(scope, receive, private_send)
 
 
-def create_server(client: InventoryClient, *, host="127.0.0.1", port=8765, allowed_hosts=None):
+def create_server(
+    client: InventoryClient,
+    *,
+    host="127.0.0.1",
+    port=8765,
+    allowed_hosts=None,
+    embedded=False,
+):
     hosts = allowed_hosts or ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+    # The built-in endpoint shares the application's public address, which is not known
+    # ahead of time. It accepts only bearer tokens, never ambient browser credentials, so
+    # host checks add no protection against DNS rebinding there.
+    transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=not embedded,
+        allowed_hosts=hosts,
+        allowed_origins=[f"{scheme}://{item}" for item in hosts for scheme in ("http", "https")],
+    )
     server = FastMCP(
         "AE NetScope",
         instructions=(
@@ -163,13 +178,7 @@ def create_server(client: InventoryClient, *, host="127.0.0.1", port=8765, allow
         stateless_http=True,
         json_response=True,
         max_request_body_size=1_000_000,
-        transport_security=TransportSecuritySettings(
-            enable_dns_rebinding_protection=True,
-            allowed_hosts=hosts,
-            allowed_origins=[
-                f"{scheme}://{item}" for item in hosts for scheme in ("http", "https")
-            ],
-        ),
+        transport_security=transport_security,
     )
 
     @server.tool(annotations=READ)

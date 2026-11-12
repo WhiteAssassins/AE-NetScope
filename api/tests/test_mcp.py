@@ -241,3 +241,91 @@ async def test_http_transport_authentication_and_per_request_identity(integratio
                 assert result.isError
                 search = await session.call_tool("search_inventory", {"resource": "vlans"})
                 assert search.structuredContent["total"] == 1
+
+
+async def test_builtin_server_is_toggled_from_settings(integration_api):
+    from sqlalchemy import update
+
+    from app.models.user import User
+    from app.services import embedded_mcp
+
+    client, csrf, factory = integration_api
+    token = await token_for(client, csrf)
+    embedded_mcp.cache_embedded_mcp_enabled(False)
+    try:
+        async with embedded_mcp.run_embedded_mcp(app):
+            status = await client.get("/api/integrations/mcp-server")
+            assert status.json() == {"enabled": False, "available": True, "path": "/mcp"}
+            disabled = await client.post(
+                "/mcp", headers={"Authorization": f"Bearer {token}"}, json={}
+            )
+            assert disabled.status_code == 404
+
+            denied = await client.patch(
+                "/api/integrations/mcp-server",
+                headers={"X-CSRF-Token": csrf},
+                json={"enabled": True},
+            )
+            assert denied.status_code == 403
+
+            async with factory() as session:
+                await session.execute(update(User).values(role="admin"))
+                await session.commit()
+            enabled = await client.patch(
+                "/api/integrations/mcp-server",
+                headers={"X-CSRF-Token": csrf},
+                json={"enabled": True},
+            )
+            assert enabled.status_code == 200
+            assert enabled.json()["enabled"] is True
+            audit = await client.get("/api/audit/events")
+            assert "settings.mcp_server_updated" in audit.text
+
+            async with serve(app, lifespan="off") as base_url:
+                async with httpx.AsyncClient() as http:
+                    response = await http.post(f"{base_url}/mcp", json={})
+                    assert response.status_code == 401
+                async with streamable_http_client(
+                    f"{base_url}/mcp",
+                    http_client=httpx.AsyncClient(
+                        headers={"Authorization": f"Bearer {token}"},
+                    ),
+                ) as (read, write, _):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        result = await session.call_tool(
+                            "create_vlan", {"payload": {"vlan_id": 50, "name": "Built-in"}}
+                        )
+                        assert not result.isError
+
+            await client.patch(
+                "/api/integrations/mcp-server",
+                headers={"X-CSRF-Token": csrf},
+                json={"enabled": False},
+            )
+            again = await client.post("/mcp", headers={"Authorization": f"Bearer {token}"}, json={})
+            assert again.status_code == 404
+    finally:
+        embedded_mcp.cache_embedded_mcp_enabled(False)
+
+
+async def test_builtin_server_cannot_be_enabled_without_sdk(integration_api, monkeypatch):
+    from sqlalchemy import update
+
+    from app.models.user import User
+    from app.services import embedded_mcp
+
+    client, csrf, factory = integration_api
+    async with factory() as session:
+        await session.execute(update(User).values(role="admin"))
+        await session.commit()
+    monkeypatch.setattr(embedded_mcp, "sdk_available", lambda: False)
+    async with embedded_mcp.run_embedded_mcp(app):
+        status = await client.get("/api/integrations/mcp-server")
+        assert status.json()["available"] is False
+        response = await client.patch(
+            "/api/integrations/mcp-server",
+            headers={"X-CSRF-Token": csrf},
+            json={"enabled": True},
+        )
+        assert response.status_code == 409

@@ -50,6 +50,7 @@ class SystemSetting(Base):
     search_engine_indexing_allowed: Mapped[bool] = mapped_column(
         nullable=False, default=False
     )
+    mcp_server_enabled: Mapped[bool] = mapped_column(nullable=False, default=False)
     updated_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

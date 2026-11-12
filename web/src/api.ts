@@ -339,3 +339,19 @@ export function revokeIntegrationToken(id: number, csrfToken: string) {
     method: "DELETE", ...csrfJson(csrfToken),
   });
 }
+
+export type McpServerStatus = {
+  enabled: boolean;
+  available: boolean;
+  path: string;
+};
+
+export function fetchMcpServerStatus() {
+  return apiJson<McpServerStatus>("/integrations/mcp-server");
+}
+
+export function updateMcpServer(enabled: boolean, csrfToken: string) {
+  return apiJson<McpServerStatus>("/integrations/mcp-server", {
+    method: "PATCH", ...csrfJson(csrfToken, { enabled }),
+  });
+}

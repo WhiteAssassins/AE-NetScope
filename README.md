@@ -60,14 +60,18 @@ Current prerelease notes are available in `RELEASE_NOTES_v0.3.1-alpha.md`. See `
 
 ## MCP Integration
 
-An optional MCP gateway provides inventory search, device details, quality checks,
+AE NetScope provides MCP tools for inventory search, device details, quality checks,
 and creation or editing of devices, interfaces, IP addresses, subnets, VLANs and
 services. Access uses expiring, revocable tokens managed on the **MCP** page
 and respects the account's existing permissions.
 
-See [MCP setup and tools](docs/mcp.md) for stdio and Streamable HTTP configuration.
-For TrueNAS catalog installations, run the gateway externally and connect it to
-the existing application web address.
+Administrators can enable the built-in MCP server on the **MCP** page. It is served
+at `/mcp` on the application's existing address and port, so no extra process or
+port is needed. It is disabled by default. A standalone gateway is still available
+for stdio clients or for running MCP on another host.
+
+See [MCP setup and tools](docs/mcp.md) for the built-in server, stdio and Streamable
+HTTP configuration.
 
 ## Languages
 

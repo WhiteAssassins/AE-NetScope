@@ -51,7 +51,7 @@ RUN mkdir -p /app/backups \
     && apt-get purge -y --auto-remove curl gnupg \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir /app/api \
+    && python -m pip install --no-cache-dir "/app/api[mcp]" \
     && chown -R ae-netscope:ae-netscope /app
 
 USER ae-netscope

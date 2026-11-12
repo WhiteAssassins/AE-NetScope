@@ -7,6 +7,7 @@ All notable changes to AE NetScope will be documented in this file.
 ### Added
 
 - Added a dedicated MCP page for managing integration tokens and finding client setup guidance, with navigation limited to accounts that can read inventory.
+- Added a built-in MCP server that administrators can enable or disable from the MCP page. It serves the inventory tools at `/mcp` on the application's existing address and port, authenticates every request with an integration token, records changes in the audit history and stays disabled by default. Migration `0014_embedded_mcp_server` stores the setting, and the container image now includes the MCP SDK.
 
 ### Changed
 
