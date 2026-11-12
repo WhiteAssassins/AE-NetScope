@@ -20,6 +20,13 @@ All notable changes to AE NetScope will be documented in this file.
 ### Security
 
 - Updated the transitive development dependency `source-map-js` to a patched release.
+- Pinned the transitive development dependency `minimatch` to a patched release that fixes a denial of service through glob pattern amplification.
+
+### Dependencies
+
+- Updated the web runtime and tooling dependencies, including React, i18next 27, react-i18next 18, Lucide, Vite, Vitest 5, ESLint, typescript-eslint, jsdom, Testing Library and the Node and React type definitions. TypeScript stays on 6.0 until typescript-eslint supports TypeScript 7.
+- Raised the minimum versions of the API dependencies to their current releases, including FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, asyncpg, psycopg, cryptography, pydantic-settings and webauthn.
+- Updated the GitHub Actions used in CI and container publishing to their current major versions.
 
 ## v0.3.1-alpha - 2026-10-01
 
