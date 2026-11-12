@@ -89,7 +89,8 @@ async def test_csv_export_neutralizes_spreadsheet_formulas(empty_inventory_clien
         headers={"X-CSRF-Token": csrf_token},
         json={
             "name": "=HYPERLINK(\"http://example.test\")",
-            "device_type": "@router",
+            "device_type": "router",
+            "vendor": "@vendor",
             "notes": "+formula-like-note",
         },
     )
@@ -99,7 +100,7 @@ async def test_csv_export_neutralizes_spreadsheet_formulas(empty_inventory_clien
 
     assert response.status_code == 200
     assert "'=HYPERLINK" in response.text
-    assert "'@router" in response.text
+    assert "'@vendor" in response.text
     assert "'+formula-like-note" in response.text
 
 
@@ -129,3 +130,31 @@ async def test_import_preview_rejects_oversized_payload(empty_inventory_client) 
     )
 
     assert response.status_code == 413
+
+
+async def test_device_types_are_stored_as_language_neutral_keys(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+
+    created = await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={"name": "hv-01", "device_type": "Virtual Machine"},
+    )
+    assert created.status_code == 201
+    assert created.json()["device_type"] == "virtualization"
+
+    updated = await client.patch(
+        f"/api/inventory/devices/{created.json()['id']}",
+        headers=headers,
+        json={"device_type": "Servidor"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["device_type"] == "server"
+
+    rejected = await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={"name": "mystery", "device_type": "Toaster"},
+    )
+    assert rejected.status_code == 422

@@ -3,6 +3,7 @@ from typing import Literal
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.device_types import DEVICE_TYPES, normalize_device_type
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.services.inventory import (
     list_devices,
@@ -92,9 +93,13 @@ async def search_inventory(
         ]
     needle = query.strip()
     if needle:
-        statement = statement.where(
-            or_(*(column.icontains(needle, autoescape=True) for column in columns))
-        )
+        predicates = [column.icontains(needle, autoescape=True) for column in columns]
+        # Device types are stored as keys, so displayed or legacy labels such as
+        # "Access Point" or "Servidor" are matched through their key.
+        device_type = normalize_device_type(needle)
+        if resource in {"devices", "services"} and device_type in DEVICE_TYPES:
+            predicates.append(Device.device_type == device_type)
+        statement = statement.where(or_(*predicates))
     statement = statement.distinct()
     total = await session.scalar(select(func.count()).select_from(statement.subquery())) or 0
     ids = list(await session.scalars(statement.order_by(model.id).limit(limit).offset(offset)))

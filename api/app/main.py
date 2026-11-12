@@ -14,7 +14,7 @@ from app.db.session import SessionLocal
 from app.middleware.maintenance_mode import maintenance_mode_middleware
 from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
-from app.services import search_indexing
+from app.services import embedded_mcp, search_indexing
 from app.services.data_protection import migrate_sensitive_fields_to_primary_key
 from app.services.maintenance import purge_expired_records, reconcile_interrupted_updates
 from app.services.mfa import migrate_totp_secrets_to_primary_key
@@ -53,7 +53,8 @@ async def lifespan(_app: FastAPI):
             await session.commit()
     except Exception as exc:
         logger.warning("Database retention cleanup failed: %s", exc.__class__.__name__)
-    yield
+    async with embedded_mcp.run_embedded_mcp(_app):
+        yield
 
 
 def create_app() -> FastAPI:
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(embedded_mcp.EmbeddedMcpMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

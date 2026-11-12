@@ -17,15 +17,19 @@ describe("McpView access", () => {
   });
 
   it("offers read-only token management and a setup guide to viewers", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", {
-      status: 200, headers: { "Content-Type": "application/json" },
-    }));
+    const fetchMock = vi.fn().mockImplementation((url: string) => Promise.resolve(new Response(
+      url.endsWith("/integrations/mcp-server")
+        ? JSON.stringify({ enabled: false, available: true, path: "/mcp" })
+        : "[]",
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<McpView csrfToken="csrf" permissions={["inventory:read"]} />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("button", { name: "Create token" })).toBeInTheDocument();
+    expect(await screen.findByText("Only administrators can change this setting.")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open setup guide" })).toHaveAttribute(
       "href", "https://github.com/WhiteAssassins/AE-NetScope/blob/main/docs/mcp.md",

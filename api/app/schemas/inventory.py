@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.core.device_types import DeviceType, normalize_device_type
+
 MAC_PATTERN = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 DESCRIPTION_MAX_LENGTH = 16_384
 NOTES_MAX_LENGTH = 65_536
@@ -98,7 +100,7 @@ class NetworkResponse(NetworkCreate):
 
 class DeviceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    device_type: str = Field(min_length=1, max_length=60)
+    device_type: DeviceType
     status: str = Field(default="active", max_length=32)
     vendor: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=120)
@@ -115,10 +117,15 @@ class DeviceCreate(BaseModel):
     location: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
 
+    @field_validator("device_type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: object) -> object:
+        return normalize_device_type(value) if isinstance(value, str) else value
+
 
 class DeviceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    device_type: str | None = Field(default=None, min_length=1, max_length=60)
+    device_type: DeviceType | None = None
     status: str | None = Field(default=None, max_length=32)
     vendor: str | None = Field(default=None, max_length=120)
     model: str | None = Field(default=None, max_length=120)
@@ -134,6 +141,11 @@ class DeviceUpdate(BaseModel):
     rack_position: str | None = Field(default=None, max_length=120)
     location: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
+
+    @field_validator("device_type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: object) -> object:
+        return normalize_device_type(value) if isinstance(value, str) else value
 
 
 class InterfaceCreate(BaseModel):

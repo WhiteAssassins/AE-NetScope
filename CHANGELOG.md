@@ -7,10 +7,26 @@ All notable changes to AE NetScope will be documented in this file.
 ### Added
 
 - Added a dedicated MCP page for managing integration tokens and finding client setup guidance, with navigation limited to accounts that can read inventory.
+- Added a built-in MCP server that administrators can enable or disable from the MCP page. It serves the inventory tools at `/mcp` on the application's existing address and port, authenticates every request with an integration token, records changes in the audit history and stays disabled by default. Migration `0014_embedded_mcp_server` stores the setting, and the container image now includes the MCP SDK.
+
+### Changed
+
+- Stored device types as language-neutral keys such as `server`, `workstation` and `access_point`. The API, imports, backups and MCP tools accept the previous Spanish labels and common English names and normalize them, and reject unknown types with the list of accepted values. Migration `0013_device_type_keys` converts existing devices; unrecognized custom types become `other`.
+
+### Fixed
+
+- Fixed devices created through the API or MCP tools with English type names showing an untranslated badge and the wrong type in the edit form.
 
 ### Security
 
 - Updated the transitive development dependency `source-map-js` to a patched release.
+- Pinned the transitive development dependency `minimatch` to a patched release that fixes a denial of service through glob pattern amplification.
+
+### Dependencies
+
+- Updated the web runtime and tooling dependencies, including React, i18next 27, react-i18next 18, Lucide, Vite, Vitest 5, ESLint, typescript-eslint, jsdom, Testing Library and the Node and React type definitions. TypeScript stays on 6.0 until typescript-eslint supports TypeScript 7.
+- Raised the minimum versions of the API dependencies to their current releases, including FastAPI, Starlette, SQLAlchemy, Alembic, Uvicorn, asyncpg, psycopg, cryptography, pydantic-settings and webauthn.
+- Updated the GitHub Actions used in CI and container publishing to their current major versions.
 
 ## v0.3.1-alpha - 2026-10-01
 

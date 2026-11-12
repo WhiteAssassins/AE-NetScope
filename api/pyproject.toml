@@ -4,24 +4,24 @@ version = "0.3.1a0"
 description = "API foundation for AE NetScope."
 requires-python = ">=3.12"
 dependencies = [
-  "alembic>=1.19.1",
+  "alembic>=1.20.1",
   "aiosqlite>=0.22.1",
-  "asyncpg>=0.31.0",
-  "cryptography>=50.0.1",
-  "fastapi>=0.141.1",
-  "psycopg[binary]>=3.3.5",
+  "asyncpg>=0.32.0",
+  "cryptography>=50.0.2",
+  "fastapi>=0.162.5",
+  "psycopg[binary]>=3.3.9",
   "pwdlib[argon2]>=0.3.1",
-  "pydantic-settings>=2.15.0",
+  "pydantic-settings>=2.16.2",
   "email-validator>=2.3.0",
   "redis>=8.1.0",
-  "starlette>=1.6.0",
-  "sqlalchemy[asyncio]>=2.0.52",
-  "uvicorn[standard]>=0.52.4",
-  "webauthn>=3.0.0",
+  "starlette>=1.10.0",
+  "sqlalchemy[asyncio]>=2.1.8",
+  "uvicorn[standard]>=0.54.0",
+  "webauthn>=3.0.1",
 ]
 
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -34,12 +34,12 @@ ae-netscope-mcp = "app.mcp.server:main"
 mcp = ["mcp>=1.30,<2", "httpx>=0.28.1,<1"]
 dev = [
   "httpx>=0.28.1",
-  "msgpack>=1.2.2",
+  "msgpack>=1.2.4",
   "pip-audit>=2.10.1",
-  "pytest>=9.1.1",
-  "pytest-asyncio>=1.4.0",
+  "pytest>=9.2.0",
+  "pytest-asyncio>=1.4.1",
   "pytest-cov>=7.1.0",
-  "ruff>=0.16.5",
+  "ruff>=0.17.4",
 ]
 worker = [
   "dramatiq[redis]>=2.2.1",

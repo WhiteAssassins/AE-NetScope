@@ -42,6 +42,7 @@ export const SUPPORTED_AUDIT_EVENT_TYPES = [
   "inventory.vlan_deleted",
   "inventory.vlan_updated",
   "settings.maintenance_updated",
+  "settings.mcp_server_updated",
   "settings.search_indexing_updated",
   "users.created",
   "users.deactivated",
@@ -181,6 +182,8 @@ function auditParameters(eventType: string, message: string): AuditParameters | 
       return match(message, /^Session revoked for (.+): (\d+)$/, ["subject", "session"]);
     case "settings.maintenance_updated":
       return match(message, /^Maintenance mode (enabled|disabled)$/, ["state"]);
+    case "settings.mcp_server_updated":
+      return match(message, /^Built-in MCP server (enabled|disabled)$/, ["state"]);
     case "settings.search_indexing_updated":
       return match(message, /^Search engine indexing (allowed|blocked)$/, ["state"]);
     default:

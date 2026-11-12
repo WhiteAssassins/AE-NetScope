@@ -36,6 +36,7 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
       [
         device.name,
         device.device_type,
+        deviceTypeLabel(device.device_type, t),
         device.vendor,
         device.model,
         device.serial_number,

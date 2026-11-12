@@ -7,7 +7,7 @@ import HardwareView from "./HardwareView";
 const baseDevice: DeviceRecord = {
   id: 1,
   name: "CAM-DOOR-01",
-  device_type: "Cámara IP",
+  device_type: "ip_camera",
   status: "active",
   vendor: "Axis",
   model: "P3265",
@@ -72,6 +72,18 @@ describe("HardwareView", () => {
     await user.clear(screen.getByPlaceholderText(/search by serial/i));
     await user.type(screen.getByPlaceholderText(/search by serial/i), "arm");
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
+  });
+
+  it("searches hardware by the displayed device type label", async () => {
+    const user = userEvent.setup();
+    render(<HardwareView devices={[baseDevice]} onOpenDevice={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "ip camera");
+    expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText(/search by serial/i));
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "printer");
+    expect(screen.queryByText("CAM-DOOR-01")).not.toBeInTheDocument();
   });
 
   it("includes English, mixed-case and custom physical device types", () => {
