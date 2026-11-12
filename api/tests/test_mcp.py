@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 import os
 import socket
 import sys
@@ -350,6 +351,7 @@ async def test_http_transport_rejects_revoked_token_after_connection(integration
             rejected = await http.post(f"{base_url}/mcp", headers=headers, json={})
             assert rejected.status_code == 401
 
+
 async def test_http_transport_rejects_expired_token(integration_api):
     client, csrf, factory = integration_api
     token = await token_for(client, csrf, write=True)
@@ -370,6 +372,7 @@ async def test_http_transport_rejects_expired_token(integration_api):
                 json={},
             )
             assert response.status_code == 401
+
 
 async def test_http_transport_rejects_deactivated_account(integration_api):
     client, csrf, factory = integration_api
