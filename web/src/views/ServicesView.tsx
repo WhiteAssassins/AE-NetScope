@@ -60,6 +60,7 @@ export default function ServicesView({
         service.name,
         service.device_name,
         service.device_type,
+        deviceTypeLabel(service.device_type, t),
         service.primary_ip,
         service.protocol,
         service.status,

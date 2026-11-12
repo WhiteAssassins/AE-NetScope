@@ -104,6 +104,7 @@ export default function DevicesView({
     return [
       device.name,
       device.device_type,
+      deviceTypeLabel(device.device_type, t),
       device.status,
       device.vendor,
       device.model,

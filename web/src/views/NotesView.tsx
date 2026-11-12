@@ -54,6 +54,7 @@ export default function NotesView({
       [
         device.name,
         device.device_type,
+        deviceTypeLabel(device.device_type, t),
         device.primary_ip,
         device.primary_mac,
         device.location,

@@ -74,6 +74,18 @@ describe("HardwareView", () => {
     expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
   });
 
+  it("searches hardware by the displayed device type label", async () => {
+    const user = userEvent.setup();
+    render(<HardwareView devices={[baseDevice]} onOpenDevice={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "ip camera");
+    expect(screen.getByText("CAM-DOOR-01")).toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText(/search by serial/i));
+    await user.type(screen.getByPlaceholderText(/search by serial/i), "printer");
+    expect(screen.queryByText("CAM-DOOR-01")).not.toBeInTheDocument();
+  });
+
   it("includes English, mixed-case and custom physical device types", () => {
     const englishServer = { ...baseDevice, id: 2, name: "SRV-EN-01", device_type: "physical server" };
     const mixedCaseRouter = { ...baseDevice, id: 3, name: "RTR-01", device_type: "rOuTeR" };
