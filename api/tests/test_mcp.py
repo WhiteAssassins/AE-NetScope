@@ -22,6 +22,7 @@ from mcp.shared.memory import create_connected_server_and_client_session  # noqa
 from app.main import app  # noqa: E402
 from app.mcp.server import AuthenticateHTTP, InventoryClient, create_server  # noqa: E402
 
+
 async def token_for(client, csrf, write=True):
     result = await client.post(
         "/api/integrations/tokens",
@@ -34,6 +35,7 @@ async def token_for(client, csrf, write=True):
     )
     assert result.status_code == 201
     return result.json()["token"]
+
 
 @asynccontextmanager
 async def serve(application, lifespan="on"):
@@ -53,6 +55,7 @@ async def serve(application, lifespan="on"):
         server.should_exit = True
         await asyncio.wait_for(task, 10)
         listener.close()
+
 
 async def test_protocol_tools_create_related_inventory_and_validate(integration_api):
     client, csrf, _ = integration_api
@@ -172,6 +175,7 @@ async def test_protocol_tools_create_related_inventory_and_validate(integration_
         )
         assert bad_limit.isError
 
+
 async def test_stdio_transport(integration_api):
     client, csrf, _ = integration_api
     token = await token_for(client, csrf)
@@ -202,6 +206,7 @@ async def test_stdio_transport(integration_api):
     assert any(
         row["name"] == "stdio-device" for row in (await client.get("/api/inventory/devices")).json()
     )
+
 
 async def test_http_transport_authentication_and_per_request_identity(integration_api):
     client, csrf, _ = integration_api
@@ -241,6 +246,7 @@ async def test_http_transport_authentication_and_per_request_identity(integratio
                 assert result.isError
                 search = await session.call_tool("search_inventory", {"resource": "vlans"})
                 assert search.structuredContent["total"] == 1
+
 
 async def test_builtin_server_is_toggled_from_settings(integration_api):
     from sqlalchemy import update
@@ -307,6 +313,7 @@ async def test_builtin_server_is_toggled_from_settings(integration_api):
     finally:
         embedded_mcp.cache_embedded_mcp_enabled(False)
 
+
 async def test_builtin_server_cannot_be_enabled_without_sdk(integration_api, monkeypatch):
     from sqlalchemy import update
 
@@ -327,6 +334,7 @@ async def test_builtin_server_cannot_be_enabled_without_sdk(integration_api, mon
             json={"enabled": True},
         )
         assert response.status_code == 409
+
 
 async def test_http_transport_rejects_revoked_token_after_connection(integration_api):
     client, csrf, factory = integration_api
@@ -352,6 +360,7 @@ async def test_http_transport_rejects_revoked_token_after_connection(integration
             assert rejected.status_code == 401
 
 
+
 async def test_http_transport_rejects_expired_token(integration_api):
     client, csrf, factory = integration_api
     token = await token_for(client, csrf, write=True)
@@ -372,6 +381,7 @@ async def test_http_transport_rejects_expired_token(integration_api):
                 json={},
             )
             assert response.status_code == 401
+
 
 
 async def test_http_transport_rejects_deactivated_account(integration_api):
