@@ -275,3 +275,47 @@ async def test_recognized_bearer_uses_integration_permissions_even_with_cookie(i
         )
     ).status_code == 403
     assert (await client.get("/api/integrations/tokens", headers=headers)).status_code == 403
+
+
+async def test_search_matches_device_type_labels_and_legacy_names(integration_api):
+    client, csrf, _ = integration_api
+    data = (await issue(client, csrf, allow_write=True)).json()
+    headers = {"Authorization": f"Bearer {data['token']}"}
+    for name, device_type in (("ap-hall", "access_point"), ("srv-01", "server")):
+        assert (
+            await client.post(
+                "/api/inventory/devices",
+                headers=headers,
+                json={"name": name, "device_type": device_type},
+            )
+        ).status_code == 201
+    device = (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={"name": "plain", "device_type": "switch"},
+        )
+    ).json()
+    assert (
+        await client.post(
+            "/api/inventory/services",
+            headers=headers,
+            json={"device_id": device["id"] - 1, "name": "SSH", "port": 22},
+        )
+    ).status_code == 201
+
+    async def names(resource: str, query: str) -> list[str]:
+        result = await client.get(
+            "/api/inventory/search",
+            headers=headers,
+            params={"resource": resource, "query": query},
+        )
+        assert result.status_code == 200
+        items = result.json()["items"]
+        return sorted(item.get("device_name") or item["name"] for item in items)
+
+    assert await names("devices", "Access Point") == ["ap-hall"]
+    assert await names("devices", "Servidor") == ["srv-01"]
+    assert await names("devices", "access") == ["ap-hall"]
+    assert await names("services", "server") == ["srv-01"]
+    assert await names("services", "Servidor") == ["srv-01"]
