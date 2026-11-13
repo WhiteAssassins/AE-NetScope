@@ -56,6 +56,21 @@ describe("NotificationCenter", () => {
       .toContain("audit:14");
   });
 
+  it("still opens a notification when browser storage is unavailable", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Quota exceeded", "QuotaExceededError");
+    });
+    try {
+      const props = renderCenter();
+      fireEvent.click(screen.getByRole("button", { name: /Login succeeded/i }));
+
+      expect(props.onOpenAuditEvent).toHaveBeenCalledWith(event);
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("adds health and update alerts and marks all visible notifications as read", () => {
     const health: HealthStatus = {
       ...readyHealth,

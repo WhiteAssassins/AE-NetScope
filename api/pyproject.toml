@@ -1,6 +1,6 @@
 [project]
 name = "ae-netscope-api"
-version = "0.3.2a0"
+version = "0.3.3a0"
 description = "API foundation for AE NetScope."
 requires-python = ">=3.12"
 dependencies = [
@@ -8,10 +8,10 @@ dependencies = [
   "aiosqlite>=0.22.1",
   "asyncpg>=0.32.0",
   "cryptography>=50.0.2",
-  "fastapi>=0.162.5",
+  "fastapi>=0.162.6",
   "psycopg[binary]>=3.3.9",
   "pwdlib[argon2]>=0.3.1",
-  "pydantic-settings>=2.16.2",
+  "pydantic-settings>=2.16.3",
   "email-validator>=2.3.0",
   "redis>=8.1.0",
   "starlette>=1.10.0",
@@ -37,9 +37,9 @@ dev = [
   "msgpack>=1.2.4",
   "pip-audit>=2.10.1",
   "pytest>=9.2.0",
-  "pytest-asyncio>=1.4.1",
+  "pytest-asyncio>=1.5.0",
   "pytest-cov>=7.1.0",
-  "ruff>=0.17.4",
+  "ruff>=0.17.5",
 ]
 worker = [
   "dramatiq[redis]>=2.2.1",

@@ -187,3 +187,36 @@ describe("App navigation and account boundaries", () => {
     expect(screen.getByTestId("dashboard-activity")).toBeEmptyDOMElement();
   });
 });
+
+describe("App session notice", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  function mockSignedOutApi() {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/setup")) return Promise.resolve(jsonResponse({ setup_required: false, token_required: false }));
+      if (url.endsWith("/auth/me")) return Promise.resolve(new Response("{}", { status: 401 }));
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+  }
+
+  it("does not report an expired session to a first-time visitor", async () => {
+    mockSignedOutApi();
+    render(<App />);
+
+    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+    expect(screen.queryByText("Your session expired. Sign in again.")).not.toBeInTheDocument();
+  });
+
+  it("reports an expired session when this browser was signed in", async () => {
+    window.localStorage.setItem("ae_netscope_signed_in", "1");
+    mockSignedOutApi();
+    render(<App />);
+
+    expect(await screen.findByText("Your session expired. Sign in again.")).toBeInTheDocument();
+    expect(window.localStorage.getItem("ae_netscope_signed_in")).toBeNull();
+  });
+});

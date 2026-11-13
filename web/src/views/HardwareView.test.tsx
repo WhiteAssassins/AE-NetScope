@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { DeviceRecord } from "../types";
@@ -84,6 +84,25 @@ describe("HardwareView", () => {
     await user.clear(screen.getByPlaceholderText(/search by serial/i));
     await user.type(screen.getByPlaceholderText(/search by serial/i), "printer");
     expect(screen.queryByText("CAM-DOOR-01")).not.toBeInTheDocument();
+  });
+
+  it("keeps a warranty valid through its local expiry date", () => {
+    const today = new Date();
+    const localDate = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+    render(
+      <HardwareView
+        devices={[{ ...baseDevice, warranty_expires: localDate }]}
+        onOpenDevice={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByText("CAM-DOOR-01").closest("article") as HTMLElement;
+    expect(within(card).getByText("Warranty expiring soon")).toBeInTheDocument();
+    expect(within(card).queryByText("Warranty expired")).not.toBeInTheDocument();
   });
 
   it("includes English, mixed-case and custom physical device types", () => {

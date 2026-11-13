@@ -575,3 +575,156 @@ async def test_concurrent_initial_setup_creates_exactly_one_admin(tmp_path, monk
     assert user_count == 1
     app.dependency_overrides.clear()
     await engine.dispose()
+
+
+async def test_expired_lockout_resets_the_failure_count(integration_api) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.models.user import User
+
+    client, _, factory = integration_api
+    async with factory() as session:
+        user = await session.scalar(select(User))
+        user.failed_login_count = settings.auth_failed_login_limit
+        user.locked_until = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+
+    response = await client.post(
+        "/api/auth/login",
+        json={"email": "integration@example.com", "password": "wrong-password"},
+    )
+    assert response.status_code == 401
+
+    async with factory() as session:
+        user = await session.scalar(select(User))
+        assert user.failed_login_count == 1
+        assert user.locked_until is None
+
+    correct = await client.post(
+        "/api/auth/login",
+        json={"email": "integration@example.com", "password": "integration-test-password"},
+    )
+    assert correct.status_code == 200
+
+
+async def test_password_change_rejects_reusing_the_current_password(integration_api) -> None:
+    from sqlalchemy import select, update
+
+    from app.models.user import User
+
+    client, csrf, factory = integration_api
+    async with factory() as session:
+        await session.execute(update(User).values(must_change_password=True))
+        await session.commit()
+
+    response = await client.post(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "current_password": "integration-test-password",
+            "new_password": "integration-test-password",
+        },
+    )
+    assert response.status_code == 400
+
+    async with factory() as session:
+        assert (await session.scalar(select(User))).must_change_password is True
+
+
+def test_initial_setup_requires_a_real_username() -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import InitialSetupRequest
+
+    with pytest.raises(ValidationError):
+        InitialSetupRequest(email="admin@example.com", username="   ", password="x" * 12)
+    assert (
+        InitialSetupRequest(email="admin@example.com", username=" admin ", password="x" * 12)
+        .username
+        == "admin"
+    )
+
+
+@pytest.mark.parametrize(
+    ("email", "token_suffix"),
+    [("admin@truenas.local", ""), ("admin@example.com", " \n")],
+)
+async def test_truenas_style_initial_setup(monkeypatch, email, token_suffix) -> None:
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.db.base import Base
+    from app.db.session import get_session
+    from app.main import app
+    from app.services.setup import ensure_app_state
+
+    secret = "truenas-session-secret-with-more-than-32-chars"
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "session_secret", secret)
+    monkeypatch.setattr(settings, "initial_setup_token", None)
+    settings.__dict__.pop("effective_initial_setup_token", None)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    async with factory() as session:
+        await ensure_app_state(session)
+        await session.commit()
+
+    async def override_session():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            setup = await client.post(
+                "/api/auth/setup",
+                json={
+                    "email": email,
+                    "username": "admin",
+                    "password": "a-long-password-123",
+                    "setup_token": secret + token_suffix,
+                },
+            )
+            assert setup.status_code == 200, setup.text
+            assert setup.json()["user"]["email"] == email
+
+            csrf = setup.json()["csrf_token"]
+            await client.post("/api/auth/logout", headers={"X-CSRF-Token": csrf})
+            login = await client.post(
+                "/api/auth/login",
+                json={"email": email.upper(), "password": "a-long-password-123"},
+            )
+            assert login.status_code == 200, login.text
+    finally:
+        app.dependency_overrides.clear()
+        settings.__dict__.pop("effective_initial_setup_token", None)
+        await engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("email", "valid"),
+    [
+        ("admin@truenas.local", True),
+        ("admin@nas.home.arpa", True),
+        ("admin@home.lan", True),
+        ("admin@lab.test", False),
+        ("admin@localhost", False),
+        ("@truenas.local", False),
+    ],
+)
+def test_account_emails_accept_local_network_domains(email, valid) -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import LoginRequest
+
+    if valid:
+        assert LoginRequest(email=email, password="x").email == email
+    else:
+        with pytest.raises(ValidationError):
+            LoginRequest(email=email, password="x")

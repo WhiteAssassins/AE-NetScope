@@ -2,6 +2,50 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## v0.3.3-alpha - 2026-11-13
+
+### Fixed
+
+- Validated the subnet of an IP address given when creating a device or adding an interface. A subnet that does not exist now returns 404 and an IP outside the selected subnet returns 422, matching the IP address endpoints.
+- Rejected `null` for required fields in partial updates of devices, subnets, VLANs, IP addresses and services with a 422 response, instead of a misleading "already exists" conflict or, for services, a server error.
+- Normalized interface MAC addresses and names when restoring a JSON backup, matching the API.
+- Reset the failed sign-in counter when an account lockout expires, so a single mistyped password after the lockout no longer locks the account again.
+- Reported the same primary IP address for a service as for its device when the device has several addresses.
+- Stopped showing "Your session expired" to visitors who had never signed in on that browser.
+- Kept a hardware warranty valid through the whole local day of its expiry date instead of expiring it at UTC midnight.
+- Linked the technical notes card on the dashboard to the notes page, and stopped counting notes that contain only whitespace.
+- Allowed an explicit `null` to detach an IP address from its subnet or clear a subnet gateway in the same request that changes the address or CIDR, instead of validating against the previous value.
+- Listed IP addresses and subnets in numeric order, so `10.0.0.2` comes before `10.0.0.11`, including the subnets shown on the dashboard.
+- Rejected reusing the current password when changing it, so a temporary password issued by an administrator cannot stay in use after the mandatory change.
+- Rejected the network and broadcast addresses of IPv4 subnets as host IP addresses and gateways. `/31` and `/32` subnets are not affected, and existing records are not changed.
+- Expanded nested values in CSV exports into separate columns, such as `vlan.vlan_id` for subnets, instead of writing raw objects.
+- Accepted backups exported from any valid inventory: device names that differ only in case and repeated services on a device no longer block a restore.
+- Offered a newer stable release to prerelease installations, such as 0.4.0 to a 0.3.2-alpha installation.
+- Required a username with at least two non-whitespace characters during initial setup, matching other accounts.
+- Limited IP assignment types to `static`, `dhcp` and `reserved`, accepting any letter case. Migration `0015_assignment_type_values` normalizes existing values; unsupported values become `static`.
+- Translated the audit events for created and revoked integration tokens.
+- Kept notifications working when browser storage is unavailable.
+- Showed the last change of recent devices in the user's time zone and date format.
+- Attached the backup download link to the page before starting the download, so browsers that ignore detached links still save the pre-restore backup.
+- Stopped the container publishing workflow when the release tag does not match `VERSION` or the release channel.
+- Explained why initial setup failed instead of always showing "Initial setup could not be completed": an invalid token, invalid email, username or password, too many attempts, or an unavailable service now each have their own message.
+- Ignored surrounding spaces in a pasted initial setup token.
+- Accepted account emails on local network domains such as `admin@truenas.local` and `admin@nas.home.arpa` for setup, sign-in and user management.
+
+### Documentation
+
+- Documented that TrueNAS SCALE installations use the app's Session Secret as the initial setup token, and added a first-setup troubleshooting table to the README.
+
+### Verified
+
+- Added regression tests confirming the MCP HTTP transport rejects revoked, expired and deactivated-account integration tokens, contributed by ViviBeri in #25.
+
+### Dependencies
+
+- Updated jsdom to 31 and refreshed the web lockfile to the latest compatible releases.
+- Raised the minimum versions of FastAPI, pydantic-settings, pytest-asyncio and Ruff to their current releases.
+- Documented Node.js 24.15 as the minimum version for the web toolchain and declared the supported range `^24.15.0 || >=26.0.0` in `web/package.json`, matching the engine requirement of jsdom.
+
 ## v0.3.2-alpha - 2026-11-12
 
 ### Added

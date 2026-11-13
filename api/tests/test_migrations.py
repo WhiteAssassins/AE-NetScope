@@ -315,3 +315,31 @@ def test_device_type_migration_stores_language_neutral_keys(tmp_path, monkeypatc
         assert rows[9] == "Otro"
     finally:
         engine.dispose()
+
+
+def test_assignment_type_migration_normalizes_values(tmp_path, monkeypatch):
+    database_path = tmp_path / "assignment-type-upgrade.db"
+    sync_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{database_path.as_posix()}")
+    config = migration_config(sync_url)
+    command.upgrade(config, "0014_embedded_mcp_server")
+    engine = create_engine(sync_url)
+    values = {1: "static", 2: "Reserved", 3: " DHCP ", 4: "manual"}
+    with engine.begin() as connection:
+        for row_id, value in values.items():
+            connection.execute(
+                text("""
+                INSERT INTO ip_addresses (id, address, assignment_type, created_at)
+                VALUES (:id, :address, :value, CURRENT_TIMESTAMP)
+            """),
+                {"id": row_id, "address": f"10.90.0.{row_id}", "value": value},
+            )
+    try:
+        command.upgrade(config, "0015_assignment_type_values")
+        with engine.connect() as connection:
+            rows = dict(
+                connection.execute(text("SELECT id, assignment_type FROM ip_addresses")).all()
+            )
+        assert rows == {1: "static", 2: "reserved", 3: "dhcp", 4: "static"}
+    finally:
+        engine.dispose()

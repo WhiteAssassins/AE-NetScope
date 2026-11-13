@@ -30,7 +30,7 @@ AE NetScope is in early public preview and is not production ready yet.
 
 Do not use it with sensitive production network data at this stage. APIs, database schema, permission boundaries, security controls, and deployment guidance may change before v1.0.
 
-Current prerelease notes are available in `RELEASE_NOTES_v0.3.2-alpha.md`. See `CHANGELOG.md` for release history. The latest stable release is `v0.3.0`.
+Current prerelease notes are available in `RELEASE_NOTES_v0.3.3-alpha.md`. See `CHANGELOG.md` for release history. The latest stable release is `v0.3.0`.
 
 ## Current Status
 
@@ -251,7 +251,7 @@ These Docker instructions describe the container installation path for local tes
 
 AE NetScope includes an early production-style container path. The public image serves the built Vite web app and FastAPI API from one HTTP port, starts with PostgreSQL and Redis, and runs Alembic migrations on startup.
 
-Version 0.3.2-alpha uses the prerelease channel. The latest stable release is 0.3.0. The project remains an early public preview; deployment validation and the precautions below still apply.
+Version 0.3.3-alpha uses the prerelease channel. The latest stable release is 0.3.0. The project remains an early public preview; deployment validation and the precautions below still apply.
 
 Use `compose.yaml` for local HTTP container testing. Running the image directly with `docker run` uses the image defaults and requires explicit environment variables for the target deployment. For real HTTPS production, set `APP_ENV=production`, `APP_URL=https://...`, `SESSION_COOKIE_SECURE=true`, and `SECURITY_HSTS_ENABLED=true`.
 
@@ -266,7 +266,7 @@ Before a pending startup migration runs, the container creates an AES-256-GCM en
 Public image:
 
 ```text
-ghcr.io/whiteassassins/ae-netscope:v0.3.2-alpha
+ghcr.io/whiteassassins/ae-netscope:v0.3.3-alpha
 ```
 
 From the project root:
@@ -289,6 +289,8 @@ http://127.0.0.1:8080
 ```
 
 On a fresh Docker installation, enter `INITIAL_SETUP_TOKEN` in the setup screen before creating the first administrator. Existing installations are marked as already configured by the migration and do not repeat setup. Managed installations that already provide a strong random `SESSION_SECRET` may use that value as the setup token when no dedicated installation token is available.
+
+Surrounding spaces in a pasted token are ignored. The administrator email may use a local network domain such as `admin@truenas.local` or `admin@nas.home.arpa`. See [First setup troubleshooting](#first-setup-troubleshooting) if the setup screen reports an error.
 
 Safe update path:
 
@@ -333,6 +335,29 @@ Then check:
 - `docker compose -p ae-netscope-smoke down` stops the stack without deleting volumes.
 
 Do not run `docker compose -p ae-netscope-smoke down -v` unless the smoke data should be deleted.
+
+### TrueNAS SCALE First Setup
+
+The TrueNAS app has no separate installation token field. When `INITIAL_SETUP_TOKEN` is not set, AE NetScope uses the app's **Session Secret** as the initial setup token.
+
+1. Open **Apps**, select **AE NetScope**, and choose **Edit**.
+2. Copy the **Session Secret** you entered when installing the app.
+3. Open the AE NetScope web UI and paste it into **Initial setup token**.
+4. Enter the administrator email, username, and a password of at least 12 characters.
+
+The setup token is only needed once. After the first administrator exists, the setup screen is no longer shown.
+
+### First Setup Troubleshooting
+
+The setup screen explains why setup failed. The same reason appears in the browser developer tools (**Network** tab, `setup` request) and in the app log as `POST /api/auth/setup` with the status code below.
+
+| Status | Message | What to do |
+| --- | --- | --- |
+| `403` | The initial setup token is not valid. | Use `INITIAL_SETUP_TOKEN`, or on TrueNAS SCALE the app's Session Secret. |
+| `422` | Enter a valid administrator email address, username, or password. | Use a username of at least two characters and a password of at least 12. Local network domains such as `.local` and `.home.arpa` are accepted; `.test` and `localhost` are not. |
+| `429` | Too many attempts. | Setup allows three attempts per minute. Wait a minute and try again. |
+| `503` | The service is not ready yet. | The app cannot reach Redis yet, or maintenance mode is active. Check that the app's services are running. |
+| `409` | The initial administrator has already been created. | Sign in with the existing administrator instead. |
 
 ### TrueNAS Smoke Checklist
 
@@ -381,7 +406,7 @@ The image creates a non-root `ae-netscope` user. Build args `AE_NETSCOPE_UID` an
 To build the image manually:
 
 ```bat
-docker build -t ghcr.io/whiteassassins/ae-netscope:v0.3.2-alpha .
+docker build -t ghcr.io/whiteassassins/ae-netscope:v0.3.3-alpha .
 ```
 
 Container images are published to GitHub Container Registry when a GitHub Release is published.
@@ -423,7 +448,12 @@ sudo apt install -y \
   redis-server nginx
 ```
 
-### 3. Install Node.js 24
+### 3. Install Node.js 24.15 or newer
+
+The web toolchain requires Node.js `24.15.0` or newer on the 24 line, or `26.0.0`
+or newer. The command below installs the current 24.x release, which satisfies
+this. If you already have an older Node 24 installed, upgrade it before
+continuing.
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -

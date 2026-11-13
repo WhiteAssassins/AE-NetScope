@@ -63,6 +63,7 @@ from app.services.inventory import (
     ip_address_to_response,
     ip_addresses_outside_network,
     ip_belongs_to_network,
+    is_network_or_broadcast_address,
     list_devices,
     list_interfaces,
     list_ip_addresses,
@@ -172,7 +173,7 @@ async def export_inventory_csv(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> Response:
-    rows = await export_rows_for_resource(session, resource)
+    rows = [flatten_csv_row(row) for row in await export_rows_for_resource(session, resource)]
     output = StringIO()
     fieldnames = sorted({key for row in rows for key in row})
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
@@ -343,10 +344,10 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
     for row in data["devices"]:
         try:
             item = DeviceWithInterfaceCreate.model_validate({**row, "interface": None})
-            normalized_name = item.name.lower()
-            if normalized_name in device_names:
+            # Match the database constraint, which treats names case-sensitively.
+            if item.name in device_names:
                 errors.append(f"Duplicate device name: {item.name}.")
-            device_names.add(normalized_name)
+            device_names.add(item.name)
         except ValidationError as exc:
             errors.append(f"Invalid device {row.get('id', '?')}: {validation_message(exc)}")
 
@@ -357,7 +358,7 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
             if source_device_id not in device_source_ids:
                 errors.append(f"Interface {source_id} references a missing device.")
             item = InterfaceCreate.model_validate(row)
-            interface_key = (source_device_id, item.name.lower())
+            interface_key = (source_device_id, item.name)
             if interface_key in interface_keys:
                 errors.append(
                     f"Duplicate interface name on device {source_device_id}: {item.name}."
@@ -402,7 +403,8 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
             item = ServiceCreate.model_validate(row)
             service_key = (source_device_id, item.name.lower(), item.port, item.protocol.lower())
             if service_key in service_keys:
-                errors.append(f"Duplicate service on device {source_device_id}: {item.name}.")
+                # The inventory allows repeated services, so restoring them must work too.
+                warnings.append(f"Repeated service on device {source_device_id}: {item.name}.")
             service_keys.add(service_key)
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             errors.append(f"Invalid service {row.get('id', '?')}: {validation_message(exc)}")
@@ -452,6 +454,18 @@ def sanitize_csv_cell(value: object) -> object:
     if value.startswith(CSV_FORMULA_PREFIXES):
         return f"'{value}"
     return value
+
+
+def flatten_csv_row(row: dict[str, object], prefix: str = "") -> dict[str, object]:
+    """Expand nested objects such as a network's VLAN into dotted columns."""
+    flat: dict[str, object] = {}
+    for key, value in row.items():
+        name = f"{prefix}{key}"
+        if isinstance(value, dict):
+            flat.update(flatten_csv_row(value, f"{name}."))
+        else:
+            flat[name] = value
+    return flat
 
 
 def sanitize_csv_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -519,10 +533,11 @@ async def restore_inventory_from_payload(
     for item in sorted(interfaces, key=lambda row: int(row["id"])):
         source_id = int(item["id"])
         source_device_id = int(item["device_id"])
+        validated = InterfaceCreate.model_validate(item)
         interface = NetworkInterface(
             device_id=device_map[source_device_id],
-            name=str(item["name"]),
-            mac_address=item.get("mac_address"),
+            name=validated.name,
+            mac_address=validated.mac_address,
         )
         session.add(interface)
         await session.flush()
@@ -561,6 +576,36 @@ def backup_list(payload: dict[str, object], key: str) -> list[dict[str, object]]
     return value
 
 
+def ensure_assignable_address(address: str, cidr: str, label: str) -> None:
+    if is_network_or_broadcast_address(address, cidr):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label} cannot be the network or broadcast address of {cidr}.",
+        )
+
+
+async def validate_interface_network(
+    session: SessionDep,
+    interface: InterfaceCreate | None,
+) -> None:
+    if interface is None or interface.network_id is None:
+        return
+    network = await session.get(Network, interface.network_id)
+    if network is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if interface.ip_address and not await ip_belongs_to_network(
+        session,
+        interface.ip_address,
+        interface.network_id,
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="IP address does not belong to the selected network.",
+        )
+    if interface.ip_address:
+        ensure_assignable_address(interface.ip_address, network.cidr, "IP address")
+
+
 @router.get("/devices", response_model=list[DeviceResponse])
 async def devices(session: SessionDep, _: CurrentUser) -> list[DeviceResponse]:
     return await list_devices(session)
@@ -577,6 +622,7 @@ async def create_device_endpoint(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> DeviceResponse:
+    await validate_interface_network(session, payload.interface)
     try:
         device = await create_device(session, payload)
     except IntegrityError as exc:
@@ -656,6 +702,7 @@ async def add_device_interface_endpoint(
     device = await get_device(session, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+    await validate_interface_network(session, payload)
 
     try:
         interface = await add_device_interface(session, device, payload)
@@ -711,6 +758,9 @@ async def create_ip_address_endpoint(
             status_code=422,
             detail="IP address does not belong to the selected network.",
         )
+    if payload.network_id:
+        network = await session.get(Network, payload.network_id)
+        ensure_assignable_address(payload.address, network.cidr, "IP address")
 
     try:
         ip_address = await create_ip_address(session, payload)
@@ -749,15 +799,18 @@ async def update_ip_address_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
     if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
-    next_address = payload.address if payload.address is not None else ip_address.address
-    next_network_id = (
-        payload.network_id if payload.network_id is not None else ip_address.network_id
-    )
+    changed = payload.model_fields_set
+    next_address = payload.address if "address" in changed else ip_address.address
+    # An explicit null detaches the address from its network.
+    next_network_id = payload.network_id if "network_id" in changed else ip_address.network_id
     if next_network_id and not await ip_belongs_to_network(session, next_address, next_network_id):
         raise HTTPException(
             status_code=422,
             detail="IP address does not belong to the selected network.",
         )
+    if next_network_id and changed & {"address", "network_id"}:
+        network = await session.get(Network, next_network_id)
+        ensure_assignable_address(next_address, network.cidr, "IP address")
 
     try:
         ip_address = await update_ip_address(session, ip_address, payload)
@@ -871,6 +924,8 @@ async def create_network_endpoint(
 ) -> NetworkResponse:
     if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
+    if payload.gateway:
+        ensure_assignable_address(payload.gateway, payload.cidr, "Gateway")
     try:
         network = await create_network(session, payload)
     except IntegrityError as exc:
@@ -905,8 +960,10 @@ async def update_network_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
     if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
-    next_cidr = payload.cidr if payload.cidr is not None else network.cidr
-    next_gateway = payload.gateway if payload.gateway is not None else network.gateway
+    changed = payload.model_fields_set
+    next_cidr = payload.cidr if "cidr" in changed else network.cidr
+    # An explicit null clears the gateway.
+    next_gateway = payload.gateway if "gateway" in changed else network.gateway
     if next_gateway and ipaddress.ip_address(next_gateway) not in ipaddress.ip_network(
         next_cidr,
         strict=False,
@@ -915,6 +972,8 @@ async def update_network_endpoint(
             status_code=422,
             detail="Gateway must belong to the network CIDR.",
         )
+    if next_gateway and changed & {"cidr", "gateway"}:
+        ensure_assignable_address(next_gateway, next_cidr, "Gateway")
     if payload.cidr is not None and payload.cidr != network.cidr:
         stranded = await ip_addresses_outside_network(session, network.id, next_cidr)
         if stranded:

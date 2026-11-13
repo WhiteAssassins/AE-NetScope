@@ -96,9 +96,11 @@ async def update_status() -> UpdateStatusResponse:
 
     latest_release = latest_versioned_release(releases, prerelease=False)
     latest_prerelease = latest_versioned_release(releases, prerelease=True)
-    selected_release = latest_prerelease if current_channel != "stable" else latest_release
-    if selected_release is None:
+    if current_channel == "stable":
         selected_release = latest_release or latest_prerelease
+    else:
+        # Prerelease installs also move to a newer stable release, such as 0.4.0 over 0.3.2-alpha.
+        selected_release = newest_release(latest_prerelease, latest_release)
 
     return UpdateStatusResponse(
         installed_version=current_version,
@@ -460,6 +462,15 @@ def version_sort_key(
         stable_rank,
         prerelease_key,
     )
+
+
+def newest_release(*releases: ReleaseDetails | None) -> ReleaseDetails | None:
+    candidates = [
+        (key, release)
+        for release in releases
+        if release is not None and (key := version_sort_key(release.tag_name)) is not None
+    ]
+    return max(candidates, key=lambda candidate: candidate[0])[1] if candidates else None
 
 
 def latest_versioned_release(

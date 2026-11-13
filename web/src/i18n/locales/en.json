@@ -7,7 +7,6 @@
     "saving": "Saving...",
     "loading": "Loading...",
     "viewAll": "View all",
-    "comingSoon": "Coming soon",
     "name": "Name",
     "email": "Email",
     "type": "Type",
@@ -124,6 +123,7 @@
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "The passwords do not match.",
+    "passwordReused": "Choose a password different from the current one.",
     "changeFailed": "The password could not be changed.",
     "submit": "Update password"
   },
@@ -228,6 +228,10 @@
         "maintenance_updated": "Maintenance mode: {{state}}",
         "search_indexing_updated": "Search engine indexing: {{state}}",
         "mcp_server_updated": "Built-in MCP server: {{state}}"
+      },
+      "integration": {
+        "token_created": "Integration token created",
+        "token_revoked": "Integration token revoked"
       }
     }
   },
@@ -303,6 +307,13 @@
     "adminEmail": "Administrator email",
     "username": "Username",
     "setupToken": "Initial setup token",
+    "setupTokenHint": "Use the INITIAL_SETUP_TOKEN value. On TrueNAS SCALE, use the Session Secret entered when installing the app (Apps > AE NetScope > Edit).",
+    "invalidToken": "The initial setup token is not valid. On TrueNAS SCALE, use the app's Session Secret.",
+    "invalidEmail": "Enter a valid administrator email address.",
+    "invalidUsername": "The username needs at least two characters.",
+    "invalidPassword": "The password needs at least 12 characters.",
+    "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
+    "unavailable": "The service is not ready yet. Wait a moment and try again.",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Passwords do not match.",
     "alreadyCompleted": "The initial administrator has already been created.",

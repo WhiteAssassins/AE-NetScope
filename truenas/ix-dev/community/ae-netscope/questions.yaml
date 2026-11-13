@@ -59,7 +59,7 @@ questions:
             private: true
         - variable: session_secret
           label: Session Secret
-          description: Random secret used to sign AE NetScope sessions. Use at least 32 random characters.
+          description: Random secret used to sign AE NetScope sessions. Use at least 32 random characters. It is also the initial setup token for creating the first administrator.
           schema:
             type: string
             min_length: 32

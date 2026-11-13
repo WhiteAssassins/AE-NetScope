@@ -63,6 +63,10 @@ export function downloadJson(filename: string, payload: unknown) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  // Some browsers only download from links in the document, and revoking the URL in the
+  // same task can cancel the download before it starts.
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
