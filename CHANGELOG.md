@@ -15,6 +15,11 @@ All notable changes to AE NetScope will be documented in this file.
 - Kept a hardware warranty valid through the whole local day of its expiry date instead of expiring it at UTC midnight.
 - Linked the technical notes card on the dashboard to the notes page, and stopped counting notes that contain only whitespace.
 
+### Dependencies
+
+- Updated jsdom to 31 and refreshed the web lockfile to the latest compatible releases.
+- Raised the minimum versions of FastAPI, pydantic-settings, pytest-asyncio and Ruff to their current releases.
+
 ## v0.3.2-alpha - 2026-11-12
 
 ### Added
