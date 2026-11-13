@@ -3,10 +3,15 @@ import os
 import socket
 import sys
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 import uvicorn
+from sqlalchemy import select
+
+from app.models.integration import IntegrationToken
+from app.models.user import User
 
 pytest.importorskip("mcp")
 from mcp import ClientSession, StdioServerParameters  # noqa: E402
@@ -30,6 +35,20 @@ async def token_for(client, csrf, write=True):
     )
     assert result.status_code == 201
     return result.json()["token"]
+
+
+@asynccontextmanager
+async def gateway():
+    backend = InventoryClient("http://test", transport=httpx.ASGITransport(app=app))
+    application = AuthenticateHTTP(create_server(backend).streamable_http_app(), backend)
+    async with serve(application) as base_url, httpx.AsyncClient() as http:
+
+        async def post(token):
+            return await http.post(
+                f"{base_url}/mcp", headers={"Authorization": f"Bearer {token}"}, json={}
+            )
+
+        yield post
 
 
 @asynccontextmanager
@@ -329,3 +348,43 @@ async def test_builtin_server_cannot_be_enabled_without_sdk(integration_api, mon
             json={"enabled": True},
         )
         assert response.status_code == 409
+
+
+async def test_http_transport_rejects_revoked_token_on_subsequent_request(integration_api):
+    client, csrf, factory = integration_api
+    token = await token_for(client, csrf, write=True)
+
+    async with gateway() as post:
+        # An authenticated request with an empty MCP payload passes the token check.
+        first = await post(token)
+        assert first.status_code != 401
+
+        async with factory() as session:
+            record = await session.scalar(select(IntegrationToken))
+            assert record is not None
+            record.revoked_at = datetime.now(UTC)
+            await session.commit()
+
+        rejected = await post(token)
+        assert rejected.status_code == 401
+
+
+@pytest.mark.parametrize("invalid_state", ["expired", "deactivated"])
+async def test_http_transport_rejects_invalid_token_state(integration_api, invalid_state):
+    client, csrf, factory = integration_api
+    token = await token_for(client, csrf, write=True)
+
+    async with factory() as session:
+        record = await session.scalar(select(IntegrationToken))
+        assert record is not None
+        if invalid_state == "expired":
+            record.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        else:
+            user = await session.get(User, record.user_id)
+            assert user is not None
+            user.is_active = False
+        await session.commit()
+
+    async with gateway() as post:
+        response = await post(token)
+        assert response.status_code == 401
