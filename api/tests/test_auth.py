@@ -608,3 +608,41 @@ async def test_expired_lockout_resets_the_failure_count(integration_api) -> None
         json={"email": "integration@example.com", "password": "integration-test-password"},
     )
     assert correct.status_code == 200
+
+
+async def test_password_change_rejects_reusing_the_current_password(integration_api) -> None:
+    from sqlalchemy import select, update
+
+    from app.models.user import User
+
+    client, csrf, factory = integration_api
+    async with factory() as session:
+        await session.execute(update(User).values(must_change_password=True))
+        await session.commit()
+
+    response = await client.post(
+        "/api/auth/password",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "current_password": "integration-test-password",
+            "new_password": "integration-test-password",
+        },
+    )
+    assert response.status_code == 400
+
+    async with factory() as session:
+        assert (await session.scalar(select(User))).must_change_password is True
+
+
+def test_initial_setup_requires_a_real_username() -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import InitialSetupRequest
+
+    with pytest.raises(ValidationError):
+        InitialSetupRequest(email="admin@example.com", username="   ", password="x" * 12)
+    assert (
+        InitialSetupRequest(email="admin@example.com", username=" admin ", password="x" * 12)
+        .username
+        == "admin"
+    )

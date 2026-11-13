@@ -135,7 +135,11 @@ export default function NotificationCenter({
     const limitedIds = [...nextIds].slice(-MAX_STORED_READ_IDS);
     const normalizedIds = new Set(limitedIds);
     setReadIds(normalizedIds);
-    window.localStorage.setItem(storageKey(userId), JSON.stringify(limitedIds));
+    try {
+      window.localStorage.setItem(storageKey(userId), JSON.stringify(limitedIds));
+    } catch {
+      // Read state still applies for this page when browser storage is unavailable.
+    }
   }
 
   function openNotification(notification: NotificationItem) {

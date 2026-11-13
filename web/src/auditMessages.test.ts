@@ -32,7 +32,7 @@ function backendAuditEventTypes() {
     .join("\n");
   return [
     ...source.matchAll(
-      /write_audit_event\([\s\S]{0,180}?["']((?:auth|inventory|users|settings)\.[a-z_]+)["']/g,
+      /write_audit_event\([\s\S]{0,180}?["']((?:auth|integration|inventory|users|settings)\.[a-z_]+)["']/g,
     ),
   ].map((match) => match[1]);
 }

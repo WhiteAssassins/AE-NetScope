@@ -309,6 +309,9 @@ async def change_user_password(
             ip_address=ip_address,
         )
         raise AuthError("Current password is invalid.")
+    if new_password == current_password:
+        # Reusing a temporary password would keep it known to whoever issued it.
+        raise AuthError("New password must be different from the current password.")
 
     user.password_hash = hash_password(new_password)
     user.must_change_password = False

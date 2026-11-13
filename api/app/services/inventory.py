@@ -1,6 +1,7 @@
 import ipaddress
 from collections import defaultdict
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import Select, func, select
@@ -42,6 +43,21 @@ from app.schemas.inventory import (
 
 QUALITY_ISSUE_LIMIT = 250
 QUALITY_SEVERITY_ORDER = {"critical": 0, "warning": 1, "info": 2}
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def address_sort_key(address: str) -> tuple[int, int]:
+    """Sort addresses numerically, so 10.0.0.2 comes before 10.0.0.11."""
+    parsed = ipaddress.ip_address(address)
+    return parsed.version, int(parsed)
+
+
+def cidr_sort_key(cidr: str) -> tuple[int, int, int]:
+    network = ipaddress.ip_network(cidr, strict=False)
+    return network.version, int(network.network_address), network.prefixlen
 
 
 async def create_vlan(session: AsyncSession, payload: VlanCreate) -> Vlan:
@@ -107,10 +123,14 @@ async def inventory_quality_report(session: AsyncSession) -> InventoryQualityRep
     interfaces = list(
         (await session.scalars(select(NetworkInterface).order_by(NetworkInterface.id))).all()
     )
-    ip_addresses = list(
-        (await session.scalars(select(IpAddress).order_by(IpAddress.address))).all()
+    ip_addresses = sorted(
+        (await session.scalars(select(IpAddress))).all(),
+        key=lambda ip_address: address_sort_key(ip_address.address),
     )
-    networks = list((await session.scalars(select(Network).order_by(Network.cidr))).all())
+    networks = sorted(
+        (await session.scalars(select(Network))).all(),
+        key=lambda network: cidr_sort_key(network.cidr),
+    )
     vlans = list((await session.scalars(select(Vlan).order_by(Vlan.vlan_id))).all())
 
     interfaces_by_device: dict[int, list[NetworkInterface]] = defaultdict(list)
@@ -574,14 +594,14 @@ async def list_ip_addresses(
         .outerjoin(Device, NetworkInterface.device_id == Device.id)
         .outerjoin(Network, IpAddress.network_id == Network.id)
         .outerjoin(Vlan, Network.vlan_id == Vlan.id)
-        .order_by(IpAddress.address)
     )
     if record_ids is not None:
         statement = statement.where(IpAddress.id.in_(record_ids))
     result = await session.execute(statement)
+    rows = sorted(result.all(), key=lambda row: address_sort_key(row[0].address))
     return [
         ip_address_to_record(ip_address, interface, device, network, vlan)
-        for ip_address, interface, device, network, vlan in result.all()
+        for ip_address, interface, device, network, vlan in rows
     ]
 
 
@@ -647,6 +667,17 @@ async def ip_addresses_outside_network(
     return [
         address for address in addresses if ipaddress.ip_address(address) not in network
     ]
+
+
+def is_network_or_broadcast_address(address: str, cidr: str) -> bool:
+    """Whether an address is the network or broadcast address of an IPv4 subnet.
+
+    These cannot be assigned to hosts. Point-to-point /31 and host /32 subnets have none.
+    """
+    network = ipaddress.ip_network(cidr, strict=False)
+    if network.version != 4 or network.prefixlen >= 31:
+        return False
+    return ipaddress.ip_address(address) in (network.network_address, network.broadcast_address)
 
 
 async def ip_belongs_to_network(session: AsyncSession, address: str, network_id: int) -> bool:
@@ -844,9 +875,9 @@ async def vlan_to_summary_response(session: AsyncSession, vlan: Vlan) -> VlanSum
 
 
 async def list_networks(session: AsyncSession) -> list[NetworkResponse]:
-    result = await session.execute(select(Network, Vlan).outerjoin(Vlan).order_by(Network.cidr))
+    result = await session.execute(select(Network, Vlan).outerjoin(Vlan))
     responses: list[NetworkResponse] = []
-    for network, vlan in result.all():
+    for network, vlan in sorted(result.all(), key=lambda row: cidr_sort_key(row[0].cidr)):
         ip_count = await session.scalar(
             select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
         )
@@ -922,7 +953,7 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
                 primary_ip=ip_address,
                 primary_mac=mac_address,
                 status=device.status,
-                last_change=device.updated_at.strftime("%Y-%m-%d %H:%M"),
+                last_change=_as_utc(device.updated_at).isoformat(),
             )
         )
 
@@ -936,11 +967,10 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
         for name, count, status in service_rows.all()
     ]
 
-    network_rows = await session.execute(
-        select(Network, Vlan).outerjoin(Vlan).order_by(Network.cidr).limit(4)
-    )
+    network_rows = await session.execute(select(Network, Vlan).outerjoin(Vlan))
+    first_networks = sorted(network_rows.all(), key=lambda row: cidr_sort_key(row[0].cidr))[:4]
     networks: list[NetworkNode] = []
-    for network, vlan in network_rows.all():
+    for network, vlan in first_networks:
         device_count = await session.scalar(
             select(func.count(func.distinct(NetworkInterface.device_id)))
             .join(IpAddress, IpAddress.interface_id == NetworkInterface.id)

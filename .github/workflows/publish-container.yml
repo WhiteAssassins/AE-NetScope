@@ -34,6 +34,22 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
 
+      - name: Verify release tag matches VERSION
+        run: |
+          expected="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$RELEASE_TAG" != "$expected" ]; then
+            echo "::error::Release tag $RELEASE_TAG does not match VERSION ($expected)."
+            exit 1
+          fi
+          case "$expected" in
+            *-*) expected_prerelease=true ;;
+            *) expected_prerelease=false ;;
+          esac
+          if [ "$IS_PRERELEASE" != "$expected_prerelease" ]; then
+            echo "::error::Release $RELEASE_TAG must be published with prerelease=$expected_prerelease."
+            exit 1
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 

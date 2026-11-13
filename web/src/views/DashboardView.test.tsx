@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { AuditEvent, DashboardSummary, User } from "../types";
+import { formatDateTime } from "../dateTime";
 import DashboardView from "./DashboardView";
 
 vi.mock("recharts", () => ({
@@ -111,6 +112,19 @@ describe("DashboardView", () => {
     expect(screen.getByText("SW-Core-01")).toBeInTheDocument();
     expect(screen.getAllByText("10.0.0.0/24").length).toBeGreaterThan(0);
     expect(screen.getByText("Login succeeded for admin@example.com")).toBeInTheDocument();
+  });
+
+  it("formats the last change of recent devices with the regional settings", () => {
+    const iso = "2026-07-01T10:00:00+00:00";
+    renderDashboard({
+      dashboard: {
+        ...dashboard,
+        recent_devices: dashboard.recent_devices.map((device) => ({ ...device, last_change: iso })),
+      },
+    });
+
+    expect(screen.queryByText(iso)).not.toBeInTheDocument();
+    expect(screen.getAllByText(formatDateTime(iso, "en")).length).toBeGreaterThan(0);
   });
 
   it("opens technical notes from the notes summary card", async () => {

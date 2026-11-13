@@ -133,7 +133,7 @@ export default function DashboardView({
                     <td>
                       <span className="status-dot" /> {stateLabel(device.status, t)}
                     </td>
-                    <td>{device.last_change}</td>
+                    <td>{formatLastChange(device.last_change, i18n.language)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -277,6 +277,10 @@ export default function DashboardView({
       </section>
     </>
   );
+}
+
+function formatLastChange(value: string, language: string) {
+  return Number.isNaN(new Date(value).getTime()) ? value : formatDateTime(value, language);
 }
 
 function Card({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {

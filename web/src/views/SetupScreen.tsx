@@ -98,7 +98,10 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
             {t("setup.username")}
             <input
               autoComplete="nickname"
+              maxLength={80}
+              minLength={2}
               onChange={(event) => setUsername(event.target.value)}
+              pattern=".*\S.*\S.*"
               required
               type="text"
               value={username}

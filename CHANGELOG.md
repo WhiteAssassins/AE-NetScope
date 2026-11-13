@@ -14,6 +14,20 @@ All notable changes to AE NetScope will be documented in this file.
 - Stopped showing "Your session expired" to visitors who had never signed in on that browser.
 - Kept a hardware warranty valid through the whole local day of its expiry date instead of expiring it at UTC midnight.
 - Linked the technical notes card on the dashboard to the notes page, and stopped counting notes that contain only whitespace.
+- Allowed an explicit `null` to detach an IP address from its subnet or clear a subnet gateway in the same request that changes the address or CIDR, instead of validating against the previous value.
+- Listed IP addresses and subnets in numeric order, so `10.0.0.2` comes before `10.0.0.11`, including the subnets shown on the dashboard.
+- Rejected reusing the current password when changing it, so a temporary password issued by an administrator cannot stay in use after the mandatory change.
+- Rejected the network and broadcast addresses of IPv4 subnets as host IP addresses and gateways. `/31` and `/32` subnets are not affected, and existing records are not changed.
+- Expanded nested values in CSV exports into separate columns, such as `vlan.vlan_id` for subnets, instead of writing raw objects.
+- Accepted backups exported from any valid inventory: device names that differ only in case and repeated services on a device no longer block a restore.
+- Offered a newer stable release to prerelease installations, such as 0.4.0 to a 0.3.2-alpha installation.
+- Required a username with at least two non-whitespace characters during initial setup, matching other accounts.
+- Limited IP assignment types to `static`, `dhcp` and `reserved`, accepting any letter case. Migration `0015_assignment_type_values` normalizes existing values; unsupported values become `static`.
+- Translated the audit events for created and revoked integration tokens.
+- Kept notifications working when browser storage is unavailable.
+- Showed the last change of recent devices in the user's time zone and date format.
+- Attached the backup download link to the page before starting the download, so browsers that ignore detached links still save the pre-restore backup.
+- Stopped the container publishing workflow when the release tag does not match `VERSION` or the release channel.
 
 ### Dependencies
 

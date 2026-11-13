@@ -123,6 +123,7 @@
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "The passwords do not match.",
+    "passwordReused": "Choose a password different from the current one.",
     "changeFailed": "The password could not be changed.",
     "submit": "Update password"
   },
@@ -227,6 +228,10 @@
         "maintenance_updated": "Maintenance mode: {{state}}",
         "search_indexing_updated": "Search engine indexing: {{state}}",
         "mcp_server_updated": "Built-in MCP server: {{state}}"
+      },
+      "integration": {
+        "token_created": "Integration token created",
+        "token_revoked": "Integration token revoked"
       }
     }
   },

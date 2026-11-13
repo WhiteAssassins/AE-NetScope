@@ -27,6 +27,10 @@ export default function ChangePasswordScreen({
       setError(t("changePassword.passwordMismatch"));
       return;
     }
+    if (newPassword === currentPassword) {
+      setError(t("changePassword.passwordReused"));
+      return;
+    }
 
     setIsSubmitting(true);
 

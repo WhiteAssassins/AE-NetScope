@@ -73,6 +73,22 @@ describe("ChangePasswordScreen", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects reusing the current password locally", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ChangePasswordScreen csrfToken="csrf-token" onPasswordChanged={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Current password"), "temporary-password");
+    await user.type(screen.getByLabelText("New password"), "temporary-password");
+    await user.type(screen.getByLabelText("Confirm password"), "temporary-password");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(screen.getByText("Choose a password different from the current one.")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("shows expired session errors from the API", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ detail: "csrf" }, 403))));

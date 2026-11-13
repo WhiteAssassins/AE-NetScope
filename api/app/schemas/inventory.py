@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.device_types import DeviceType, normalize_device_type
 
+AssignmentType = Literal["static", "dhcp", "reserved"]
+
+
+def normalize_assignment_type(value: object) -> object:
+    return value.strip().lower() if isinstance(value, str) else value
+
 MAC_PATTERN = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 DESCRIPTION_MAX_LENGTH = 16_384
 NOTES_MAX_LENGTH = 65_536
@@ -189,7 +195,7 @@ class InterfaceCreate(BaseModel):
     mac_address: str | None = None
     ip_address: str | None = None
     network_id: int | None = None
-    assignment_type: str = Field(default="static", max_length=32)
+    assignment_type: AssignmentType = "static"
 
     @field_validator("mac_address")
     @classmethod
@@ -206,6 +212,11 @@ class InterfaceCreate(BaseModel):
         if value is None:
             return value
         return str(ipaddress.ip_address(value))
+
+    @field_validator("assignment_type", mode="before")
+    @classmethod
+    def normalize_assignment(cls, value: object) -> object:
+        return normalize_assignment_type(value)
 
 
 class DeviceWithInterfaceCreate(DeviceCreate):
@@ -244,7 +255,7 @@ class IpAddressResponse(BaseModel):
 
 class IpAddressCreate(BaseModel):
     address: str
-    assignment_type: str = Field(default="static", max_length=32)
+    assignment_type: AssignmentType = "static"
     network_id: int | None = None
     interface_id: int | None = None
 
@@ -253,10 +264,15 @@ class IpAddressCreate(BaseModel):
     def validate_address(cls, value: str) -> str:
         return str(ipaddress.ip_address(value))
 
+    @field_validator("assignment_type", mode="before")
+    @classmethod
+    def normalize_assignment(cls, value: object) -> object:
+        return normalize_assignment_type(value)
+
 
 class IpAddressUpdate(BaseModel):
     address: str | None = None
-    assignment_type: str | None = Field(default=None, max_length=32)
+    assignment_type: AssignmentType | None = None
     network_id: int | None = None
     interface_id: int | None = None
 
@@ -271,6 +287,11 @@ class IpAddressUpdate(BaseModel):
     def require_non_null_fields(self) -> "IpAddressUpdate":
         reject_explicit_nulls(self, "address", "assignment_type")
         return self
+
+    @field_validator("assignment_type", mode="before")
+    @classmethod
+    def normalize_assignment(cls, value: object) -> object:
+        return normalize_assignment_type(value)
 
 
 class IpAddressRecordResponse(IpAddressResponse):

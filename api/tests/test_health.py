@@ -588,3 +588,30 @@ async def test_public_health_summary_reports_failure_without_internal_details(mo
     assert response.status_code == 200
     assert response.json()["checks"]["database"]["status"] == "error"
     assert "OperationalError" not in response.text
+
+
+async def test_prerelease_install_is_offered_a_newer_stable_release(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    version_route.clear_release_cache()
+
+    def release(tag: str, prerelease: bool):
+        return version_route.ReleaseDetails(
+            tag_name=tag,
+            html_url=f"https://github.com/WhiteAssassins/AE-NetScope/releases/tag/{tag}",
+            prerelease=prerelease,
+            draft=False,
+        )
+
+    monkeypatch.setattr(
+        version_route,
+        "fetch_github_releases",
+        lambda: [release("v0.4.0", False), release("v0.3.2-alpha", True)],
+    )
+    monkeypatch.setattr(version_route, "project_version", lambda: "0.3.2-alpha")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        payload = (await client.get("/api/version/updates")).json()
+    version_route.clear_release_cache()
+
+    assert payload["selected_release"]["tag_name"] == "v0.4.0"
+    assert payload["update_available"] is True

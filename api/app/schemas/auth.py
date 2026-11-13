@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -16,9 +16,17 @@ class InitialSetupStatusResponse(BaseModel):
 
 class InitialSetupRequest(BaseModel):
     email: EmailStr
-    username: str = Field(min_length=1, max_length=80)
+    username: str = Field(min_length=2, max_length=80)
     password: str = Field(min_length=12, max_length=1024)
     setup_token: str | None = Field(default=None, min_length=16, max_length=1024)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 2:
+            raise ValueError("Username must contain at least two non-whitespace characters.")
+        return normalized
 
 
 class UserResponse(BaseModel):
