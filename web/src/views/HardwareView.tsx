@@ -179,7 +179,12 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
 
 function warrantyDate(value: string | null) {
   if (!value) return null;
-  const date = new Date(value);
+  // A date-only value covers that whole local day. new Date("YYYY-MM-DD") would parse it
+  // as UTC midnight and expire the warranty early.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 23, 59, 59, 999)
+    : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 

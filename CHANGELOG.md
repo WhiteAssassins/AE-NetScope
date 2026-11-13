@@ -2,6 +2,19 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Validated the subnet of an IP address given when creating a device or adding an interface. A subnet that does not exist now returns 404 and an IP outside the selected subnet returns 422, matching the IP address endpoints.
+- Rejected `null` for required fields in partial updates of devices, subnets, VLANs, IP addresses and services with a 422 response, instead of a misleading "already exists" conflict or, for services, a server error.
+- Normalized interface MAC addresses and names when restoring a JSON backup, matching the API.
+- Reset the failed sign-in counter when an account lockout expires, so a single mistyped password after the lockout no longer locks the account again.
+- Reported the same primary IP address for a service as for its device when the device has several addresses.
+- Stopped showing "Your session expired" to visitors who had never signed in on that browser.
+- Kept a hardware warranty valid through the whole local day of its expiry date instead of expiring it at UTC midnight.
+- Linked the technical notes card on the dashboard to the notes page, and stopped counting notes that contain only whitespace.
+
 ## v0.3.2-alpha - 2026-11-12
 
 ### Added

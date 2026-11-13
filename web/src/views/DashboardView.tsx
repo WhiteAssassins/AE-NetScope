@@ -18,6 +18,7 @@ type DashboardViewProps = {
   onOpenDevices: () => void;
   onOpenIpMacs: () => void;
   onOpenNetworks: () => void;
+  onOpenNotes: () => void;
   onOpenTopology: () => void;
   onOpenServices: () => void;
   onOpenVlans: () => void;
@@ -36,6 +37,7 @@ export default function DashboardView({
   onOpenDevices,
   onOpenIpMacs,
   onOpenNetworks,
+  onOpenNotes,
   onOpenTopology,
   onOpenServices,
   onOpenVlans,
@@ -50,6 +52,7 @@ export default function DashboardView({
     networks: onOpenNetworks,
     vlans: onOpenVlans,
     services: onOpenServices,
+    notes: onOpenNotes,
   });
   const chartData = buildChartData(dashboard, t);
   const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
@@ -84,13 +87,9 @@ export default function DashboardView({
             <div>
               <p>{stat.label}</p>
               <strong>{stat.value}</strong>
-              {stat.onOpen ? (
-                <button className="card-link text-button" onClick={stat.onOpen}>
-                  {t("common.viewAll")}
-                </button>
-              ) : (
-                <span className="muted-line">{t("common.comingSoon")}</span>
-              )}
+              <button className="card-link text-button" onClick={stat.onOpen}>
+                {t("common.viewAll")}
+              </button>
             </div>
           </article>
         ))}
@@ -292,7 +291,7 @@ function Card({ title, children, className = "" }: { title: string; children: Re
 function buildStats(
   dashboard: DashboardSummary | null,
   t: TFunction,
-  handlers: Record<"devices" | "ipMacs" | "networks" | "vlans" | "services", () => void>,
+  handlers: Record<"devices" | "ipMacs" | "networks" | "vlans" | "services" | "notes", () => void>,
 ) {
   return [
     { label: t("navigation.devices"), value: String(dashboard?.stats.devices ?? 0), icon: Monitor, tone: "blue" as const, onOpen: handlers.devices },
@@ -300,7 +299,7 @@ function buildStats(
     { label: t("navigation.networks"), value: String(dashboard?.stats.networks ?? 0), icon: Route, tone: "violet" as const, onOpen: handlers.networks },
     { label: t("navigation.vlans"), value: String(dashboard?.stats.vlans ?? 0), icon: Tag, tone: "orange" as const, onOpen: handlers.vlans },
     { label: t("navigation.services"), value: String(dashboard?.stats.services ?? 0), icon: Layers3, tone: "cyan" as const, onOpen: handlers.services },
-    { label: t("navigation.notes"), value: String(dashboard?.stats.notes ?? 0), icon: FileText, tone: "gray" as const },
+    { label: t("navigation.notes"), value: String(dashboard?.stats.notes ?? 0), icon: FileText, tone: "gray" as const, onOpen: handlers.notes },
   ];
 }
 

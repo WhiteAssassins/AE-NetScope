@@ -92,6 +92,10 @@ async def authenticate_user(
             ip_address=ip_address,
         )
         raise AccountLockedError("Account is temporarily locked.")
+    if user.locked_until:
+        # The lockout has expired, so failed attempts are counted from zero again.
+        user.locked_until = None
+        user.failed_login_count = 0
 
     is_valid_password, updated_password_hash = verify_password_and_update(
         password,

@@ -11,6 +11,17 @@ DESCRIPTION_MAX_LENGTH = 16_384
 NOTES_MAX_LENGTH = 65_536
 
 
+def reject_explicit_nulls(model: BaseModel, *fields: str) -> None:
+    """Partial updates may omit required fields, but must not clear them."""
+    cleared = sorted(
+        field
+        for field in fields
+        if field in model.model_fields_set and getattr(model, field) is None
+    )
+    if cleared:
+        raise ValueError(f"Required fields cannot be null: {', '.join(cleared)}.")
+
+
 class VlanCreate(BaseModel):
     vlan_id: int = Field(ge=1, le=4094)
     name: str = Field(min_length=1, max_length=120)
@@ -21,6 +32,11 @@ class VlanUpdate(BaseModel):
     vlan_id: int | None = Field(default=None, ge=1, le=4094)
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def require_non_null_fields(self) -> "VlanUpdate":
+        reject_explicit_nulls(self, "vlan_id", "name")
+        return self
 
 
 class VlanResponse(BaseModel):
@@ -89,6 +105,11 @@ class NetworkUpdate(BaseModel):
             return value
         return str(ipaddress.ip_address(value))
 
+    @model_validator(mode="after")
+    def require_non_null_fields(self) -> "NetworkUpdate":
+        reject_explicit_nulls(self, "cidr", "name", "status")
+        return self
+
 
 class NetworkResponse(NetworkCreate):
     id: int
@@ -122,6 +143,11 @@ class DeviceCreate(BaseModel):
     def normalize_type(cls, value: object) -> object:
         return normalize_device_type(value) if isinstance(value, str) else value
 
+    @field_validator("notes")
+    @classmethod
+    def blank_notes_to_none(cls, value: str | None) -> str | None:
+        return value if value is None or value.strip() else None
+
 
 class DeviceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -146,6 +172,16 @@ class DeviceUpdate(BaseModel):
     @classmethod
     def normalize_type(cls, value: object) -> object:
         return normalize_device_type(value) if isinstance(value, str) else value
+
+    @field_validator("notes")
+    @classmethod
+    def blank_notes_to_none(cls, value: str | None) -> str | None:
+        return value if value is None or value.strip() else None
+
+    @model_validator(mode="after")
+    def require_non_null_fields(self) -> "DeviceUpdate":
+        reject_explicit_nulls(self, "name", "device_type", "status")
+        return self
 
 
 class InterfaceCreate(BaseModel):
@@ -231,6 +267,11 @@ class IpAddressUpdate(BaseModel):
             return value
         return str(ipaddress.ip_address(value))
 
+    @model_validator(mode="after")
+    def require_non_null_fields(self) -> "IpAddressUpdate":
+        reject_explicit_nulls(self, "address", "assignment_type")
+        return self
+
 
 class IpAddressRecordResponse(IpAddressResponse):
     interface_id: int | None
@@ -273,6 +314,11 @@ class ServiceUpdate(BaseModel):
     port: int | None = Field(default=None, ge=1, le=65535)
     protocol: str | None = Field(default=None, max_length=20)
     status: str | None = Field(default=None, max_length=32)
+
+    @model_validator(mode="after")
+    def require_non_null_fields(self) -> "ServiceUpdate":
+        reject_explicit_nulls(self, "device_id", "name", "protocol", "status")
+        return self
 
 
 class ServiceRecordResponse(BaseModel):

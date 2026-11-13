@@ -519,10 +519,11 @@ async def restore_inventory_from_payload(
     for item in sorted(interfaces, key=lambda row: int(row["id"])):
         source_id = int(item["id"])
         source_device_id = int(item["device_id"])
+        validated = InterfaceCreate.model_validate(item)
         interface = NetworkInterface(
             device_id=device_map[source_device_id],
-            name=str(item["name"]),
-            mac_address=item.get("mac_address"),
+            name=validated.name,
+            mac_address=validated.mac_address,
         )
         session.add(interface)
         await session.flush()
@@ -561,6 +562,25 @@ def backup_list(payload: dict[str, object], key: str) -> list[dict[str, object]]
     return value
 
 
+async def validate_interface_network(
+    session: SessionDep,
+    interface: InterfaceCreate | None,
+) -> None:
+    if interface is None or interface.network_id is None:
+        return
+    if await session.get(Network, interface.network_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if interface.ip_address and not await ip_belongs_to_network(
+        session,
+        interface.ip_address,
+        interface.network_id,
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="IP address does not belong to the selected network.",
+        )
+
+
 @router.get("/devices", response_model=list[DeviceResponse])
 async def devices(session: SessionDep, _: CurrentUser) -> list[DeviceResponse]:
     return await list_devices(session)
@@ -577,6 +597,7 @@ async def create_device_endpoint(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> DeviceResponse:
+    await validate_interface_network(session, payload.interface)
     try:
         device = await create_device(session, payload)
     except IntegrityError as exc:
@@ -656,6 +677,7 @@ async def add_device_interface_endpoint(
     device = await get_device(session, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+    await validate_interface_network(session, payload)
 
     try:
         interface = await add_device_interface(session, device, payload)

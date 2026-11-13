@@ -454,7 +454,14 @@ async def list_services(
         .join(Device, Service.device_id == Device.id)
         .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
         .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
-        .order_by(Service.name, Device.name)
+        # Match device_select so a service reports its device's primary IP.
+        .order_by(
+            Service.name,
+            Device.name,
+            Service.id,
+            NetworkInterface.id.asc(),
+            IpAddress.id.asc(),
+        )
     )
     if record_ids is not None:
         statement = statement.where(Service.id.in_(record_ids))
@@ -506,6 +513,7 @@ async def service_to_response(
         .outerjoin(NetworkInterface, NetworkInterface.device_id == Device.id)
         .outerjoin(IpAddress, IpAddress.interface_id == NetworkInterface.id)
         .where(Service.id == service.id)
+        .order_by(NetworkInterface.id.asc(), IpAddress.id.asc())
         .limit(1)
     )
     row = result.one()

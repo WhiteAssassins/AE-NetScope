@@ -158,3 +158,169 @@ async def test_device_types_are_stored_as_language_neutral_keys(empty_inventory_
         json={"name": "mystery", "device_type": "Toaster"},
     )
     assert rejected.status_code == 422
+
+
+async def test_interface_ips_must_belong_to_an_existing_selected_network(
+    empty_inventory_client,
+) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    network = (
+        await client.post(
+            "/api/inventory/networks",
+            headers=headers,
+            json={"cidr": "10.20.0.0/24", "name": "Lab"},
+        )
+    ).json()
+
+    outside = await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={
+            "name": "srv-outside",
+            "device_type": "server",
+            "interface": {"ip_address": "192.168.50.5", "network_id": network["id"]},
+        },
+    )
+    assert outside.status_code == 422
+
+    missing = await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={
+            "name": "srv-missing",
+            "device_type": "server",
+            "interface": {"ip_address": "10.20.0.5", "network_id": 9999},
+        },
+    )
+    assert missing.status_code == 404
+
+    device = await client.post(
+        "/api/inventory/devices",
+        headers=headers,
+        json={
+            "name": "srv-ok",
+            "device_type": "server",
+            "interface": {"ip_address": "10.20.0.5", "network_id": network["id"]},
+        },
+    )
+    assert device.status_code == 201
+    added = await client.post(
+        f"/api/inventory/devices/{device.json()['id']}/interfaces",
+        headers=headers,
+        json={"name": "eth1", "ip_address": "172.16.0.9", "network_id": network["id"]},
+    )
+    assert added.status_code == 422
+    assert len((await client.get("/api/inventory/ip-addresses")).json()) == 1
+
+
+async def test_updates_reject_null_for_required_fields(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    vlan = (
+        await client.post(
+            "/api/inventory/vlans", headers=headers, json={"vlan_id": 30, "name": "Lab"}
+        )
+    ).json()
+    network = (
+        await client.post(
+            "/api/inventory/networks",
+            headers=headers,
+            json={"cidr": "10.30.0.0/24", "name": "Lab"},
+        )
+    ).json()
+    device = (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={"name": "srv-null", "device_type": "server"},
+        )
+    ).json()
+    service = (
+        await client.post(
+            "/api/inventory/services",
+            headers=headers,
+            json={"device_id": device["id"], "name": "SSH", "port": 22},
+        )
+    ).json()
+
+    for path, body in (
+        (f"/api/inventory/vlans/{vlan['id']}", {"vlan_id": None}),
+        (f"/api/inventory/networks/{network['id']}", {"cidr": None}),
+        (f"/api/inventory/devices/{device['id']}", {"name": None}),
+        (f"/api/inventory/devices/{device['id']}", {"device_type": None}),
+        (f"/api/inventory/services/{service['id']}", {"name": None}),
+    ):
+        response = await client.patch(path, headers=headers, json=body)
+        assert response.status_code == 422, (path, body, response.text)
+
+    cleared = await client.patch(
+        f"/api/inventory/services/{service['id']}", headers=headers, json={"port": None}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["port"] is None
+
+
+async def test_restore_normalizes_interface_mac_addresses(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    response = await client.post(
+        "/api/inventory/import.json",
+        headers={"X-CSRF-Token": csrf_token},
+        json={
+            "format": "ae-netscope.inventory.v1",
+            "vlans": [],
+            "networks": [],
+            "devices": [{"id": 1, "name": "srv-01", "device_type": "server"}],
+            "interfaces": [
+                {"id": 1, "device_id": 1, "name": "eth0", "mac_address": "AA:BB:CC:DD:EE:FF"}
+            ],
+            "ip_addresses": [],
+            "services": [],
+        },
+    )
+    assert response.status_code == 200
+
+    interfaces = (await client.get("/api/inventory/interfaces")).json()
+    assert [item["mac_address"] for item in interfaces] == ["aa:bb:cc:dd:ee:ff"]
+
+
+async def test_service_reports_its_device_primary_ip(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    device = (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={
+                "name": "srv-multi",
+                "device_type": "server",
+                "interface": {"name": "eth0", "ip_address": "10.40.0.5"},
+            },
+        )
+    ).json()
+    await client.post(
+        f"/api/inventory/devices/{device['id']}/interfaces",
+        headers=headers,
+        json={"name": "eth1", "ip_address": "10.40.0.9"},
+    )
+    service = await client.post(
+        "/api/inventory/services",
+        headers=headers,
+        json={"device_id": device["id"], "name": "SSH", "port": 22},
+    )
+
+    device_ip = (await client.get("/api/inventory/devices")).json()[0]["primary_ip"]
+    assert device_ip == "10.40.0.5"
+    assert service.json()["primary_ip"] == device_ip
+    assert (await client.get("/api/inventory/services")).json()[0]["primary_ip"] == device_ip
+
+
+async def test_blank_device_notes_are_not_counted(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    created = await client.post(
+        "/api/inventory/devices",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"name": "srv-notes", "device_type": "server", "notes": "   "},
+    )
+    assert created.json()["notes"] is None
+    assert (await client.get("/api/inventory/dashboard")).json()["stats"]["notes"] == 0

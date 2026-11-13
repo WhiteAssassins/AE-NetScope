@@ -575,3 +575,36 @@ async def test_concurrent_initial_setup_creates_exactly_one_admin(tmp_path, monk
     assert user_count == 1
     app.dependency_overrides.clear()
     await engine.dispose()
+
+
+async def test_expired_lockout_resets_the_failure_count(integration_api) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.models.user import User
+
+    client, _, factory = integration_api
+    async with factory() as session:
+        user = await session.scalar(select(User))
+        user.failed_login_count = settings.auth_failed_login_limit
+        user.locked_until = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+
+    response = await client.post(
+        "/api/auth/login",
+        json={"email": "integration@example.com", "password": "wrong-password"},
+    )
+    assert response.status_code == 401
+
+    async with factory() as session:
+        user = await session.scalar(select(User))
+        assert user.failed_login_count == 1
+        assert user.locked_until is None
+
+    correct = await client.post(
+        "/api/auth/login",
+        json={"email": "integration@example.com", "password": "integration-test-password"},
+    )
+    assert correct.status_code == 200

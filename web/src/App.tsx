@@ -44,6 +44,7 @@ import TopbarSystemStatus from "./components/TopbarSystemStatus";
 import { formatDateTime, storeRegionalPreferences } from "./dateTime";
 import { setLanguage } from "./i18n";
 import { readLocalSettings } from "./settings";
+import { rememberSignedIn, wasSignedIn } from "./sessionHint";
 import type { LocalSettings } from "./settings";
 import { applySearchIndexingPolicy } from "./searchIndexing";
 import type {
@@ -201,6 +202,7 @@ function App() {
       || previousUser?.permissions.some((permission) => !nextUser?.permissions.includes(permission));
     activeUserRef.current = nextUser;
     setUser(nextUser);
+    rememberSignedIn(nextUser !== null);
     if (!boundaryChanged) return;
     authEpochRef.current += 1;
     setDashboard(null);
@@ -237,6 +239,7 @@ function App() {
       })
       .catch(() => undefined);
 
+    const hadSession = wasSignedIn();
     fetch(`${API_BASE_URL}/auth/setup`, { credentials: "include" })
       .then(async (response) => {
         if (response.ok) {
@@ -255,7 +258,7 @@ function App() {
         const meResponse = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
         if (!meResponse.ok) {
           updateCurrentUser(null);
-          if (meResponse.status === 401) {
+          if (meResponse.status === 401 && hadSession) {
             setSessionMessage(i18n.t("auth.sessionExpired"));
           }
           return;
@@ -278,7 +281,9 @@ function App() {
       })
       .catch(() => {
         updateCurrentUser(null);
-        setSessionMessage(i18n.t("auth.sessionExpired"));
+        if (hadSession) {
+          setSessionMessage(i18n.t("auth.sessionExpired"));
+        }
       })
       .finally(() => setIsLoading(false));
   }, [i18n, refreshInventory, updateCurrentUser]);
@@ -935,6 +940,7 @@ function App() {
             onOpenDevices={() => goToView("devices")}
             onOpenIpMacs={() => goToView("ipMacs")}
             onOpenNetworks={() => goToView("networks")}
+            onOpenNotes={() => goToView("notes")}
             onOpenTopology={() => goToView("topology")}
             onOpenServices={() => goToView("services")}
             onOpenVlans={() => goToView("vlans")}
