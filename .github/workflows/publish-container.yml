@@ -45,7 +45,15 @@ jobs:
             *-*) expected_prerelease=true ;;
             *) expected_prerelease=false ;;
           esac
-          if [ "$IS_PRERELEASE" != "$expected_prerelease" ]; then
+          # A stable release event leaves IS_PRERELEASE empty: `false || inputs.prerelease`
+          # falls through to the missing dispatch input. Treat anything but "true" as false,
+          # like the image tag rules below.
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            actual_prerelease=true
+          else
+            actual_prerelease=false
+          fi
+          if [ "$actual_prerelease" != "$expected_prerelease" ]; then
             echo "::error::Release $RELEASE_TAG must be published with prerelease=$expected_prerelease."
             exit 1
           fi
