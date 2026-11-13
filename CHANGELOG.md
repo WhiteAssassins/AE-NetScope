@@ -28,6 +28,17 @@ All notable changes to AE NetScope will be documented in this file.
 - Showed the last change of recent devices in the user's time zone and date format.
 - Attached the backup download link to the page before starting the download, so browsers that ignore detached links still save the pre-restore backup.
 - Stopped the container publishing workflow when the release tag does not match `VERSION` or the release channel.
+- Explained why initial setup failed instead of always showing "Initial setup could not be completed": an invalid token, invalid email, username or password, too many attempts, or an unavailable service now each have their own message.
+- Ignored surrounding spaces in a pasted initial setup token.
+- Accepted account emails on local network domains such as `admin@truenas.local` and `admin@nas.home.arpa` for setup, sign-in and user management.
+
+### Documentation
+
+- Documented that TrueNAS SCALE installations use the app's Session Secret as the initial setup token, and added a first-setup troubleshooting table to the README.
+
+### Verified
+
+- Added regression tests confirming the MCP HTTP transport rejects revoked, expired and deactivated-account integration tokens, contributed by ViviBeri in #25.
 
 ### Dependencies
 

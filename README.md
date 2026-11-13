@@ -290,6 +290,8 @@ http://127.0.0.1:8080
 
 On a fresh Docker installation, enter `INITIAL_SETUP_TOKEN` in the setup screen before creating the first administrator. Existing installations are marked as already configured by the migration and do not repeat setup. Managed installations that already provide a strong random `SESSION_SECRET` may use that value as the setup token when no dedicated installation token is available.
 
+Surrounding spaces in a pasted token are ignored. The administrator email may use a local network domain such as `admin@truenas.local` or `admin@nas.home.arpa`. See [First setup troubleshooting](#first-setup-troubleshooting) if the setup screen reports an error.
+
 Safe update path:
 
 ```bat
@@ -333,6 +335,29 @@ Then check:
 - `docker compose -p ae-netscope-smoke down` stops the stack without deleting volumes.
 
 Do not run `docker compose -p ae-netscope-smoke down -v` unless the smoke data should be deleted.
+
+### TrueNAS SCALE First Setup
+
+The TrueNAS app has no separate installation token field. When `INITIAL_SETUP_TOKEN` is not set, AE NetScope uses the app's **Session Secret** as the initial setup token.
+
+1. Open **Apps**, select **AE NetScope**, and choose **Edit**.
+2. Copy the **Session Secret** you entered when installing the app.
+3. Open the AE NetScope web UI and paste it into **Initial setup token**.
+4. Enter the administrator email, username, and a password of at least 12 characters.
+
+The setup token is only needed once. After the first administrator exists, the setup screen is no longer shown.
+
+### First Setup Troubleshooting
+
+The setup screen explains why setup failed. The same reason appears in the browser developer tools (**Network** tab, `setup` request) and in the app log as `POST /api/auth/setup` with the status code below.
+
+| Status | Message | What to do |
+| --- | --- | --- |
+| `403` | The initial setup token is not valid. | Use `INITIAL_SETUP_TOKEN`, or on TrueNAS SCALE the app's Session Secret. |
+| `422` | Enter a valid administrator email address, username, or password. | Use a username of at least two characters and a password of at least 12. Local network domains such as `.local` and `.home.arpa` are accepted; `.test` and `localhost` are not. |
+| `429` | Too many attempts. | Setup allows three attempts per minute. Wait a minute and try again. |
+| `503` | The service is not ready yet. | The app cannot reach Redis yet, or maintenance mode is active. Check that the app's services are running. |
+| `409` | The initial administrator has already been created. | Sign in with the existing administrator instead. |
 
 ### TrueNAS Smoke Checklist
 

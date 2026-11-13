@@ -39,12 +39,12 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
           email,
           username,
           password,
-          setup_token: setupToken || null,
+          setup_token: setupToken.trim() || null,
         }),
       });
 
       if (!response.ok) {
-        setError(response.status === 409 ? t("setup.alreadyCompleted") : t("setup.failed"));
+        setError(t(await setupErrorKey(response)));
         return;
       }
 
@@ -75,6 +75,7 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
             <label>
               {t("setup.setupToken")}
               <input
+                aria-describedby="setup-token-hint"
                 autoComplete="one-time-code"
                 minLength={16}
                 onChange={(event) => setSetupToken(event.target.value)}
@@ -83,6 +84,9 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
                 value={setupToken}
               />
             </label>
+          )}
+          {tokenRequired && (
+            <span className="field-hint" id="setup-token-hint">{t("setup.setupTokenHint")}</span>
           )}
           <label>
             {t("setup.adminEmail")}
@@ -141,4 +145,30 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
       </section>
     </main>
   );
+}
+
+
+async function setupErrorKey(response: Response) {
+  if (response.status === 409) return "setup.alreadyCompleted";
+  if (response.status === 403) return "setup.invalidToken";
+  if (response.status === 429) return "setup.tooManyAttempts";
+  if (response.status === 503) return "setup.unavailable";
+  if (response.status === 422) {
+    const field = await invalidField(response);
+    if (field === "email") return "setup.invalidEmail";
+    if (field === "username") return "setup.invalidUsername";
+    if (field === "password") return "setup.invalidPassword";
+    if (field === "setup_token") return "setup.invalidToken";
+  }
+  return "setup.failed";
+}
+
+async function invalidField(response: Response) {
+  try {
+    const data = (await response.json()) as { detail?: Array<{ loc?: unknown[] }> };
+    const location = Array.isArray(data.detail) ? data.detail[0]?.loc : undefined;
+    return Array.isArray(location) ? String(location[location.length - 1]) : null;
+  } catch {
+    return null;
+  }
 }

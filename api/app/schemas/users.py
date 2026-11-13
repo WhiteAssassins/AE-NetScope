@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.email import AccountEmail
 
 UserRole = Literal["admin", "operator", "viewer"]
 
@@ -22,7 +24,7 @@ class ManagedUserResponse(BaseModel):
 
 
 class ManagedUserCreate(BaseModel):
-    email: EmailStr
+    email: AccountEmail
     username: str = Field(min_length=2, max_length=80)
     role: UserRole = "viewer"
 
@@ -41,7 +43,7 @@ class ManagedUserCreateResponse(BaseModel):
 
 
 class ManagedUserUpdate(BaseModel):
-    email: EmailStr | None = None
+    email: AccountEmail | None = None
     username: str | None = Field(default=None, min_length=2, max_length=80)
     role: UserRole | None = None
     is_active: bool | None = None

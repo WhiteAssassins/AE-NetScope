@@ -32,6 +32,9 @@ AE NetScope is free and open source software released under the MIT License.
 
 ### Accounts and security
 
+- Initial setup now explains why it failed: an invalid token, invalid email, username or password, too many attempts, or an unavailable service each have their own message.
+- On TrueNAS SCALE, the setup screen explains that the initial setup token is the app's **Session Secret**. Surrounding spaces in a pasted token are ignored.
+- Account emails on local network domains such as `admin@truenas.local` and `admin@nas.home.arpa` are accepted for setup, sign-in and user management.
 - An expired account lockout resets the failed sign-in counter, so one mistyped password no longer locks the account again.
 - Changing a password requires a new value, so a temporary password issued by an administrator cannot stay in use after the mandatory change.
 - Initial setup requires a username with at least two non-whitespace characters.
@@ -49,6 +52,14 @@ AE NetScope is free and open source software released under the MIT License.
 - The last change of recent devices uses the user's time zone and date format.
 - Integration token audit events are translated.
 - Notifications keep working when browser storage is unavailable.
+
+## Documentation
+
+- The README explains the TrueNAS SCALE first setup and includes a troubleshooting table for setup errors.
+
+## Contributors
+
+- Thanks to ViviBeri for the MCP token lifecycle regression tests (#25).
 
 ## Dependencies
 
@@ -70,6 +81,7 @@ AE NetScope is free and open source software released under the MIT License.
 - These changes do not modify the TrueNAS catalog definition, ports, datasets, or managed application configuration. The new migration runs inside the existing database.
 - The container runtime contract remains compatible with the official `truenas/apps` definition. Validation on a physical TrueNAS SCALE appliance remains outstanding.
 - TrueNAS users should update only through the TrueNAS Apps interface after the official catalog adopts this image. Publishing this prerelease does not update that catalog.
+- For a new installation, use the app's Session Secret as the initial setup token. The official catalog keeps its current questions; only the setup screen and documentation changed.
 
 ## Container
 
@@ -88,7 +100,7 @@ The `latest` tag remains on the stable release.
 ## Verification
 
 - Regression coverage for every fix listed above, including the assignment type migration.
-- API suite: `199 passed`. Web suite: `143 passed`, with enforced coverage thresholds satisfied.
+- API suite: `207 passed`. Web suite: `147 passed`, with enforced coverage thresholds satisfied.
 - Ruff, ESLint, TypeScript, frontend production build, release metadata validation, dependency audits, and secret scan.
 
 ## Known Limitations

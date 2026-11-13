@@ -101,6 +101,45 @@ describe("SetupScreen", () => {
     );
   });
 
+  it("explains where TrueNAS keeps the setup token and trims pasted tokens", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ detail: "Invalid initial setup token." }, 403)));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SetupScreen tokenRequired onSetupComplete={vi.fn()} />);
+
+    expect(screen.getByLabelText("Initial setup token")).toHaveAccessibleDescription(/Session Secret/);
+    await user.type(screen.getByLabelText("Initial setup token"), "  installation-token  ");
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "first-secure-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+
+    expect(await screen.findByText(
+      "The initial setup token is not valid. On TrueNAS SCALE, use the app's Session Secret.",
+    )).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/setup"),
+      expect.objectContaining({ body: expect.stringContaining('"setup_token":"installation-token"') }),
+    );
+  });
+
+  it.each([
+    [422, { detail: [{ loc: ["body", "email"], msg: "value is not a valid email address" }] }, "Enter a valid administrator email address."],
+    [429, { detail: "Too many requests." }, "Too many attempts. Wait a minute and try again."],
+    [503, { detail: "Rate limit service unavailable." }, "The service is not ready yet. Wait a moment and try again."],
+  ])("explains a %s setup failure", async (status, payload, message) => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(payload, status))));
+    render(<SetupScreen onSetupComplete={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "first-secure-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
   it("rejects mismatched passwords before calling the API", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn();

@@ -646,3 +646,85 @@ def test_initial_setup_requires_a_real_username() -> None:
         .username
         == "admin"
     )
+
+
+@pytest.mark.parametrize(
+    ("email", "token_suffix"),
+    [("admin@truenas.local", ""), ("admin@example.com", " \n")],
+)
+async def test_truenas_style_initial_setup(monkeypatch, email, token_suffix) -> None:
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.db.base import Base
+    from app.db.session import get_session
+    from app.main import app
+    from app.services.setup import ensure_app_state
+
+    secret = "truenas-session-secret-with-more-than-32-chars"
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "session_secret", secret)
+    monkeypatch.setattr(settings, "initial_setup_token", None)
+    settings.__dict__.pop("effective_initial_setup_token", None)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    async with factory() as session:
+        await ensure_app_state(session)
+        await session.commit()
+
+    async def override_session():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            setup = await client.post(
+                "/api/auth/setup",
+                json={
+                    "email": email,
+                    "username": "admin",
+                    "password": "a-long-password-123",
+                    "setup_token": secret + token_suffix,
+                },
+            )
+            assert setup.status_code == 200, setup.text
+            assert setup.json()["user"]["email"] == email
+
+            csrf = setup.json()["csrf_token"]
+            await client.post("/api/auth/logout", headers={"X-CSRF-Token": csrf})
+            login = await client.post(
+                "/api/auth/login",
+                json={"email": email.upper(), "password": "a-long-password-123"},
+            )
+            assert login.status_code == 200, login.text
+    finally:
+        app.dependency_overrides.clear()
+        settings.__dict__.pop("effective_initial_setup_token", None)
+        await engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("email", "valid"),
+    [
+        ("admin@truenas.local", True),
+        ("admin@nas.home.arpa", True),
+        ("admin@home.lan", True),
+        ("admin@lab.test", False),
+        ("admin@localhost", False),
+        ("@truenas.local", False),
+    ],
+)
+def test_account_emails_accept_local_network_domains(email, valid) -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.auth import LoginRequest
+
+    if valid:
+        assert LoginRequest(email=email, password="x").email == email
+    else:
+        with pytest.raises(ValidationError):
+            LoginRequest(email=email, password="x")

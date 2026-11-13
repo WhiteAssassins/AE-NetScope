@@ -1,10 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.email import AccountEmail
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: AccountEmail
     password: str = Field(min_length=1, max_length=1024)
     totp_code: str | None = Field(default=None, pattern=r"^\d{6}$")
 
@@ -15,10 +17,18 @@ class InitialSetupStatusResponse(BaseModel):
 
 
 class InitialSetupRequest(BaseModel):
-    email: EmailStr
+    email: AccountEmail
     username: str = Field(min_length=2, max_length=80)
     password: str = Field(min_length=12, max_length=1024)
     setup_token: str | None = Field(default=None, min_length=16, max_length=1024)
+
+    @field_validator("setup_token", mode="before")
+    @classmethod
+    def strip_setup_token(cls, value: object) -> object:
+        # Tokens are often pasted with surrounding spaces or a trailing newline.
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
     @field_validator("username")
     @classmethod
@@ -60,7 +70,7 @@ class ChangePasswordRequest(BaseModel):
 
 class ChangeEmailRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
-    new_email: EmailStr
+    new_email: AccountEmail
 
 
 class ChangeLanguageRequest(BaseModel):

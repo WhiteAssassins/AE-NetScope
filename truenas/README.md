@@ -19,6 +19,10 @@ The official TrueNAS catalog does not read app definitions from this repository.
 - Secrets are exposed as private TrueNAS questions and must not be hardcoded.
 - The app uses the published GHCR image, not a local build.
 
+## First Setup
+
+The package has no separate installation token question. AE NetScope uses the **Session Secret** question as the initial setup token, so users enter that value on the setup screen to create the first administrator. See the project README section "TrueNAS SCALE First Setup".
+
 ## Upstream Checklist
 
 1. Fork `https://github.com/truenas/apps`.

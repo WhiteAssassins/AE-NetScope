@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from app.schemas.auth import SessionResponse
+from app.schemas.email import AccountEmail
 
 
 class PasskeyCapabilityResponse(BaseModel):
@@ -38,7 +39,7 @@ class PasskeyRegistrationVerifyRequest(BaseModel):
 
 
 class PasskeyAuthenticationOptionsRequest(BaseModel):
-    email: EmailStr
+    email: AccountEmail
 
 
 class PasskeyAuthenticationVerifyRequest(BaseModel):
