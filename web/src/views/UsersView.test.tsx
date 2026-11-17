@@ -54,6 +54,8 @@ const sessions = [
     created_at: "2026-07-20T12:00:00Z",
     expires_at: "2099-07-20T12:00:00Z",
     revoked_at: null,
+    last_seen_at: "2099-07-20T11:00:00Z",
+    is_active: true,
     is_current: true,
   },
 ];
@@ -429,7 +431,7 @@ describe("UsersView", () => {
       { ...sessions[0], id: 23, is_current: false, user_agent: "Safari/18 Mac OS" },
       { ...sessions[0], id: 24, is_current: false, user_agent: "Custom Linux" },
       { ...sessions[0], id: 25, is_current: false, user_agent: "Unknown" },
-      { ...sessions[0], id: 26, is_current: false, user_agent: null, revoked_at: "2026-01-01T00:00:00Z" },
+      { ...sessions[0], id: 26, is_current: false, user_agent: null, revoked_at: "2026-01-01T00:00:00Z", is_active: false },
     ];
     vi.stubGlobal(
       "fetch",

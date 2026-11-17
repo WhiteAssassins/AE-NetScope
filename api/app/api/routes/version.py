@@ -4,6 +4,7 @@ import re
 import shlex
 import subprocess
 import urllib.request
+from datetime import UTC, datetime, timedelta
 from time import monotonic
 from typing import Annotated, Literal
 
@@ -42,6 +43,7 @@ MAX_RELEASE_OBJECTS = 20
 GITHUB_ERROR_CACHE_TTL_SECONDS = 30
 REPOSITORY_CACHE_TTL_SECONDS = 3600
 GITHUB_REPOSITORY_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetScope"
+UPDATE_IN_PROGRESS_WINDOW = timedelta(minutes=30)
 _release_cache: tuple[float, list[ReleaseDetails]] | None = None
 _repository_cache: tuple[float, RepositoryInfo] | None = None
 _release_error_until = 0.0
@@ -172,6 +174,25 @@ async def start_update(
                 detail="Invalid release tag.",
             )
         command = command.replace("{tag}", tag_name)
+    elif "{tag}" in command:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A release tag is required by the configured update command.",
+        )
+
+    # The monitor marks a run finished, and startup reconciles runs interrupted by a
+    # restart. A recent started run therefore means an update is still in progress.
+    running = await session.scalar(
+        select(UpdateHistory.id).where(
+            UpdateHistory.status == "started",
+            UpdateHistory.created_at > datetime.now(UTC) - UPDATE_IN_PROGRESS_WINDOW,
+        )
+    )
+    if running is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An update is already in progress.",
+        )
 
     command_args = shlex.split(command)
     if not command_args:

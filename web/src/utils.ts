@@ -106,3 +106,15 @@ export function isHardwareDevice(device: DeviceRecord) {
 export function hasPermission(permissions: string[], permission: string) {
   return permissions.includes(permission);
 }
+
+export function isIpv4Cidr(cidr: string) {
+  return !cidr.includes(":");
+}
+
+// IPv6 subnets are far larger than a JavaScript number can show exactly, so they are
+// written as a power of two.
+export function formatHostCount(count: number, cidr: string) {
+  if (isIpv4Cidr(cidr)) return String(count);
+  const prefix = Number(cidr.split("/")[1]);
+  return Number.isInteger(prefix) ? `2^${128 - prefix}` : String(count);
+}

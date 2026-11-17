@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -16,7 +17,11 @@ from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
 from app.services import embedded_mcp, search_indexing
 from app.services.data_protection import migrate_sensitive_fields_to_primary_key
-from app.services.maintenance import purge_expired_records, reconcile_interrupted_updates
+from app.services.maintenance import (
+    purge_expired_records,
+    reconcile_interrupted_updates,
+    run_periodic_cleanup,
+)
 from app.services.mfa import migrate_totp_secrets_to_primary_key
 
 logger = logging.getLogger(__name__)
@@ -53,8 +58,14 @@ async def lifespan(_app: FastAPI):
             await session.commit()
     except Exception as exc:
         logger.warning("Database retention cleanup failed: %s", exc.__class__.__name__)
-    async with embedded_mcp.run_embedded_mcp(_app):
-        yield
+    cleanup_task = asyncio.create_task(run_periodic_cleanup())
+    try:
+        async with embedded_mcp.run_embedded_mcp(_app):
+            yield
+    finally:
+        cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cleanup_task
 
 
 def create_app() -> FastAPI:

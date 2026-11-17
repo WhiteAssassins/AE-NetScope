@@ -47,7 +47,6 @@ from app.services.mfa import (
     generate_totp_secret,
     match_totp_counter,
     totp_uri,
-    verify_totp,
 )
 from app.services.setup import claim_initial_setup, initial_setup_required
 from app.services.users import list_user_sessions, revoke_user_sessions
@@ -438,6 +437,8 @@ async def confirm_totp(
     if counter is None:
         raise HTTPException(status_code=400, detail="Invalid authenticator code.")
     current_user.totp_enabled = True
+    # Consume the code so it cannot be replayed to sign in during the same time window.
+    current_user.last_totp_counter = counter
     await revoke_user_sessions(session, current_user, except_session_id=current_session.id)
     await write_audit_event(
         session, "auth.totp_enabled", "TOTP authentication enabled", actor_user_id=current_user.id
@@ -460,12 +461,18 @@ async def disable_totp(
     password_valid, _ = verify_password_and_update(
         payload.current_password, current_user.password_hash
     )
+    counter: int | None = None
     try:
-        code_valid = bool(current_user.totp_secret_encrypted) and verify_totp(
-            decrypt_totp_secret(current_user.totp_secret_encrypted), payload.code
-        )
+        if current_user.totp_secret_encrypted:
+            counter = match_totp_counter(
+                decrypt_totp_secret(current_user.totp_secret_encrypted), payload.code
+            )
     except MfaSecretError:
-        code_valid = False
+        counter = None
+    # A code already used to sign in cannot be replayed to turn TOTP off.
+    code_valid = counter is not None and (
+        current_user.last_totp_counter is None or counter > current_user.last_totp_counter
+    )
     if not password_valid or not code_valid:
         raise HTTPException(status_code=400, detail="Password or authenticator code is invalid.")
     current_user.totp_enabled = False

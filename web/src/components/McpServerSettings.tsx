@@ -41,16 +41,17 @@ export default function McpServerSettings({ csrfToken, canManage }: {
       <Server size={20} /><div><h2>{t("mcpServer.title")}</h2>
         <span>{t("mcpServer.description")}</span></div>
     </div>
-    {status && (canManage && status.available
+    {status && (canManage && (status.available || status.enabled)
+      // An enabled server must stay switchable off even when it is not available.
       ? <label className="settings-row settings-check">
         <div><strong>{t("mcpServer.toggle")}</strong><span>{state}</span></div>
-        <input type="checkbox" checked={status.enabled} disabled={busy}
+        <input type="checkbox" checked={status.enabled} disabled={busy || !status.available && !status.enabled}
           onChange={(event) => void toggle(event.target.checked)} /></label>
       : <div className="settings-row">
         <div><strong>{t("mcpServer.status")}</strong><span>{state}</span></div>
         {!canManage && <span>{t("mcpServer.adminOnly")}</span>}
       </div>)}
-    {status?.enabled && <div className="settings-row">
+    {status?.enabled && status.available && <div className="settings-row">
       <div><strong>{t("mcpServer.endpoint")}</strong><span>{t("mcpServer.endpointHint")}</span></div>
       <code>{endpoint}</code>
     </div>}

@@ -887,7 +887,8 @@ function hasMfa(user: ManagedUser) {
 }
 
 function sessionIsActive(session: ManagedUserSession) {
-  return !session.revoked_at && new Date(session.expires_at).getTime() > Date.now();
+  // The API also applies the idle timeout, which the expiry date alone does not show.
+  return session.is_active;
 }
 
 function sessionClient(

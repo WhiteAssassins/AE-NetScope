@@ -74,4 +74,6 @@ class ManagedUserSessionResponse(BaseModel):
     created_at: datetime
     expires_at: datetime
     revoked_at: datetime | None
+    last_seen_at: datetime
+    is_active: bool
     is_current: bool = False

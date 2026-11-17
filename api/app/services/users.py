@@ -26,6 +26,17 @@ def _as_aware(value: datetime) -> datetime:
     return value
 
 
+def session_is_usable(user_session: UserSession, *, now: datetime | None = None) -> bool:
+    """Whether a session can still authenticate: not revoked, expired, or idle."""
+    now = now or _now()
+    idle_cutoff = now - timedelta(seconds=settings.session_idle_timeout_seconds)
+    return (
+        user_session.revoked_at is None
+        and _as_aware(user_session.expires_at) > now
+        and _as_aware(user_session.last_seen_at) > idle_cutoff
+    )
+
+
 async def list_users(session: AsyncSession) -> list[User]:
     result = await session.execute(select(User).order_by(User.created_at.desc(), User.id.desc()))
     return list(result.scalars())
@@ -171,9 +182,8 @@ async def revoke_user_sessions(
     revoked_count = 0
     now = _now()
     for user_session in await list_user_sessions(session, user):
-        if user_session.revoked_at is not None:
-            continue
-        if _as_aware(user_session.expires_at) <= now:
+        # Idle sessions can no longer authenticate, so they are not counted as revoked.
+        if not session_is_usable(user_session, now=now):
             continue
         if except_session_id is not None and user_session.id == except_session_id:
             continue

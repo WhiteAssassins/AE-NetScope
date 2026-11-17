@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { NetworkRecord, VlanRecord } from "../types";
-import { hasPermission, stateLabel, stateTone } from "../utils";
+import { formatHostCount, hasPermission, isIpv4Cidr, stateLabel, stateTone } from "../utils";
 export default function NetworksView({
   csrfToken,
   focusNetworkId,
@@ -72,8 +72,10 @@ export default function NetworksView({
     return matchesQuery && matchesStatus;
   });
 
-  const totalIps = networks.reduce((sum, network) => sum + network.ip_count, 0);
-  const totalCapacity = networks.reduce((sum, network) => sum + network.usable_hosts, 0);
+  // Capacity and usage summarize IPv4 subnets; IPv6 subnets would dwarf every other value.
+  const ipv4Networks = networks.filter((network) => isIpv4Cidr(network.cidr));
+  const totalIps = ipv4Networks.reduce((sum, network) => sum + network.ip_count, 0);
+  const totalCapacity = ipv4Networks.reduce((sum, network) => sum + network.usable_hosts, 0);
   const averageUsage = totalCapacity ? Math.round((totalIps / totalCapacity) * 1000) / 10 : 0;
 
   function updateField(field: keyof typeof form, value: string) {
@@ -288,7 +290,7 @@ export default function NetworksView({
                     <td>
                       <div className="usage-cell">
                         <span>
-                          {network.ip_count}/{network.usable_hosts}
+                          {network.ip_count}/{formatHostCount(network.usable_hosts, network.cidr)}
                         </span>
                         <meter
                           max={100}

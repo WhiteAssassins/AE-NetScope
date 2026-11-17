@@ -745,9 +745,12 @@ async def create_ip_address_endpoint(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> IpAddressRecordResponse:
-    if payload.network_id and await session.get(Network, payload.network_id) is None:
+    if payload.network_id is not None and await session.get(Network, payload.network_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
-    if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
+    if (
+        payload.interface_id is not None
+        and await session.get(NetworkInterface, payload.interface_id) is None
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
     if payload.network_id and not await ip_belongs_to_network(
         session,
@@ -795,9 +798,12 @@ async def update_ip_address_endpoint(
     ip_address = await get_ip_address(session, ip_address_id)
     if ip_address is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IP address not found.")
-    if payload.network_id and await session.get(Network, payload.network_id) is None:
+    if payload.network_id is not None and await session.get(Network, payload.network_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
-    if payload.interface_id and await session.get(NetworkInterface, payload.interface_id) is None:
+    if (
+        payload.interface_id is not None
+        and await session.get(NetworkInterface, payload.interface_id) is None
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interface not found.")
     changed = payload.model_fields_set
     next_address = payload.address if "address" in changed else ip_address.address
@@ -922,7 +928,7 @@ async def create_network_endpoint(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> NetworkResponse:
-    if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
+    if payload.vlan_id is not None and await session.get(Vlan, payload.vlan_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
     if payload.gateway:
         ensure_assignable_address(payload.gateway, payload.cidr, "Gateway")
@@ -958,7 +964,7 @@ async def update_network_endpoint(
     network = await get_network(session, network_id)
     if network is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
-    if payload.vlan_id and await session.get(Vlan, payload.vlan_id) is None:
+    if payload.vlan_id is not None and await session.get(Vlan, payload.vlan_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VLAN not found.")
     changed = payload.model_fields_set
     next_cidr = payload.cidr if "cidr" in changed else network.cidr
@@ -1073,7 +1079,7 @@ async def update_service_endpoint(
     service = await get_service(session, service_id)
     if service is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found.")
-    if payload.device_id and await get_device(session, payload.device_id) is None:
+    if payload.device_id is not None and await get_device(session, payload.device_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
 
     service = await update_service(session, service, payload)

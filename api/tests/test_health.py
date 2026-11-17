@@ -455,6 +455,9 @@ async def test_start_update_executes_without_shell(monkeypatch) -> None:
         def add(self, item):
             self.added.append(item)
 
+        async def scalar(self, statement):
+            return None
+
         async def commit(self):
             return None
 
@@ -615,3 +618,80 @@ async def test_prerelease_install_is_offered_a_newer_stable_release(monkeypatch)
 
     assert payload["selected_release"]["tag_name"] == "v0.4.0"
     assert payload["update_available"] is True
+
+
+async def test_start_update_requires_a_tag_for_templated_commands(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    def fake_popen(args, *, shell, cwd):
+        raise AssertionError("The command must not run with a literal {tag}.")
+
+    monkeypatch.setattr(version_route.settings, "deployment_platform", "docker")
+    monkeypatch.setattr(version_route.settings, "auto_update_enabled", True)
+    monkeypatch.setattr(
+        version_route.settings, "auto_update_command", "docker compose up -d ae-netscope:{tag}"
+    )
+    monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+
+    with pytest.raises(version_route.HTTPException) as excinfo:
+        await version_route.start_update(version_route.UpdateRequest(), None, None)
+    assert excinfo.value.status_code == 400
+
+
+async def test_start_update_refuses_while_another_update_runs(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    class RunningSession:
+        async def scalar(self, statement):
+            return 7
+
+    def fake_popen(args, *, shell, cwd):
+        raise AssertionError("A second update must not start.")
+
+    monkeypatch.setattr(version_route.settings, "deployment_platform", "docker")
+    monkeypatch.setattr(version_route.settings, "auto_update_enabled", True)
+    monkeypatch.setattr(version_route.settings, "auto_update_command", "docker compose pull")
+    monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+
+    with pytest.raises(version_route.HTTPException) as excinfo:
+        await version_route.start_update(
+            version_route.UpdateRequest(tag_name="v0.3.3-alpha"), RunningSession(), None
+        )
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail == "An update is already in progress."
+
+
+async def test_update_in_progress_query_matches_recent_started_runs() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.api.routes import version as version_route
+    from app.db.base import Base
+    from app.models.security import UpdateHistory
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        session.add(
+            UpdateHistory(
+                target_tag="v0.3.2-alpha",
+                status="started",
+                message="old",
+                created_at=datetime.now(UTC) - timedelta(hours=2),
+            )
+        )
+        await session.commit()
+        query = select(UpdateHistory.id).where(
+            UpdateHistory.status == "started",
+            UpdateHistory.created_at
+            > datetime.now(UTC) - version_route.UPDATE_IN_PROGRESS_WINDOW,
+        )
+        assert await session.scalar(query) is None
+        session.add(UpdateHistory(target_tag="v0.3.3-alpha", status="started", message="new"))
+        await session.commit()
+        assert await session.scalar(query) is not None
+    await engine.dispose()

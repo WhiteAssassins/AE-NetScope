@@ -59,4 +59,27 @@ describe("McpServerSettings", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to update the MCP server setting.");
   });
+
+  it("lets administrators switch off an enabled server that is no longer available", async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      Promise.resolve(jsonResponse({
+        enabled: init?.method !== "PATCH", available: false, path: "/mcp",
+      })));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<McpServerSettings csrfToken="csrf" canManage />);
+
+    const toggle = await screen.findByRole("checkbox", { name: /Enable MCP server/ });
+    expect(toggle).toBeChecked();
+    expect(screen.queryByText("Endpoint")).not.toBeInTheDocument();
+    await user.click(toggle);
+
+    await waitFor(() => expect(screen.queryByRole("checkbox")).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining("/integrations/mcp-server"),
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ enabled: false }) }),
+    );
+    expect(screen.getByText(/Not available in this installation/)).toBeInTheDocument();
+  });
 });

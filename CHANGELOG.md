@@ -2,6 +2,28 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Consumed the authenticator code used to confirm or disable TOTP, so it cannot be replayed to sign in or to turn TOTP off within the same time window.
+- Rejected a reference ID of `0` for subnets, VLANs, interfaces and devices with `404`, instead of storing a reference to a record that does not exist.
+- Summarized subnet capacity and average usage from IPv4 subnets, and wrote the capacity of IPv6 subnets as a power of two, such as `2^80`, instead of an imprecise exponent. VLAN capacity and usage follow the same rule.
+- Reported sessions that ended through inactivity as inactive in user management, and stopped counting them as revoked.
+- Applied the session, audit and passkey retention settings every six hours while the application runs, not only at startup.
+- Refused to start an automatic update while another one started in the last 30 minutes is still running, and refused to run a templated update command without a release tag.
+- Marked expired integration tokens as expired instead of showing them as active.
+- Kept an enabled built-in MCP server switchable off from the MCP page when the MCP SDK is not available, and hid its endpoint while unavailable.
+
+### Documentation
+
+- Documented `FORWARDED_ALLOW_IPS` for installations behind a reverse proxy, and passed it through `compose.yaml` and `.env.example` with the existing default of `127.0.0.1`. Without it, every request behind a proxy shares the proxy's address for rate limits, sessions and audit records.
+
+### Dependencies
+
+- Updated the web dependencies to their latest compatible releases, including i18next, react-i18next, Recharts, Lucide, ESLint, typescript-eslint and Testing Library.
+- Raised the minimum versions of FastAPI, SQLAlchemy, email-validator and pwdlib to their current releases.
+
 ## v0.3.3-alpha - 2026-11-13
 
 ### Fixed

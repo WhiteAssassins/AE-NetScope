@@ -27,6 +27,7 @@ from app.services.users import (
     list_users,
     reset_managed_user_password,
     revoke_user_sessions,
+    session_is_usable,
     update_managed_user,
     user_management_counts,
 )
@@ -75,6 +76,8 @@ def serialize_user_session(
         created_at=user_session.created_at,
         expires_at=user_session.expires_at,
         revoked_at=user_session.revoked_at,
+        last_seen_at=user_session.last_seen_at,
+        is_active=session_is_usable(user_session),
         is_current=user_session.id == current_session_id,
     )
 

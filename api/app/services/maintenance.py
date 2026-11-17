@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, or_, select
@@ -5,9 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.version import project_version
+from app.db.session import SessionLocal
 from app.models.audit import AuditEvent
 from app.models.security import UpdateHistory, WebAuthnChallenge
 from app.models.session import UserSession
+
+logger = logging.getLogger(__name__)
+
+CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60
 
 
 async def purge_expired_records(session: AsyncSession) -> tuple[int, int]:
@@ -55,3 +62,18 @@ async def reconcile_interrupted_updates(session: AsyncSession) -> int:
             item.status = "unknown"
             item.message = "The application restarted before the update result was recorded."
     return len(rows)
+
+
+async def run_periodic_cleanup(interval_seconds: float = CLEANUP_INTERVAL_SECONDS) -> None:
+    """Apply the retention settings while the application keeps running.
+
+    Startup already runs one cleanup; installations can run for months between restarts.
+    """
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            async with SessionLocal() as session:
+                await purge_expired_records(session)
+                await session.commit()
+        except Exception as exc:
+            logger.warning("Periodic retention cleanup failed: %s", exc.__class__.__name__)

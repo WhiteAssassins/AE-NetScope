@@ -1164,6 +1164,7 @@
     "read": "Solo lectura",
     "expires": "Vence: {{date}}",
     "revoked": "Revocado",
+    "expired": "Vencido",
     "revoke": "Revocar"
   },
   "mcpServer": {

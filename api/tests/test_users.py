@@ -310,3 +310,36 @@ async def test_concurrent_admin_demotions_preserve_one_active_admin(tmp_path) ->
     assert sorted(results) == [False, True]
     assert active_admins == 1
     await engine.dispose()
+
+
+async def test_admin_session_list_reports_idle_sessions_as_inactive(integration_api) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select, update
+
+    from app.core.config import settings
+    from app.models.session import UserSession
+    from app.models.user import User
+
+    client, csrf, factory = integration_api
+    async with factory() as session:
+        await session.execute(update(User).values(role="admin"))
+        user = await session.scalar(select(User))
+        now = datetime.now(UTC)
+        session.add(
+            UserSession(
+                user_id=user.id,
+                token_hash="idle-session-hash",
+                csrf_token_hash="idle-csrf-hash",
+                expires_at=now + timedelta(hours=4),
+                last_seen_at=now - timedelta(seconds=settings.session_idle_timeout_seconds + 60),
+            )
+        )
+        await session.commit()
+        user_id = user.id
+
+    sessions = (await client.get(f"/api/users/{user_id}/sessions")).json()
+    by_current = {item["is_current"]: item for item in sessions}
+    assert by_current[True]["is_active"] is True
+    assert by_current[False]["is_active"] is False
+    assert "last_seen_at" in by_current[False]

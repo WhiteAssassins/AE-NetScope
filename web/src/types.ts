@@ -66,6 +66,8 @@ export type ManagedUserSession = {
   created_at: string;
   expires_at: string;
   revoked_at: string | null;
+  last_seen_at: string;
+  is_active: boolean;
   is_current: boolean;
 };
 

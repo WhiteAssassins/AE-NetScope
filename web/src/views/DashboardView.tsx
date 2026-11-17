@@ -6,7 +6,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { formatDateTime } from "../dateTime";
 import { auditEventMessage } from "../auditMessages";
 import type { AuditEvent, DashboardSummary, User } from "../types";
-import { deviceTypeLabel, stateLabel, typeTone } from "../utils";
+import { deviceTypeLabel, formatHostCount, stateLabel, typeTone } from "../utils";
 
 type DashboardViewProps = {
   auditEvents: AuditEvent[];
@@ -207,7 +207,7 @@ export default function DashboardView({
                     </span>
                     <span className="subnet-node-meta">
                       <span>{t("dashboard.deviceAbbreviation", { count: network.device_count })}</span>
-                      <span>{network.ip_count}/{network.usable_hosts || 0} IPs</span>
+                      <span>{network.ip_count}/{formatHostCount(network.usable_hosts || 0, network.cidr)} IPs</span>
                       {network.vlan && <span>VLAN {network.vlan.vlan_id}</span>}
                     </span>
                     <progress

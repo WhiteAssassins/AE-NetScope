@@ -126,6 +126,29 @@ describe("TopologyView", () => {
     expect(screen.getByText("IPs without a subnet")).toBeInTheDocument();
   });
 
+  it("summarizes usage from IPv4 subnets and writes IPv6 capacity as a power of two", () => {
+    renderTopology({
+      networks: [
+        { ...networks[0], ip_count: 127, utilization_percent: 50 },
+        {
+          ...networks[0],
+          id: 2,
+          cidr: "2001:db8:1::/48",
+          name: "IPv6 lab",
+          ip_count: 0,
+          usable_hosts: 1208925819614629174706176,
+          utilization_percent: 0,
+          vlan: null,
+          vlan_id: null,
+        },
+      ],
+    });
+
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText(/0\/2\^80 IPs/)).toBeInTheDocument();
+    expect(screen.queryByText(/e\+24/)).not.toBeInTheDocument();
+  });
+
   it("expands and collapses network details", async () => {
     const testUser = userEvent.setup();
     renderTopology();

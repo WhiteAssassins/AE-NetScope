@@ -2,7 +2,7 @@ import { Boxes, ChevronDown, ChevronRight, Monitor, Network, Route, Tag } from "
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DeviceRecord, IpMacRecord, NetworkRecord } from "../types";
-import { deviceTypeLabel, stateLabel, stateTone } from "../utils";
+import { deviceTypeLabel, formatHostCount, isIpv4Cidr, stateLabel, stateTone } from "../utils";
 
 type TopologyViewProps = {
   devices: DeviceRecord[];
@@ -43,8 +43,10 @@ export default function TopologyView({
     };
   });
   const unassignedIps = ipMacs.filter((ip) => !ip.network_id);
-  const totalCapacity = networks.reduce((sum, network) => sum + network.usable_hosts, 0);
-  const totalIps = networks.reduce((sum, network) => sum + network.ip_count, 0);
+  // Capacity and usage summarize IPv4 subnets; IPv6 subnets would dwarf every other value.
+  const ipv4Networks = networks.filter((network) => isIpv4Cidr(network.cidr));
+  const totalCapacity = ipv4Networks.reduce((sum, network) => sum + network.usable_hosts, 0);
+  const totalIps = ipv4Networks.reduce((sum, network) => sum + network.ip_count, 0);
   const averageUsage = totalCapacity ? Math.round((totalIps / totalCapacity) * 1000) / 10 : 0;
 
   function toggleNetwork(networkId: number) {
@@ -140,7 +142,7 @@ export default function TopologyView({
 
                   <div className="topology-network-metrics">
                     <button className="topology-chip" onClick={() => onOpenNetwork(network.id)}>
-                      <Route size={15} /> {network.ip_count}/{network.usable_hosts} IPs
+                      <Route size={15} /> {network.ip_count}/{formatHostCount(network.usable_hosts, network.cidr)} IPs
                     </button>
                     <span>{t("topology.percentUsed", { value: network.utilization_percent.toFixed(1) })}</span>
                     {network.vlan && (

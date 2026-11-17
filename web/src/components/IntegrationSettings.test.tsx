@@ -17,12 +17,12 @@ describe("IntegrationSettings", () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response([]))
       .mockResolvedValueOnce(response({
         id: 1, name: "Inventory client", allow_write: true,
-        created_at: "2026-09-29T00:00:00Z", expires_at: "2026-10-29T00:00:00Z",
+        created_at: "2026-09-29T00:00:00Z", expires_at: "2099-10-29T00:00:00Z",
         revoked_at: null, token: "test-access-token",
       }, 201)).mockResolvedValueOnce(response(null, 204))
       .mockResolvedValueOnce(response([{
         id: 1, name: "Inventory client", allow_write: true,
-        expires_at: "2026-10-29T00:00:00Z", revoked_at: "2026-09-29T00:00:00Z",
+        expires_at: "2099-10-29T00:00:00Z", revoked_at: "2026-09-29T00:00:00Z",
       }]));
     vi.stubGlobal("fetch", fetchMock);
     render(<IntegrationSettings csrfToken="csrf-value" canWrite />);
@@ -55,5 +55,16 @@ describe("IntegrationSettings", () => {
     await user.click(screen.getByRole("button", { name: "Create token" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByLabelText("Current password")).toHaveValue("");
+  });
+
+  it("marks expired tokens instead of offering to revoke them", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response([{
+      id: 2, name: "Old client", allow_write: false,
+      created_at: "2026-01-01T00:00:00Z", expires_at: "2026-02-01T00:00:00Z", revoked_at: null,
+    }])));
+    render(<IntegrationSettings csrfToken="csrf-value" canWrite />);
+
+    expect(await screen.findByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
   });
 });

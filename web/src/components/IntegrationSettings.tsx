@@ -19,6 +19,8 @@ export default function IntegrationSettings({ csrfToken, canWrite }: {
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Tokens past their expiry are shown as expired; the API already rejects them.
+  const [renderedAt] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
@@ -99,8 +101,9 @@ export default function IntegrationSettings({ csrfToken, canWrite }: {
         {" · "}{t("integrations.expires", { date: formatDateTime(token.expires_at, i18n.language) })}
       </span></div>
       {token.revoked_at ? <span>{t("integrations.revoked")}</span>
-        : <button className="secondary-action" disabled={busy} onClick={() => void revoke(token.id)}>
-          {t("integrations.revoke")}</button>}
+        : new Date(token.expires_at).getTime() <= renderedAt ? <span>{t("integrations.expired")}</span>
+          : <button className="secondary-action" disabled={busy} onClick={() => void revoke(token.id)}>
+            {t("integrations.revoke")}</button>}
     </div>)}
   </>;
 }

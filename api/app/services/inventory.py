@@ -854,14 +854,22 @@ async def vlan_to_summary_response(session: AsyncSession, vlan: Vlan) -> VlanSum
     network_rows = await session.execute(select(Network).where(Network.vlan_id == vlan.id))
     networks = list(network_rows.scalars())
     ip_count = 0
+    ipv4_ip_count = 0
     usable_hosts = 0
     for network in networks:
-        ip_count += await session.scalar(
+        network_ip_count = await session.scalar(
             select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
         ) or 0
-        usable_hosts += network_usable_hosts(network.cidr)
+        ip_count += network_ip_count
+        # IPv6 subnets hold far more addresses than any inventory and than a JSON number
+        # can carry exactly, so VLAN capacity and usage summarize the IPv4 subnets.
+        if ipaddress.ip_network(network.cidr, strict=False).version == 4:
+            ipv4_ip_count += network_ip_count
+            usable_hosts += network_usable_hosts(network.cidr)
 
-    utilization_percent = round((ip_count / usable_hosts) * 100, 1) if usable_hosts else 0
+    utilization_percent = (
+        round((ipv4_ip_count / usable_hosts) * 100, 1) if usable_hosts else 0
+    )
     return VlanSummaryResponse(
         id=vlan.id,
         vlan_id=vlan.vlan_id,

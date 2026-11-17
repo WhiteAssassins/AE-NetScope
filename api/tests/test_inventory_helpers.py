@@ -516,3 +516,64 @@ async def test_dashboard_reports_last_change_as_iso_datetime(empty_inventory_cli
     )
     recent = (await client.get("/api/inventory/dashboard")).json()["recent_devices"][0]
     assert datetime.fromisoformat(recent["last_change"]).tzinfo is not None
+
+
+async def test_zero_reference_ids_are_rejected_as_missing(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    device = (
+        await client.post(
+            "/api/inventory/devices",
+            headers=headers,
+            json={"name": "srv-zero", "device_type": "server"},
+        )
+    ).json()
+    service = (
+        await client.post(
+            "/api/inventory/services",
+            headers=headers,
+            json={"device_id": device["id"], "name": "SSH", "port": 22},
+        )
+    ).json()
+
+    for method, path, body in (
+        ("POST", "/api/inventory/ip-addresses", {"address": "10.1.1.1", "network_id": 0}),
+        ("POST", "/api/inventory/ip-addresses", {"address": "10.1.1.2", "interface_id": 0}),
+        ("POST", "/api/inventory/networks", {"cidr": "10.2.0.0/24", "name": "n", "vlan_id": 0}),
+        ("PATCH", f"/api/inventory/services/{service['id']}", {"device_id": 0}),
+    ):
+        response = await client.request(method, path, headers=headers, json=body)
+        assert response.status_code == 404, (path, body, response.text)
+
+
+async def test_vlan_capacity_summarizes_ipv4_subnets(empty_inventory_client) -> None:
+    client, csrf_token = empty_inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    vlan = (
+        await client.post(
+            "/api/inventory/vlans", headers=headers, json={"vlan_id": 20, "name": "Dual"}
+        )
+    ).json()
+    ipv4 = (
+        await client.post(
+            "/api/inventory/networks",
+            headers=headers,
+            json={"cidr": "10.5.0.0/24", "name": "v4", "vlan_id": vlan["id"]},
+        )
+    ).json()
+    await client.post(
+        "/api/inventory/networks",
+        headers=headers,
+        json={"cidr": "2001:db8:5::/48", "name": "v6", "vlan_id": vlan["id"]},
+    )
+    for host in range(1, 128):
+        await client.post(
+            "/api/inventory/ip-addresses",
+            headers=headers,
+            json={"address": f"10.5.0.{host}", "network_id": ipv4["id"]},
+        )
+
+    summary = (await client.get("/api/inventory/vlans")).json()[0]
+    assert summary["network_count"] == 2
+    assert summary["usable_hosts"] == 254
+    assert summary["utilization_percent"] == 50.0

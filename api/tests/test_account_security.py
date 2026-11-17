@@ -137,13 +137,20 @@ async def test_totp_setup_confirmation_and_login_challenge(security_client: Asyn
     assert without_code.status_code == 428
     assert without_code.json()["detail"]["code"] == "totp_required"
 
-    login_code = _totp_code(secret, int(time.time()) // 30)
+    reused_enrollment_code = await security_client.post(
+        "/api/auth/login",
+        json={"email": "security@example.com", "password": "correct-password", "totp_code": code},
+    )
+    assert reused_enrollment_code.status_code == 401
+
+    # The confirmation consumed the current window; the next window's code is accepted.
+    login_code = _totp_code(secret, int(time.time()) // 30 + 1)
     with_code = await security_client.post(
         "/api/auth/login",
         json={
             "email": "security@example.com",
             "password": "correct-password",
-            "totp_code": _totp_code(secret, int(time.time()) // 30),
+            "totp_code": login_code,
         },
     )
     assert with_code.status_code == 200
@@ -369,3 +376,39 @@ async def test_webauthn_challenge_can_only_be_consumed_once() -> None:
         with pytest.raises(HTTPException, match="Invalid or expired"):
             await _consume_challenge(session, "single-use-challenge", "authenticate")
     await engine.dispose()
+
+
+async def test_totp_disable_rejects_a_code_already_used_to_sign_in(
+    security_client: AsyncClient,
+) -> None:
+    auth = await login(security_client)
+    csrf = auth["csrf_token"]
+    setup = await security_client.post(
+        "/api/auth/totp/setup",
+        headers={"X-CSRF-Token": csrf},
+        json={"current_password": "correct-password"},
+    )
+    secret = setup.json()["secret"]
+    window = int(time.time()) // 30
+    await security_client.post(
+        "/api/auth/totp/confirm",
+        headers={"X-CSRF-Token": csrf},
+        json={"code": _totp_code(secret, window)},
+    )
+
+    replayed = await security_client.request(
+        "DELETE",
+        "/api/auth/totp",
+        headers={"X-CSRF-Token": csrf},
+        json={"current_password": "correct-password", "code": _totp_code(secret, window)},
+    )
+    assert replayed.status_code == 400
+
+    fresh = await security_client.request(
+        "DELETE",
+        "/api/auth/totp",
+        headers={"X-CSRF-Token": csrf},
+        json={"current_password": "correct-password", "code": _totp_code(secret, window + 1)},
+    )
+    assert fresh.status_code == 200
+    assert fresh.json()["user"]["totp_enabled"] is False

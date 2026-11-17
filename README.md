@@ -314,6 +314,14 @@ http://127.0.0.1:8080/api/health/ready
 
 `/api/health/live` and `/api/health/ready` are intentionally minimal and public. Detailed database and Redis diagnostics under `/api/health/status` require an authenticated user.
 
+### Behind a Reverse Proxy
+
+When AE NetScope runs behind a reverse proxy such as Nginx Proxy Manager, Traefik, or Caddy, set `FORWARDED_ALLOW_IPS` to the address of the proxy as seen by the AE NetScope container, for example `FORWARDED_ALLOW_IPS=172.18.0.5` or a Docker network such as `172.18.0.0/16`. Without it, the app sees every request as coming from the proxy, so all users share the sign-in rate limits and sessions and audit records show the proxy address.
+
+- The default, `127.0.0.1`, trusts only a proxy on the same host or in the same container.
+- Never set `*` on a port that clients can reach directly, because any client could then choose the address recorded for its requests.
+- On TrueNAS SCALE, add `FORWARDED_ALLOW_IPS` as an additional environment variable of the app when you publish it through a reverse proxy. Direct access needs no change.
+
 ### Docker Smoke Checklist
 
 Before publishing a container release, verify the public image with:
