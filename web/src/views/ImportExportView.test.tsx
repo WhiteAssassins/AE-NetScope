@@ -35,7 +35,7 @@ describe("ImportExportView", () => {
       <ImportExportView
         csrfToken="csrf"
         onImported={vi.fn()}
-        permissions={["inventory:read", "settings:manage"]}
+        permissions={["inventory:read", "inventory:export", "settings:manage"]}
       />,
     );
 
@@ -47,6 +47,22 @@ describe("ImportExportView", () => {
       "_blank",
       "noopener,noreferrer",
     );
+  });
+
+  it("disables exports for roles without the export permission", async () => {
+    const user = userEvent.setup();
+    const openMock = vi.fn();
+    vi.stubGlobal("open", openMock);
+
+    render(
+      <ImportExportView csrfToken="csrf" onImported={vi.fn()} permissions={["inventory:read"]} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Download backup" })).toBeDisabled();
+    expect(screen.getByText("You do not have permission to export inventory.")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Export CSV" }));
+    expect(screen.getByRole("button", { name: "Devices" })).toBeDisabled();
+    expect(openMock).not.toHaveBeenCalled();
   });
 
   it("previews and confirms JSON restore explicitly", async () => {

@@ -36,7 +36,7 @@ from app.schemas.inventory import (
     VlanUpdate,
 )
 from app.services.audit import write_audit_event
-from app.services.backups import persist_inventory_backup
+from app.services.backups import enforce_inventory_backup_retention, persist_inventory_backup
 from app.services.inventory import (
     add_device_interface,
     count_rows,
@@ -218,10 +218,13 @@ async def import_inventory_json(
         f"ae-netscope-before-restore-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}.json"
     )
     try:
-        await asyncio.to_thread(
+        # Retention runs only after a successful restore, so failed attempts cannot
+        # push older backups out of the retention window.
+        previous_backup_path = await asyncio.to_thread(
             persist_inventory_backup,
             previous_backup,
             previous_backup_filename,
+            enforce_retention=False,
         )
     except OSError as exc:
         raise HTTPException(
@@ -233,12 +236,15 @@ async def import_inventory_json(
         counts = await restore_inventory_from_payload(session, payload)
     except (KeyError, TypeError, ValueError) as exc:
         await session.rollback()
+        previous_backup_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid inventory backup: {exc}",
         ) from exc
     except IntegrityError as exc:
         await session.rollback()
+        # The inventory did not change, so this backup only duplicates the current state.
+        previous_backup_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Backup contains duplicate inventory records.",
@@ -254,6 +260,11 @@ async def import_inventory_json(
         actor_user_id=current_user.id,
     )
     await session.commit()
+    try:
+        await asyncio.to_thread(enforce_inventory_backup_retention)
+    except OSError:
+        # The restore already succeeded; retention is retried on the next restore.
+        pass
     return {
         "status": "imported",
         "counts": counts,

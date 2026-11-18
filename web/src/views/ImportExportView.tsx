@@ -44,6 +44,7 @@ export default function ImportExportView({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const canReadInventory = hasPermission(permissions, "inventory:read");
   const canRestoreInventory = hasPermission(permissions, "settings:manage");
+  const canExportInventory = hasPermission(permissions, "inventory:export");
 
   function openExport(path: string) {
     window.open(`${API_BASE_URL}${path}`, "_blank", "noopener,noreferrer");
@@ -170,7 +171,12 @@ export default function ImportExportView({
               <h2>{t("data.fullBackupTitle")}</h2>
               <p>{t("data.fullBackupDescription")}</p>
             </div>
-            <button className="primary-action" onClick={() => openExport("/inventory/export.json")}>
+            {!canExportInventory && <p className="muted-note">{t("data.noPermission")}</p>}
+            <button
+              className="primary-action"
+              disabled={!canExportInventory}
+              onClick={() => openExport("/inventory/export.json")}
+            >
               <Download size={18} strokeWidth={2} />
               {t("data.downloadBackup")}
             </button>
@@ -223,10 +229,12 @@ export default function ImportExportView({
               <h2>{t("data.csvTitle")}</h2>
               <p>{t("data.csvDescription")}</p>
             </div>
+            {!canExportInventory && <p className="muted-note">{t("data.noPermission")}</p>}
             <div className="export-actions">
               {csvExports.map((item) => (
                 <button
                   className="user-action"
+                  disabled={!canExportInventory}
                   key={item.resource}
                   onClick={() => openExport(`/inventory/export/${item.resource}.csv`)}
                 >

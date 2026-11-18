@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.auth import SessionResponse
 from app.schemas.email import AccountEmail
@@ -59,6 +59,12 @@ class MaintenanceStatusResponse(BaseModel):
 class MaintenanceUpdateRequest(BaseModel):
     enabled: bool
     message: str = Field(min_length=1, max_length=500)
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def strip_message(cls, value: object) -> object:
+        # Stripping before validation keeps a whitespace-only message from saving as empty.
+        return value.strip() if isinstance(value, str) else value
 
 
 class SearchIndexingPolicyResponse(BaseModel):

@@ -4,6 +4,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.email import AccountEmail
 
+# Interface languages bundled with the web app.
+SUPPORTED_LANGUAGES = ("en", "es")
+
 
 class LoginRequest(BaseModel):
     email: AccountEmail
@@ -80,6 +83,14 @@ class ChangeLanguageRequest(BaseModel):
         pattern=r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$",
     )
 
+    @field_validator("language")
+    @classmethod
+    def require_supported_language(cls, value: str) -> str:
+        # Regional variants such as es-mx are kept; the base language must be bundled.
+        if value.lower().split("-", 1)[0] not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language. Use one of: {', '.join(SUPPORTED_LANGUAGES)}.")
+        return value.lower()
+
 
 class ChangeRegionalPreferencesRequest(BaseModel):
     timezone: str = Field(min_length=1, max_length=64)
@@ -93,6 +104,14 @@ class ChangePreferencesRequest(ChangeRegionalPreferencesRequest):
         max_length=64,
         pattern=r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$",
     )
+
+    @field_validator("language")
+    @classmethod
+    def require_supported_language(cls, value: str) -> str:
+        # Regional variants such as es-mx are kept; the base language must be bundled.
+        if value.lower().split("-", 1)[0] not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language. Use one of: {', '.join(SUPPORTED_LANGUAGES)}.")
+        return value.lower()
 
 
 class UserSessionResponse(BaseModel):

@@ -155,7 +155,12 @@ def decrypt_backup_file(
     raise BackupDecryptionError("The encrypted backup could not be authenticated.")
 
 
-def persist_inventory_backup(payload: dict[str, object], filename: str) -> Path:
+def persist_inventory_backup(
+    payload: dict[str, object],
+    filename: str,
+    *,
+    enforce_retention: bool = True,
+) -> Path:
     backup_dir = settings.effective_inventory_backup_dir
     backup_dir.mkdir(parents=True, exist_ok=True)
     encrypted_filename = filename if filename.endswith(".enc") else f"{filename}.enc"
@@ -174,8 +179,13 @@ def persist_inventory_backup(payload: dict[str, object], filename: str) -> Path:
     finally:
         temporary.unlink(missing_ok=True)
 
-    _enforce_retention(backup_dir)
+    if enforce_retention:
+        _enforce_retention(backup_dir)
     return destination
+
+
+def enforce_inventory_backup_retention() -> None:
+    _enforce_retention(settings.effective_inventory_backup_dir)
 
 
 def _enforce_retention(backup_dir: Path) -> None:

@@ -24,6 +24,8 @@ class UpdateCapability(BaseModel):
 
 class UpdateStatusResponse(BaseModel):
     installed_version: str
+    # True when GitHub could not be reached, so update_available is not meaningful.
+    release_check_failed: bool = False
     installed_channel: str
     target_channel: str
     update_available: bool

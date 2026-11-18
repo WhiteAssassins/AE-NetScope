@@ -55,6 +55,27 @@ describe("AdminSettings", () => {
     );
   });
 
+  it("explains when the update history cannot be loaded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/security/maintenance")) {
+          return Promise.resolve(jsonResponse({ enabled: false, message: "" }));
+        }
+        if (url.endsWith("/security/search-indexing")) {
+          return Promise.resolve(jsonResponse({ allow_indexing: false }));
+        }
+        return Promise.resolve(jsonResponse({}, 503));
+      }),
+    );
+
+    render(<AdminSettings csrfToken="csrf-token" />);
+
+    expect(await screen.findByText("Update history could not be loaded.")).toBeInTheDocument();
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+  });
+
   it("keeps successful administrative sections usable when another endpoint fails", async () => {
     vi.stubGlobal(
       "fetch",

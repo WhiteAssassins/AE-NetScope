@@ -343,3 +343,28 @@ async def test_admin_session_list_reports_idle_sessions_as_inactive(integration_
     assert by_current[True]["is_active"] is True
     assert by_current[False]["is_active"] is False
     assert "last_seen_at" in by_current[False]
+
+
+async def test_revoking_a_revoked_session_is_not_audited_again(users_client) -> None:
+    client, csrf_token = users_client
+    created = await client.post(
+        "/api/users",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"email": "repeat@example.com", "username": "repeat", "role": "viewer"},
+    )
+    user_id = created.json()["user"]["id"]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
+        await other.post(
+            "/api/auth/login",
+            json={"email": "repeat@example.com", "password": created.json()["temporary_password"]},
+        )
+    session_id = (await client.get(f"/api/users/{user_id}/sessions")).json()[0]["id"]
+
+    for _ in range(2):
+        revoked = await client.delete(
+            f"/api/users/{user_id}/sessions/{session_id}", headers={"X-CSRF-Token": csrf_token}
+        )
+        assert revoked.status_code == 204
+
+    events = (await client.get("/api/audit/events?limit=50")).json()
+    assert [event["event_type"] for event in events].count("users.session_revoked") == 1

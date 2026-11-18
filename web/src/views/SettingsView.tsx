@@ -1,5 +1,5 @@
 import { CalendarClock, Languages, LayoutDashboard, MonitorCog, PanelLeftClose, Save } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { updateAccountPreferences } from "../api";
 import AdminSettings from "../components/AdminSettings";
@@ -40,6 +40,22 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const savedLanguage = useRef(
+    isSupportedLanguage(user.preferred_language) ? user.preferred_language : DEFAULT_LANGUAGE,
+  );
+
+  const i18nRef = useRef(i18n);
+
+  useEffect(() => {
+    const instance = i18nRef.current;
+    // The language selector previews immediately; leaving the page without saving
+    // returns the interface to the language that is actually stored.
+    return () => {
+      if (instance.language !== savedLanguage.current) {
+        void instance.changeLanguage(savedLanguage.current);
+      }
+    };
+  }, []);
 
   function updateSetting<Key extends keyof LocalSettings>(key: Key, value: LocalSettings[Key]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -73,11 +89,12 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
         { language, ...regional },
         csrfToken,
       );
-      const savedLanguage = isSupportedLanguage(data.user.preferred_language)
+      const storedLanguage = isSupportedLanguage(data.user.preferred_language)
         ? data.user.preferred_language
         : DEFAULT_LANGUAGE;
-      setSelectedLanguage(savedLanguage);
-      await setLanguage(savedLanguage);
+      savedLanguage.current = storedLanguage;
+      setSelectedLanguage(storedLanguage);
+      await setLanguage(storedLanguage);
       const regionalPreferencesSaved = storeRegionalPreferences(regional);
       onUserChanged(data.user);
       if (localSettingsSaved && regionalPreferencesSaved) {

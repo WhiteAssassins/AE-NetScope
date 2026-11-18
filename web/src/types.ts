@@ -279,6 +279,7 @@ export type UpdateCapability = {
 
 export type UpdateStatusInfo = {
   installed_version: string;
+  release_check_failed?: boolean;
   installed_channel: string;
   target_channel: string;
   update_available: boolean;

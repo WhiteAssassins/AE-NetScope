@@ -130,6 +130,15 @@ async def initial_setup(
         payload.setup_token is None
         or not secrets.compare_digest(payload.setup_token, expected_setup_token)
     ):
+        # Record guesses at the installation token while setup is still open.
+        if await initial_setup_required(session):
+            await write_audit_event(
+                session,
+                "auth.initial_setup_failed",
+                "Initial setup rejected an invalid setup token",
+                ip_address=request.client.host if request.client else None,
+            )
+            await session.commit()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid initial setup token.",

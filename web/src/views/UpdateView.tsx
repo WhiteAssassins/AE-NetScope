@@ -50,7 +50,14 @@ export default function UpdateView({
   function applyUpdateState(currentVersion: VersionInfo, currentUpdateInfo: UpdateStatusInfo) {
     setVersionInfo(currentVersion);
     setUpdateInfo(currentUpdateInfo);
-    setStatus(currentUpdateInfo.update_available ? "update-available" : "current");
+    // A failed GitHub check cannot confirm the installation is current.
+    setStatus(
+      currentUpdateInfo.release_check_failed
+        ? "unavailable"
+        : currentUpdateInfo.update_available
+          ? "update-available"
+          : "current",
+    );
   }
 
   const checkForUpdates = useCallback(async (versionOverride: VersionInfo | null = null) => {

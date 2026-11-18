@@ -656,3 +656,75 @@ async def test_device_primary_address_is_stable_across_interfaces(inventory_clie
         entry = next(item for item in listed.json() if item["id"] == device_id)
         assert entry["primary_ip"] == "10.0.0.11"
         assert entry["primary_mac"] == "00:11:22:33:44:01"
+
+
+async def test_dashboard_counts_each_device_once_per_service(inventory_client) -> None:
+    client, csrf_token = inventory_client
+    headers = {"X-CSRF-Token": csrf_token}
+    device = await client.post(
+        "/api/inventory/devices", headers=headers, json={"name": "WEB-01", "device_type": "server"}
+    )
+    for port in (80, 8080):
+        created = await client.post(
+            "/api/inventory/services",
+            headers=headers,
+            json={"device_id": device.json()["id"], "name": "HTTP", "port": port},
+        )
+        assert created.status_code == 201
+
+    dashboard = await client.get("/api/inventory/dashboard")
+
+    assert dashboard.json()["services"] == [
+        {"name": "HTTP", "device_count": 1, "status": "active"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("cidr", "needs_gateway"),
+    [
+        ("10.40.0.0/31", False),
+        ("10.40.0.8/32", False),
+        ("2001:db8::/127", False),
+        ("10.41.0.0/24", True),
+    ],
+)
+async def test_quality_does_not_require_a_gateway_on_point_to_point_subnets(
+    inventory_client, cidr, needs_gateway
+) -> None:
+    client, csrf_token = inventory_client
+    created = await client.post(
+        "/api/inventory/networks",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"cidr": cidr, "name": "Uplink"},
+    )
+    assert created.status_code == 201
+
+    report = (await client.get("/api/inventory/quality")).json()
+
+    codes = [issue["code"] for issue in report["issues"]]
+    assert ("network_no_gateway" in codes) is needs_gateway
+
+
+async def test_failed_restore_keeps_existing_backups(
+    inventory_client, tmp_path, monkeypatch
+) -> None:
+    from app.api.routes import inventory as inventory_route
+    from app.core.config import settings
+
+    client, csrf_token = inventory_client
+    monkeypatch.setattr(settings, "inventory_backup_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "inventory_backup_retention_count", 1)
+    older = tmp_path / "ae-netscope-before-restore-20260101000000000000.json.enc"
+    older.write_bytes(b"older backup")
+
+    async def failing_restore(session, payload):
+        raise ValueError("broken backup")
+
+    monkeypatch.setattr(inventory_route, "restore_inventory_from_payload", failing_restore)
+    backup = (await client.get("/api/inventory/export.json")).json()
+    response = await client.post(
+        "/api/inventory/import.json", headers={"X-CSRF-Token": csrf_token}, json=backup
+    )
+
+    assert response.status_code == 422
+    assert sorted(path.name for path in tmp_path.iterdir()) == [older.name]

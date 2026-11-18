@@ -412,3 +412,58 @@ async def test_totp_disable_rejects_a_code_already_used_to_sign_in(
     )
     assert fresh.status_code == 200
     assert fresh.json()["user"]["totp_enabled"] is False
+
+
+async def test_maintenance_message_cannot_be_blank(security_client: AsyncClient) -> None:
+    auth = await login(security_client)
+    response = await security_client.patch(
+        "/api/security/maintenance",
+        headers={"X-CSRF-Token": auth["csrf_token"]},
+        json={"enabled": True, "message": "   "},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(("language", "status"), [("xx", 422), ("fr-fr", 422), ("es-mx", 200)])
+async def test_account_language_must_be_bundled(
+    security_client: AsyncClient, language: str, status: int
+) -> None:
+    auth = await login(security_client)
+    response = await security_client.patch(
+        "/api/auth/preferences",
+        headers={"X-CSRF-Token": auth["csrf_token"]},
+        json={"language": language, "timezone": "UTC", "date_format": "ymd", "hour_format": "24"},
+    )
+
+    assert response.status_code == status
+    if status == 200:
+        assert response.json()["user"]["preferred_language"] == "es-mx"
+
+
+async def test_malformed_passkey_registration_is_rejected(
+    security_client: AsyncClient, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "webauthn_rp_id", "test")
+    monkeypatch.setattr(settings, "webauthn_origin", "http://test")
+    auth = await login(security_client)
+    headers = {"X-CSRF-Token": auth["csrf_token"]}
+    options = await security_client.post(
+        "/api/security/passkeys/register/options",
+        headers=headers,
+        json={"current_password": "correct-password"},
+    )
+
+    response = await security_client.post(
+        "/api/security/passkeys/register/verify",
+        headers=headers,
+        json={
+            "challenge_id": options.json()["challenge_id"],
+            "name": "Laptop",
+            # No "response" member: the library raises a structure error, not an
+            # invalid-registration error.
+            "credential": {"id": "abc", "rawId": "abc", "type": "public-key"},
+        },
+    )
+
+    assert response.status_code == 400

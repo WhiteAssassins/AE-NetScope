@@ -32,7 +32,10 @@ const permissionGroups = [
   },
   {
     titleKey: "roles.groups.inventory",
-    items: [{ labelKey: "roles.permissions.readInventory", permission: "inventory:read" }],
+    items: [
+      { labelKey: "roles.permissions.readInventory", permission: "inventory:read" },
+      { labelKey: "roles.permissions.exportInventory", permission: "inventory:export" },
+    ],
   },
   {
     titleKey: "roles.groups.devices",
@@ -75,6 +78,7 @@ const rolePermissions: Record<RoleKey, Set<string>> = {
   admin: new Set(permissionGroups.flatMap((group) => group.items.map((item) => item.permission))),
   operator: new Set([
     "inventory:read",
+    "inventory:export",
     "devices:create",
     "devices:update",
     "ip_addresses:create",

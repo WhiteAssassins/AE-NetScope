@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "../i18n";
 import type { User } from "../types";
 import SettingsView from "./SettingsView";
 
@@ -111,6 +112,21 @@ describe("SettingsView", () => {
     await user.click(screen.getByRole("button", { name: /guardar ajustes/i }));
     expect(await screen.findByText("Ajustes guardados.")).toBeInTheDocument();
     expect(window.localStorage.getItem("ae-netscope-language")).toBe("es");
+  });
+
+  it("returns to the saved language when leaving without saving", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({ user: currentUser }))));
+
+    const { unmount } = render(
+      <SettingsView csrfToken="csrf-token" onUserChanged={vi.fn()} user={currentUser} />,
+    );
+
+    await user.selectOptions(screen.getByLabelText("Language"), "es");
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeInTheDocument();
+    unmount();
+
+    await waitFor(() => expect(i18n.language).toBe("en"));
   });
 
   it("keeps local settings and restores the account language when the API fails", async () => {

@@ -32,6 +32,7 @@ from app.schemas.version import (
     UpdateStartResponse,
     UpdateStatusResponse,
 )
+from app.services.audit import write_audit_event
 
 router = APIRouter()
 GITHUB_RELEASES_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetScope/releases"
@@ -106,6 +107,7 @@ async def update_status() -> UpdateStatusResponse:
 
     return UpdateStatusResponse(
         installed_version=current_version,
+        release_check_failed=release_error is not None,
         installed_channel=current_channel,
         target_channel="prerelease" if current_channel != "stable" else "release",
         update_available=bool(
@@ -222,6 +224,12 @@ async def start_update(
         message="The configured update command was started.",
     )
     session.add(history)
+    await write_audit_event(
+        session,
+        "settings.update_started",
+        f"Automatic update started: {target_tag}",
+        actor_user_id=current_user.id,
+    )
     await session.commit()
     if history.id is not None:
         task = asyncio.create_task(monitor_update_process(process, history.id))

@@ -22,6 +22,18 @@ describe("RolesPermissionsView", () => {
     expect(cells.map((cell) => cell.textContent)).toEqual(["Allowed", "No", "No"]);
   });
 
+  it("lists inventory export for admins and operators only", () => {
+    render(<RolesPermissionsView />);
+
+    const row = screen.getByText("Export inventory").closest(".permissions-row");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getAllByText(/Allowed|No/).map((cell) => cell.textContent)).toEqual([
+      "Allowed",
+      "Allowed",
+      "No",
+    ]);
+  });
+
   it("shows viewer can read inventory only", () => {
     render(<RolesPermissionsView />);
 

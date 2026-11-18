@@ -22,6 +22,7 @@ export default function AdminSettings({ csrfToken }: { csrfToken: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [historyFailed, setHistoryFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +35,7 @@ export default function AdminSettings({ csrfToken }: { csrfToken: string }) {
       if (maintenanceResult.status === "fulfilled") setMaintenance(maintenanceResult.value);
       if (indexingResult.status === "fulfilled") setSearchIndexing(indexingResult.value);
       if (historyResult.status === "fulfilled") setHistory(historyResult.value);
+      setHistoryFailed(historyResult.status === "rejected");
       setLoaded({
         maintenance: maintenanceResult.status === "fulfilled",
         searchIndexing: indexingResult.status === "fulfilled",
@@ -125,7 +127,7 @@ export default function AdminSettings({ csrfToken }: { csrfToken: string }) {
       </div>
       <div className="settings-block">
         <div className="settings-block-title"><History size={18} /><strong>{t("settings.admin.updateHistory")}</strong></div>
-        {!loaded.history ? <p>{t("common.loading")}</p> : history.length === 0 ? <p>{t("settings.admin.noUpdates")}</p> : history.map((item) => (
+        {historyFailed ? <p>{t("settings.admin.updateHistoryUnavailable")}</p> : !loaded.history ? <p>{t("common.loading")}</p> : history.length === 0 ? <p>{t("settings.admin.noUpdates")}</p> : history.map((item) => (
           <div className="update-history-row" key={item.id}>
             <div><strong>{item.target_tag}</strong><span>{item.requested_by ?? t("common.notAvailable")}</span></div>
             <div><span className={`status-badge ${updateStatusTone(item.status)}`}>{t(`settings.admin.updateStatuses.${item.status}`, { defaultValue: item.status })}</span><time>{formatDateTime(item.created_at, i18n.resolvedLanguage)}</time></div>

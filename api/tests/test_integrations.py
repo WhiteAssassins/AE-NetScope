@@ -52,6 +52,31 @@ async def test_token_lifecycle_and_audit(integration_api):
     assert (await client.get("/api/inventory/devices", headers=headers)).status_code == 401
 
 
+async def test_revoking_a_token_twice_keeps_the_first_revocation(integration_api):
+    client, csrf, factory = integration_api
+    token_id = (await issue(client, csrf)).json()["id"]
+
+    revocations = []
+    for _ in range(2):
+        response = await client.delete(
+            f"/api/integrations/tokens/{token_id}", headers={"X-CSRF-Token": csrf}
+        )
+        assert response.status_code == 204
+        async with factory() as session:
+            revocations.append((await session.get(IntegrationToken, token_id)).revoked_at)
+
+    assert revocations[0] is not None
+    assert revocations[1] == revocations[0]
+
+    async with factory() as session:
+        events = (
+            await session.scalars(
+                select(AuditEvent).where(AuditEvent.event_type == "integration.token_revoked")
+            )
+        ).all()
+    assert len(events) == 1
+
+
 async def test_issuance_requires_csrf_password_and_write_role(integration_api):
     client, csrf, factory = integration_api
     assert (await issue(client, "bad")).status_code == 403

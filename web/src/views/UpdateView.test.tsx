@@ -103,6 +103,34 @@ describe("UpdateView", () => {
     expect(screen.getByText(/PostgreSQL backup/i)).toBeInTheDocument();
   });
 
+  it("reports an unavailable check when GitHub releases could not be read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string | URL | Request) =>
+        Promise.resolve(
+          jsonResponse(
+            requestUrl(url).includes("/version/updates")
+              ? {
+                  ...updateStatus,
+                  latest_release: null,
+                  latest_prerelease: null,
+                  selected_release: null,
+                  release_check_failed: true,
+                }
+              : installedVersion,
+          ),
+        ),
+      ),
+    );
+
+    render(
+      <UpdateView csrfToken="csrf" initialVersionInfo={installedVersion} permissions={["settings:manage"]} />,
+    );
+
+    expect(await screen.findAllByText("Unavailable")).not.toHaveLength(0);
+    expect(screen.queryByText("Up to date")).not.toBeInTheDocument();
+  });
+
   it("ignores an older update response after a newer check completes", async () => {
     const pendingUpdates: Array<(response: Response) => void> = [];
     vi.stubGlobal(

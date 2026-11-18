@@ -191,7 +191,8 @@
         "passkey_added": "Passkey added: {{target}}",
         "passkey_failed": "Passkey login failed",
         "passkey_removed": "Passkey removed: {{target}}",
-        "passkey_login": "Passkey login succeeded for {{subject}}"
+        "passkey_login": "Passkey login succeeded for {{subject}}",
+        "initial_setup_failed": "Initial setup rejected an invalid setup token"
       },
       "inventory": {
         "exported": "Inventory exported as {{format}}",
@@ -227,7 +228,8 @@
       "settings": {
         "maintenance_updated": "Maintenance mode: {{state}}",
         "search_indexing_updated": "Search engine indexing: {{state}}",
-        "mcp_server_updated": "Built-in MCP server: {{state}}"
+        "mcp_server_updated": "Built-in MCP server: {{state}}",
+        "update_started": "Automatic update started: {{target}}"
       },
       "integration": {
         "token_created": "Integration token created",
@@ -610,7 +612,8 @@
       "active": "Active",
       "inactive": "Inactive",
       "locked": "Login locked",
-      "expired": "Expired"
+      "expired": "Expired",
+      "revoked": "Revoked"
     },
     "sections": {
       "account": "Account and access",
@@ -668,6 +671,7 @@
       "manageSettings": "Manage settings",
       "readAudit": "Read audit data",
       "readInventory": "Read inventory",
+      "exportInventory": "Export inventory",
       "createDevices": "Create devices",
       "updateDevices": "Edit devices",
       "deleteDevices": "Delete devices",
@@ -955,6 +959,7 @@
       "searchIndexingHelp": "AE NetScope publishes a robots.txt policy and an X-Robots-Tag header. Blocking is recommended for LAN and private deployments.",
       "searchIndexingSaved": "Search engine visibility saved.",
       "updateHistory": "Update history",
+      "updateHistoryUnavailable": "Update history could not be loaded.",
       "noUpdates": "No in-app update attempts have been recorded.",
       "updateStatuses": {
         "started": "In progress",

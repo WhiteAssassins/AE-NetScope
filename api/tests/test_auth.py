@@ -456,6 +456,13 @@ async def test_initial_setup_rejects_invalid_installation_token(monkeypatch) -> 
 
     assert rejected.status_code == 403
     assert accepted.status_code == 200
+    async with session_factory() as session:
+        failures = (
+            await session.scalars(
+                select(AuditEvent).where(AuditEvent.event_type == "auth.initial_setup_failed")
+            )
+        ).all()
+    assert len(failures) == 1
     app.dependency_overrides.clear()
     await engine.dispose()
 

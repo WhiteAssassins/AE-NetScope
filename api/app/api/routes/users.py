@@ -371,8 +371,9 @@ async def revoke_user_session_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="The current session cannot be revoked from user management.",
         )
-    if user_session.revoked_at is None:
-        user_session.revoked_at = datetime.now(UTC)
+    if user_session.revoked_at is not None:
+        return
+    user_session.revoked_at = datetime.now(UTC)
     await write_audit_event(
         session,
         "users.session_revoked",

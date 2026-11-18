@@ -260,6 +260,10 @@ async def inventory_quality_report(session: AsyncSession) -> InventoryQualityRep
                 )
 
     for network in networks:
+        parsed_network = ipaddress.ip_network(network.cidr, strict=False)
+        # Point-to-point (/31, /127) and single-host (/32, /128) subnets have no gateway.
+        if parsed_network.num_addresses <= 2:
+            continue
         has_gateway = bool(network.gateway)
         check(has_gateway)
         if not has_gateway:
@@ -966,7 +970,11 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
         )
 
     service_rows = await session.execute(
-        select(Service.name, func.count(Service.device_id), func.max(Service.status))
+        select(
+            Service.name,
+            func.count(func.distinct(Service.device_id)),
+            func.max(Service.status),
+        )
         .group_by(Service.name)
         .order_by(Service.name)
     )

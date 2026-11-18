@@ -26,17 +26,27 @@ run_pre_migration_backup() {
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
   backup_file="${backup_dir}/ae-netscope-pre-migration-${timestamp}.dump"
 
-  export PGPASSWORD="${POSTGRES_PASSWORD:-}"
   echo "Creating pre-migration PostgreSQL backup at ${backup_file}..." >&2
-  if ! pg_dump \
-      --host="${POSTGRES_HOST:-127.0.0.1}" \
-      --port="${POSTGRES_PORT:-5432}" \
-      --username="${POSTGRES_USER:-ae_netscope}" \
-      --dbname="${POSTGRES_DB:-ae_netscope}" \
-      --format=custom \
-      --file="$backup_file"; then
-    rm -f -- "$backup_file"
-    return 1
+  if [ -n "${DATABASE_URL:-}" ]; then
+    # The application connects with DATABASE_URL when it is set, so back up that
+    # database. pg_dump accepts a libpq URI without the SQLAlchemy driver suffix.
+    pg_dump_uri="$(printf "%s" "$DATABASE_URL" | sed 's#^postgresql+[A-Za-z0-9_]*://#postgresql://#; s#^postgres+[A-Za-z0-9_]*://#postgresql://#')"
+    if ! pg_dump --dbname="$pg_dump_uri" --format=custom --file="$backup_file"; then
+      rm -f -- "$backup_file"
+      return 1
+    fi
+  else
+    export PGPASSWORD="${POSTGRES_PASSWORD:-}"
+    if ! pg_dump \
+        --host="${POSTGRES_HOST:-127.0.0.1}" \
+        --port="${POSTGRES_PORT:-5432}" \
+        --username="${POSTGRES_USER:-ae_netscope}" \
+        --dbname="${POSTGRES_DB:-ae_netscope}" \
+        --format=custom \
+        --file="$backup_file"; then
+      rm -f -- "$backup_file"
+      return 1
+    fi
   fi
   chmod 600 "$backup_file"
   if ! encrypted_backup_file="$(python -m app.backup_cli encrypt "$backup_file")"; then

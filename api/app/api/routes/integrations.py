@@ -106,6 +106,9 @@ async def revoke_token(
     token = await session.get(IntegrationToken, token_id)
     if token is None or token.user_id != user.id:
         raise HTTPException(404, "Integration token not found.")
+    if token.revoked_at is not None:
+        # Keep the original revocation time and audit trail.
+        return
     token.revoked_at = datetime.now(UTC)
     await write_audit_event(
         session, "integration.token_revoked", "Integration token revoked", actor_user_id=user.id

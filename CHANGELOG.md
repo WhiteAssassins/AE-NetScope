@@ -14,6 +14,20 @@ All notable changes to AE NetScope will be documented in this file.
 - Refused to start an automatic update while another one started in the last 30 minutes is still running, and refused to run a templated update command without a release tag.
 - Marked expired integration tokens as expired instead of showing them as active.
 - Kept an enabled built-in MCP server switchable off from the MCP page when the MCP SDK is not available, and hid its endpoint while unavailable.
+- Rejected a blank maintenance message, and account languages that the interface does not include. Regional variants such as `es-mx` are still accepted.
+- Kept the first revocation time and a single audit event when an integration token or a user session is revoked again.
+- Stopped reporting a missing gateway for point-to-point and single-host subnets (`/31`, `/32`, `/127`, `/128`).
+- Answered a malformed passkey credential with `400` or `401` instead of a server error.
+- Counted each device once per service name on the dashboard.
+- Audited automatic updates started from the web interface and initial setup attempts with an invalid setup token.
+- Removed the pre-restore backup after a failed restore, and applied backup retention only after a successful one, so failed attempts no longer push older backups out.
+- Used `DATABASE_URL`, when set, for the PostgreSQL backup taken by the container entrypoint before migrations.
+- Showed updates as unavailable when GitHub releases cannot be checked, instead of reporting the installation as up to date.
+- Listed the inventory export permission on the roles page, and disabled the export buttons for roles without it.
+- Matched the translated role name in the user search, and labelled revoked sessions as revoked instead of expired.
+- Showed a message when the update history cannot be loaded, instead of loading indefinitely.
+- Reported a failure when other sessions cannot be closed, and cleared earlier errors when confirming or disabling TOTP.
+- Returned the interface to the saved language when leaving the settings page without saving a language change.
 
 ### Documentation
 

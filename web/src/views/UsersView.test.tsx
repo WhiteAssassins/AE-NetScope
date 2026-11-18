@@ -114,6 +114,18 @@ describe("UsersView", () => {
     expect(screen.getByText("No users match these filters")).toBeInTheDocument();
   });
 
+  it("finds accounts by the role name shown in the table", async () => {
+    const user = userEvent.setup();
+    render(
+      <UsersView csrfToken="csrf" currentUser={currentUser} onCurrentUserChanged={vi.fn()} />,
+    );
+
+    await screen.findByText("viewer@example.com");
+    await user.type(screen.getByPlaceholderText(/search by email/i), "read-only");
+    expect(screen.getByText("viewer@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("admin@example.com")).not.toBeInTheDocument();
+  });
+
   it("edits a managed account through the dedicated panel", async () => {
     const user = userEvent.setup();
     let patchedBody: Record<string, unknown> | null = null;
@@ -460,7 +472,7 @@ describe("UsersView", () => {
     expect(screen.getByText(/Browser.*Linux/)).toBeInTheDocument();
     expect(screen.getByText(/Browser.*Unknown platform/)).toBeInTheDocument();
     expect(screen.getByText("Unknown client")).toBeInTheDocument();
-    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.getByText("Revoked")).toBeInTheDocument();
   });
 
   it("keeps destructive account changes behind confirmation", async () => {

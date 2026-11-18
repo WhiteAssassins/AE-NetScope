@@ -139,7 +139,7 @@ export default function UsersView({
   const filteredUsers = users.filter((user) => {
     const matchesQuery =
       !normalizedQuery ||
-      [user.email, user.username, user.role].some((value) =>
+      [user.email, user.username, user.role, roleLabel(user.role, t)].some((value) =>
         value.toLowerCase().includes(normalizedQuery),
       );
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
@@ -803,7 +803,9 @@ export default function UsersView({
                         </button>
                       )
                     ) : (
-                      <span className="mini-pill gray">{t("users.states.expired")}</span>
+                      <span className="mini-pill gray">
+                        {t(session.revoked_at ? "users.states.revoked" : "users.states.expired")}
+                      </span>
                     )}
                   </div>
                 ))}

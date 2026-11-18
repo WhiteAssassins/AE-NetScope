@@ -70,9 +70,14 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
 
   async function closeOtherSessions() {
     setError("");
-    await revokeOtherSessions(csrfToken);
-    await refresh();
-    setMessage(t("settings.security.sessionsClosed"));
+    setMessage("");
+    try {
+      await revokeOtherSessions(csrfToken);
+      await refresh();
+      setMessage(t("settings.security.sessionsClosed"));
+    } catch {
+      setError(t("settings.security.actionFailed"));
+    }
   }
 
   async function startTotp() {
@@ -86,6 +91,8 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
   }
 
   async function finishTotp() {
+    setError("");
+    setMessage("");
     try {
       const result = await confirmTotp(code, csrfToken);
       onUserChanged(result.user);
@@ -98,6 +105,8 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
   }
 
   async function removeTotp() {
+    setError("");
+    setMessage("");
     try {
       const result = await disableTotp(password, code, csrfToken);
       onUserChanged(result.user);

@@ -13,7 +13,7 @@ from webauthn import (
     verify_registration_response,
 )
 from webauthn.helpers import options_to_json
-from webauthn.helpers.exceptions import InvalidAuthenticationResponse, InvalidRegistrationResponse
+from webauthn.helpers.exceptions import WebAuthnException
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     PublicKeyCredentialDescriptor,
@@ -48,6 +48,9 @@ from app.services.audit import write_audit_event
 from app.services.auth import create_user_session
 
 router = APIRouter(prefix="/security")
+# Any WebAuthn failure, including malformed or truncated client data, is a rejected
+# passkey rather than a server error.
+MALFORMED_PASSKEY_ERRORS = (WebAuthnException, ValueError, TypeError, KeyError, AttributeError)
 MAX_PASSKEYS_PER_USER = 8
 PASSKEY_TRANSPORTS = {"ble", "cable", "hybrid", "internal", "nfc", "smart-card", "usb"}
 
@@ -297,7 +300,7 @@ async def verify_passkey_registration(
             expected_origin=origin,
             require_user_verification=True,
         )
-    except InvalidRegistrationResponse as exc:
+    except MALFORMED_PASSKEY_ERRORS as exc:
         await session.commit()
         raise HTTPException(status_code=400, detail="Passkey registration failed.") from exc
     item = WebAuthnCredential(
@@ -443,7 +446,7 @@ async def verify_passkey_authentication(
             credential_current_sign_count=credential.sign_count,
             require_user_verification=True,
         )
-    except InvalidAuthenticationResponse as exc:
+    except MALFORMED_PASSKEY_ERRORS as exc:
         await _audit_passkey_failure(session, request, user_id=challenge.user_id)
         await session.commit()
         raise HTTPException(status_code=401, detail="Passkey authentication failed.") from exc

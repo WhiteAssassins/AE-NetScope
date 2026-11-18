@@ -191,7 +191,8 @@
         "passkey_added": "Passkey agregada: {{target}}",
         "passkey_failed": "Inicio de sesión con passkey fallido",
         "passkey_removed": "Passkey eliminada: {{target}}",
-        "passkey_login": "Inicio de sesión con passkey correcto para {{subject}}"
+        "passkey_login": "Inicio de sesión con passkey correcto para {{subject}}",
+        "initial_setup_failed": "La configuración inicial rechazó un token de configuración no válido"
       },
       "inventory": {
         "exported": "Inventario exportado como {{format}}",
@@ -227,7 +228,8 @@
       "settings": {
         "maintenance_updated": "Modo mantenimiento: {{state}}",
         "search_indexing_updated": "Indexación en buscadores: {{state}}",
-        "mcp_server_updated": "Servidor MCP integrado: {{state}}"
+        "mcp_server_updated": "Servidor MCP integrado: {{state}}",
+        "update_started": "Actualización automática iniciada: {{target}}"
       },
       "integration": {
         "token_created": "Token de integración creado",
@@ -610,7 +612,8 @@
       "active": "Activa",
       "inactive": "Inactiva",
       "locked": "Login bloqueado",
-      "expired": "Expirada"
+      "expired": "Expirada",
+      "revoked": "Revocada"
     },
     "sections": {
       "account": "Cuenta y acceso",
@@ -668,6 +671,7 @@
       "manageSettings": "Gestionar ajustes",
       "readAudit": "Leer auditoría",
       "readInventory": "Leer inventario",
+      "exportInventory": "Exportar inventario",
       "createDevices": "Crear dispositivos",
       "updateDevices": "Editar dispositivos",
       "deleteDevices": "Eliminar dispositivos",
@@ -955,6 +959,7 @@
       "searchIndexingHelp": "AE NetScope publica una política robots.txt y la cabecera X-Robots-Tag. Se recomienda mantener el bloqueo en redes LAN e instalaciones privadas.",
       "searchIndexingSaved": "Visibilidad en buscadores guardada.",
       "updateHistory": "Historial de actualizaciones",
+      "updateHistoryUnavailable": "No se pudo cargar el historial de actualizaciones.",
       "noUpdates": "No hay intentos de actualización registrados desde la app.",
       "updateStatuses": {
         "started": "En curso",

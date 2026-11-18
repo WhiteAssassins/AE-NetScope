@@ -7,6 +7,7 @@ export const SUPPORTED_AUDIT_EVENT_TYPES = [
   "auth.email_change_failed",
   "auth.email_changed",
   "auth.initial_setup",
+  "auth.initial_setup_failed",
   "auth.login_blocked",
   "auth.login_failed",
   "auth.login_locked",
@@ -45,6 +46,7 @@ export const SUPPORTED_AUDIT_EVENT_TYPES = [
   "inventory.vlan_updated",
   "settings.maintenance_updated",
   "settings.mcp_server_updated",
+  "settings.update_started",
   "settings.search_indexing_updated",
   "users.created",
   "users.deactivated",
@@ -131,6 +133,7 @@ function auditParameters(eventType: string, message: string): AuditParameters | 
     case "auth.totp_enabled":
     case "auth.totp_disabled":
     case "auth.initial_setup":
+    case "auth.initial_setup_failed":
     case "auth.logout":
     case "auth.passkey_failed":
       return {};
@@ -185,6 +188,8 @@ function auditParameters(eventType: string, message: string): AuditParameters | 
       return match(message, /^Sessions revoked for (.+): (\d+)$/, ["subject", "count"]);
     case "users.session_revoked":
       return match(message, /^Session revoked for (.+): (\d+)$/, ["subject", "session"]);
+    case "settings.update_started":
+      return suffix(message);
     case "settings.maintenance_updated":
       return match(message, /^Maintenance mode (enabled|disabled)$/, ["state"]);
     case "settings.mcp_server_updated":

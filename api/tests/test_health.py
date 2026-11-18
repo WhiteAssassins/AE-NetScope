@@ -82,6 +82,23 @@ async def test_update_status_selects_configured_channel(monkeypatch, installed, 
     assert payload["update_available"] is True
 
 
+async def test_update_status_reports_a_failed_release_check(monkeypatch) -> None:
+    from app.api.routes import version as version_route
+
+    def unavailable():
+        raise OSError("GitHub is unreachable")
+
+    version_route.clear_release_cache()
+    monkeypatch.setattr(version_route, "fetch_github_releases", unavailable)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/version/updates")
+    version_route.clear_release_cache()
+
+    assert response.status_code == 200
+    assert response.json()["release_check_failed"] is True
+    assert response.json()["update_available"] is False
+
+
 async def test_update_status_selects_highest_semantic_versions(monkeypatch) -> None:
     from app.api.routes import version as version_route
 
@@ -492,6 +509,9 @@ async def test_start_update_executes_without_shell(monkeypatch) -> None:
     ]
     assert fake_session.added[0].target_tag == "v0.1.8-alpha"
     assert fake_session.added[0].status == "started"
+    audit = fake_session.added[1]
+    assert (audit.event_type, audit.actor_user_id) == ("settings.update_started", 7)
+    assert audit.message == "Automatic update started: v0.1.8-alpha"
 
 
 async def test_update_monitor_records_process_result(monkeypatch) -> None:
