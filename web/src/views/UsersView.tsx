@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import { formatDateTime } from "../dateTime";
 import type { ManagedUser, ManagedUserSession, User, UserRole } from "../types";
-import { hasPermission, roleLabel } from "../utils";
+import { copyText, hasPermission, roleLabel } from "../utils";
 
 type UsersViewProps = {
   csrfToken: string;
@@ -409,10 +409,9 @@ export default function UsersView({
 
   async function copyTemporaryPassword() {
     if (!temporaryPassword) return;
-    try {
-      await navigator.clipboard.writeText(temporaryPassword.value);
+    if (await copyText(temporaryPassword.value)) {
       setPasswordCopied(true);
-    } catch {
+    } else {
       setError(t("users.errors.copyPassword"));
     }
   }

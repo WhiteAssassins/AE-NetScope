@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { User } from "../types";
@@ -88,5 +88,30 @@ describe("ProfileView", () => {
         }),
       }),
     );
+  });
+
+  it("does not resubmit the current email and clears a rejected password", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ detail: "Current password is invalid." }, 400)));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ProfileView
+        csrfToken="csrf"
+        onChangePassword={vi.fn()}
+        onUserChanged={vi.fn()}
+        user={currentUser}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Current password for changing email"), "secret");
+    await user.click(screen.getByRole("button", { name: "Change email" }));
+    expect(screen.getByText("This is already your account email.")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("New email"));
+    await user.type(screen.getByLabelText("New email"), "new@example.com");
+    await user.click(screen.getByRole("button", { name: "Change email" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText("Current password for changing email")).toHaveValue("");
   });
 });

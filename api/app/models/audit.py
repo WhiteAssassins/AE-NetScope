@@ -11,7 +11,7 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    actor_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    actor_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     message: Mapped[str] = mapped_column(EncryptedText(), nullable=False)
     ip_address: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)

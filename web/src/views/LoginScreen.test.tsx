@@ -124,6 +124,58 @@ describe("LoginScreen", () => {
     expect(await screen.findByText("The account is temporarily locked.")).toBeInTheDocument();
   });
 
+  it("explains rate limits and outages instead of blaming the credentials", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ detail: "Too many requests." }, 429))
+        .mockResolvedValueOnce(jsonResponse({ detail: "Rate limit service unavailable." }, 503)),
+    );
+    render(<LoginScreen onLogin={vi.fn()} />);
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "a-password");
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText("Too many sign-in attempts. Wait a minute and try again."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText("Sign-in is temporarily unavailable. Try again in a few minutes."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Invalid email or password.")).not.toBeInTheDocument();
+  });
+
+  it("shows the maintenance notice and accepts spaced authenticator codes", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ detail: { code: "totp_required" } }, 428),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<LoginScreen maintenanceMessage="Disk replacement until 18:00." onLogin={vi.fn()} />);
+
+    expect(screen.getByText("Disk replacement until 18:00.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "a-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(await screen.findByLabelText("Authenticator code"), "123 456");
+
+    expect(screen.getByLabelText("Authenticator code")).toHaveValue("123 456");
+  });
+
+  it("explains when the browser does not support passkeys", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("navigator", { ...navigator, credentials: undefined });
+    render(<LoginScreen onLogin={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.click(screen.getByRole("button", { name: /passkey/i }));
+
+    expect(screen.getByText("This browser does not support passkeys.")).toBeInTheDocument();
+  });
+
   it("shows a connection error when the API cannot be reached", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));

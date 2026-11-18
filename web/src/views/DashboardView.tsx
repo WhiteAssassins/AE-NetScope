@@ -57,10 +57,13 @@ export default function DashboardView({
   const chartData = buildChartData(dashboard, t);
   const totalElements = chartData.reduce((sum, item) => sum + item.value, 0);
   const networks = dashboard?.networks ?? [];
-  const busiestNetwork = networks.reduce<(typeof networks)[number] | null>(
-    (current, network) => (!current || network.ip_count > current.ip_count ? network : current),
-    null,
-  );
+  // The API picks the busiest subnet from every subnet; the list shows only the first four.
+  const busiestNetwork =
+    dashboard?.busiest_network ??
+    networks.reduce<(typeof networks)[number] | null>(
+      (current, network) => (!current || network.ip_count > current.ip_count ? network : current),
+      null,
+    );
 
   return (
     <>

@@ -104,6 +104,17 @@ function renderDashboard(overrides: Partial<Parameters<typeof DashboardView>[0]>
 }
 
 describe("DashboardView", () => {
+  it("names the busiest subnet chosen by the API from every subnet", () => {
+    renderDashboard({
+      dashboard: {
+        ...dashboard,
+        busiest_network: { ...dashboard.networks[0], cidr: "10.9.0.0/24", ip_count: 40 },
+      },
+    });
+
+    expect(screen.getByText("10.9.0.0/24")).toBeInTheDocument();
+  });
+
   it("renders inventory summary, recent devices, and recent audit events", () => {
     renderDashboard();
 

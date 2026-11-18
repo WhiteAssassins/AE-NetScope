@@ -235,8 +235,46 @@ describe("UpdateView", () => {
     ).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Stable" }));
-    expect(screen.getByText("Stable maintenance release.")).toBeInTheDocument();
+    expect(await screen.findByText("Stable maintenance release.")).toBeInTheDocument();
     expect(screen.queryByText("Added safer updates.", { exact: false })).not.toBeInTheDocument();
+    // The channel is requested from the API, not only filtered among the loaded releases.
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        requestUrl(url).includes("/version/releases?channel=stable&limit=8"),
+      ),
+    ).toBe(true);
+  });
+
+  it("offers release screenshots as links the content policy allows", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string | URL | Request) => {
+        const urlText = requestUrl(url);
+        if (urlText.includes("/version/updates")) return Promise.resolve(jsonResponse(updateStatus));
+        if (urlText.includes("/version/releases")) {
+          return Promise.resolve(
+            jsonResponse([
+              {
+                ...updateStatus.latest_release,
+                body: "New topology.\n\n![Topology view](https://github.com/user-attachments/topology.png)",
+                body_truncated: false,
+              },
+            ]),
+          );
+        }
+        return Promise.resolve(jsonResponse(installedVersion));
+      }),
+    );
+    render(
+      <UpdateView csrfToken="csrf" initialVersionInfo={installedVersion} permissions={["settings:manage"]} />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /view recent changes/i }));
+
+    const link = await screen.findByRole("link", { name: "Topology view" });
+    expect(link).toHaveAttribute("href", "https://github.com/user-attachments/topology.png");
+    expect(document.querySelector(".release-notes img")).toBeNull();
   });
 
   it("can retry loading release notes after a GitHub failure", async () => {

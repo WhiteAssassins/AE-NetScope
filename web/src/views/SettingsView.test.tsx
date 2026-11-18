@@ -181,4 +181,22 @@ describe("SettingsView", () => {
     expect(screen.getByRole("button", { name: /save settings/i })).toBeEnabled();
     setItem.mockRestore();
   });
+
+  it("keeps a saved time zone that the browser lists under another name", () => {
+    render(
+      <SettingsView
+        csrfToken="csrf-token"
+        onUserChanged={vi.fn()}
+        user={{ ...currentUser, timezone: "US/Eastern" }}
+      />,
+    );
+
+    const timezoneSelect = screen
+      .getAllByRole("combobox")
+      .find((element) => (element as HTMLSelectElement).value === "US/Eastern");
+    expect(timezoneSelect).toBeDefined();
+    expect(
+      screen.getByRole("option", { name: "US/Eastern" }) as HTMLOptionElement,
+    ).toHaveProperty("selected", true);
+  });
 });

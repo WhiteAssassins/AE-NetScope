@@ -112,11 +112,13 @@ export default function UpdateView({
     }
   }
 
-  const loadReleaseHistory = useCallback(async () => {
+  // The API filters by channel, so a channel shows its latest releases even when the
+  // most recent ones belong to the other channel.
+  const loadReleaseHistory = useCallback(async (channel: ReleaseFilter = "all") => {
     const requestId = ++releaseRequestIdRef.current;
     setReleaseHistoryStatus("loading");
     try {
-      const releases = await fetchReleaseHistory(8);
+      const releases = await fetchReleaseHistory(8, channel);
       if (requestId === releaseRequestIdRef.current) {
         setReleaseHistory(releases);
         setReleaseHistoryStatus("loaded");
@@ -132,7 +134,7 @@ export default function UpdateView({
     const nextVisible = !showReleaseHistory;
     setShowReleaseHistory(nextVisible);
     if (nextVisible && releaseHistoryStatus === "idle") {
-      loadReleaseHistory().catch(() => undefined);
+      loadReleaseHistory(releaseFilter).catch(() => undefined);
     }
   }
 
@@ -235,7 +237,10 @@ export default function UpdateView({
                 <button
                   className={releaseFilter === filter ? "active" : ""}
                   key={filter}
-                  onClick={() => setReleaseFilter(filter)}
+                  onClick={() => {
+                    setReleaseFilter(filter);
+                    loadReleaseHistory(filter).catch(() => undefined);
+                  }}
                   type="button"
                 >
                   {t(`updates.releaseHistory.filters.${filter}`)}
@@ -252,7 +257,7 @@ export default function UpdateView({
             {releaseHistoryStatus === "error" && (
               <div className="release-history-state release-history-error">
                 <span>{t("updates.releaseHistory.loadFailed")}</span>
-                <button className="text-button" onClick={() => void loadReleaseHistory()}>
+                <button className="text-button" onClick={() => void loadReleaseHistory(releaseFilter)}>
                   {t("updates.releaseHistory.retry")}
                 </button>
               </div>
@@ -377,6 +382,14 @@ function ReleaseNotes({
                   {children}
                 </a>
               ),
+              // The content security policy blocks external images, so a release
+              // screenshot is offered as a link instead of a broken image.
+              img: ({ alt, src }) =>
+                typeof src === "string" ? (
+                  <a href={src} target="_blank" rel="noreferrer">
+                    {alt || t("updates.releaseHistory.image")}
+                  </a>
+                ) : null,
             }}
             remarkPlugins={[remarkGfm]}
           >

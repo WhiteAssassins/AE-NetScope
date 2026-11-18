@@ -1,13 +1,21 @@
 import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { DeviceRecord, ServiceRecord } from "../types";
-import { deviceTypeLabel, hasPermission, stateLabel, stateTone } from "../utils";
+import {
+  deviceTypeLabel,
+  hasPermission,
+  inventoryErrorMessage,
+  inventoryFieldLimits,
+  stateLabel,
+  stateTone,
+} from "../utils";
 export default function ServicesView({
   csrfToken,
   focusServiceId,
+  focusRequest,
   services,
   devices,
   onChanged,
@@ -15,6 +23,7 @@ export default function ServicesView({
 }: {
   csrfToken: string;
   focusServiceId?: number;
+  focusRequest?: number;
   services: ServiceRecord[];
   devices: DeviceRecord[];
   onChanged: () => Promise<void>;
@@ -24,6 +33,7 @@ export default function ServicesView({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const appliedFocusRef = useRef<string | null>(null);
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null);
   const [form, setForm] = useState({
     device_id: "",
@@ -39,18 +49,22 @@ export default function ServicesView({
   const canUpdate = hasPermission(permissions, "services:update");
   const canDelete = hasPermission(permissions, "services:delete");
 
+  // A refreshed list must not reselect the record a navigation focused earlier, which
+  // would discard the form and its confirmation after saving another record.
   useEffect(() => {
     if (!focusServiceId) {
       return;
     }
     const service = services.find((item) => item.id === focusServiceId);
-    if (service) {
+    const focusKey = `${focusServiceId}:${focusRequest ?? 0}`;
+    if (service && appliedFocusRef.current !== focusKey) {
+      appliedFocusRef.current = focusKey;
       queueMicrotask(() => {
         selectService(service);
         setQuery(service.name);
       });
     }
-  }, [focusServiceId, services]);
+  }, [focusServiceId, focusRequest, services]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredServices = services.filter((service) => {
@@ -130,7 +144,7 @@ export default function ServicesView({
       });
 
       if (!response.ok) {
-        setError(t("services.errors.save"));
+        setError(await inventoryErrorMessage(response, "services.errors.save", t));
         return;
       }
 
@@ -173,8 +187,8 @@ export default function ServicesView({
       }
 
       setMessage(t("services.deleted"));
+      // The form stays open in creation mode so the confirmation remains visible.
       resetForm();
-      setShowForm(false);
       await onChanged();
     } catch {
       setError(t("auth.apiUnavailable"));
@@ -243,6 +257,7 @@ export default function ServicesView({
               <option value="active">{t("values.states.active")}</option>
               <option value="warning">{t("values.states.warning")}</option>
               <option value="inactive">{t("values.states.inactive")}</option>
+              <option value="unknown">{t("values.states.unknown")}</option>
             </select>
             <span>{t("services.count", { count: filteredServices.length })}</span>
           </div>
@@ -307,6 +322,7 @@ export default function ServicesView({
               <label>
                 {t("services.service")}
                 <input
+                  maxLength={inventoryFieldLimits.serviceName}
                   onChange={(event) => updateField("name", event.target.value)}
                   placeholder="SSH"
                   required
@@ -334,6 +350,10 @@ export default function ServicesView({
                   <option value="udp">UDP</option>
                   <option value="icmp">ICMP</option>
                   <option value="other">{t("services.otherProtocol")}</option>
+                  {/* Keep a stored protocol the list does not offer, instead of showing TCP. */}
+                  {!["tcp", "udp", "icmp", "other"].includes(form.protocol) && (
+                    <option value={form.protocol}>{form.protocol.toUpperCase()}</option>
+                  )}
                 </select>
               </label>
               <label>
@@ -345,6 +365,7 @@ export default function ServicesView({
                   <option value="active">{t("values.states.active")}</option>
                   <option value="warning">{t("values.states.warning")}</option>
                   <option value="inactive">{t("values.states.inactive")}</option>
+                  <option value="unknown">{t("values.states.unknown")}</option>
                 </select>
               </label>
               {message && <p className="form-success">{message}</p>}

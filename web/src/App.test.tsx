@@ -2,11 +2,13 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { fetchInventoryData } from "./api";
 import type { AuditEvent, User } from "./types";
 
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   fetchInventoryData: vi.fn().mockResolvedValue({
+    failed: [],
     dashboard: null,
     devices: [],
     networks: [],
@@ -129,6 +131,71 @@ describe("App navigation and account boundaries", () => {
     expect(await screen.findByRole("heading", { name: "MCP integrations" })).toBeInTheDocument();
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) =>
       String(url).endsWith("/integrations/tokens"))).toBe(true));
+  });
+
+  it("warns when part of the inventory could not be loaded", async () => {
+    mockAuthenticatedApi();
+    vi.mocked(fetchInventoryData).mockResolvedValueOnce({
+      failed: ["networks"],
+      dashboard: null,
+      devices: [],
+      networks: null,
+      vlans: [],
+      services: [],
+      ipMacs: [],
+      interfaces: [],
+      quality: null,
+    });
+    render(<App />);
+
+    expect(
+      await screen.findByText(
+        "Some inventory data could not be loaded. The last loaded data is shown.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Some inventory data could not be loaded. The last loaded data is shown."),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("returns to sign-in when the session ends while the app is open", async () => {
+    mockAuthenticatedApi(() => Promise.resolve(new Response(null, { status: 401 })));
+    window.localStorage.setItem("ae_netscope_signed_in", "1");
+    render(<App />);
+
+    expect(await screen.findByText("Your session expired. Sign in again.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("opens the preferred initial view after signing in", async () => {
+    mockAuthenticatedApi();
+    window.localStorage.setItem(
+      "ae-netscope-settings",
+      JSON.stringify({ defaultView: "topology" }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Topology" })).toBeInTheDocument();
+  });
+
+  it("says so when signing out could not reach the server", async () => {
+    const fetchMock = mockAuthenticatedApi();
+    const browser = userEvent.setup();
+    render(<App />);
+    await screen.findByText("Private audit action");
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input: RequestInfo | URL) =>
+      String(input).endsWith("/auth/logout")
+        ? Promise.reject(new Error("offline"))
+        : original(input),
+    );
+
+    await browser.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByText(/the server could not be reached to end the session/)).toBeInTheDocument();
   });
 
   it("removes privileged users and audit data after switching to a viewer", async () => {

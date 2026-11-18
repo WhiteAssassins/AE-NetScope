@@ -6,11 +6,16 @@ import { API_BASE_URL } from "../api";
 import type { User } from "../types";
 
 type SetupScreenProps = {
+  onAlreadyCompleted?: () => void;
   onSetupComplete: (user: User, csrfToken: string) => void;
   tokenRequired?: boolean;
 };
 
-export default function SetupScreen({ onSetupComplete, tokenRequired = false }: SetupScreenProps) {
+export default function SetupScreen({
+  onAlreadyCompleted,
+  onSetupComplete,
+  tokenRequired = false,
+}: SetupScreenProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("admin");
@@ -43,6 +48,11 @@ export default function SetupScreen({ onSetupComplete, tokenRequired = false }: 
         }),
       });
 
+      if (response.status === 409 && onAlreadyCompleted) {
+        // Another browser finished the setup; this one signs in instead.
+        onAlreadyCompleted();
+        return;
+      }
       if (!response.ok) {
         setError(t(await setupErrorKey(response)));
         return;

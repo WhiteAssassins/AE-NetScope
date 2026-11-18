@@ -92,4 +92,22 @@ describe("AuditView", () => {
     expect(screen.getByText("You do not have permission to view the audit history.")).toBeInTheDocument();
     expect(screen.queryByText("Loading history...")).not.toBeInTheDocument();
   });
+
+  it("searches and groups older events through the API", async () => {
+    const user = userEvent.setup();
+    const older = { ...events[0], id: 90, message: "Maintenance mode disabled", created_at: "2025-01-01T00:00:00Z" };
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(jsonResponse(url.includes("q=") ? [older] : events)),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AuditView permissions={["audit:read"]} />);
+    await screen.findByText("Maintenance mode: Enabled");
+
+    await user.selectOptions(screen.getByRole("combobox"), "settings");
+    await user.type(screen.getByPlaceholderText(/search/i), "disabled");
+
+    expect(await screen.findByText("Maintenance mode: Disabled")).toBeInTheDocument();
+    const requested = fetchMock.mock.calls.map(([url]) => url);
+    expect(requested.some((url) => url.includes("group=settings") && url.includes("q=disabled"))).toBe(true);
+  });
 });

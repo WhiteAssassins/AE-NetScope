@@ -30,6 +30,10 @@ export default function ProfileView({
     event.preventDefault();
     setEmailMessage("");
     setEmailError("");
+    if (email.trim().toLowerCase() === user.email.toLowerCase()) {
+      setEmailError(t("profile.emailUnchanged"));
+      return;
+    }
     setIsEmailSaving(true);
     try {
       const response = await fetch(`${API_BASE_URL}/auth/email`, {
@@ -48,6 +52,8 @@ export default function ProfileView({
             ? t("profile.emailConflict")
             : t("profile.emailChangeFailed"),
         );
+        // A rejected password is never kept in the form.
+        setEmailPassword("");
         return;
       }
 

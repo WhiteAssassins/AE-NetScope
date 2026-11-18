@@ -195,7 +195,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
         {!totpSetup && (
           <div className="settings-inline-form">
             <input autoComplete="current-password" name="totp-current-password" onChange={(event) => setPassword(event.target.value)} placeholder={t("auth.password")} type="password" value={password} />
-            {user.totp_enabled && <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />}
+            {user.totp_enabled && <input autoComplete="one-time-code" inputMode="numeric" maxLength={7} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />}
             <button className="user-action" onClick={() => void (user.totp_enabled ? removeTotp() : startTotp())} type="button">
               {user.totp_enabled ? t("settings.security.disableTotp") : t("settings.security.setupTotp")}
             </button>
@@ -206,7 +206,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
             <QRCodeSVG size={160} value={totpSetup.otpauth_uri} />
             <code>{totpSetup.secret}</code>
             <div className="settings-inline-form">
-              <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />
+              <input autoComplete="one-time-code" inputMode="numeric" maxLength={7} name="totp-code" onChange={(event) => setCode(event.target.value)} placeholder={t("settings.security.code")} value={code} />
               <button className="user-action" onClick={() => void finishTotp()} type="button">{t("settings.security.confirmTotp")}</button>
             </div>
           </div>

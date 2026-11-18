@@ -45,7 +45,16 @@ export function typeTone(type: string) {
 }
 
 const physicalDeviceTypeTerms = [
+  "access control",
   "access point",
+  "control de acceso",
+  "impresora",
+  "iot",
+  "phone",
+  "printer",
+  "sensor",
+  "telefono",
+  "voip",
   "camera",
   "camara",
   "computer",
@@ -117,4 +126,73 @@ export function formatHostCount(count: number, cidr: string) {
   if (isIpv4Cidr(cidr)) return String(count);
   const prefix = Number(cidr.split("/")[1]);
   return Number.isInteger(prefix) ? `2^${128 - prefix}` : String(count);
+}
+
+// API reasons that tell the user what to change, mapped to translated messages.
+const inventoryErrorPatterns: Array<[RegExp, string]> = [
+  [/does not belong to the selected network/i, "inventoryErrors.ipOutsideNetwork"],
+  [/would fall outside the new network CIDR/i, "inventoryErrors.cidrStrandsIps"],
+  [/network or broadcast address/i, "inventoryErrors.networkOrBroadcast"],
+  [/gateway must belong/i, "inventoryErrors.gatewayOutsideNetwork"],
+  [/warranty/i, "inventoryErrors.invalidWarranty"],
+  [/invalid mac address/i, "inventoryErrors.invalidMac"],
+  [/does not appear to be an ipv4 or ipv6 (address|network)/i, "inventoryErrors.invalidAddress"],
+  [/at least 1 character/i, "inventoryErrors.blankName"],
+  [/already exists/i, "inventoryErrors.duplicate"],
+  [/not found/i, "inventoryErrors.relatedNotFound"],
+];
+
+export async function inventoryErrorMessage(response: Response, fallbackKey: string, t: TFunction) {
+  const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+  const detail = payload?.detail;
+  const reasons =
+    typeof detail === "string"
+      ? [detail]
+      : Array.isArray(detail)
+        ? detail.map((item) => (typeof item?.msg === "string" ? (item.msg as string) : ""))
+        : [];
+  for (const reason of reasons) {
+    const match = inventoryErrorPatterns.find(([pattern]) => pattern.test(reason));
+    if (match) return t(match[1]);
+  }
+  if (response.status === 409) return t("inventoryErrors.duplicate");
+  return t(fallbackKey);
+}
+
+// Field limits enforced by the API, so the browser stops input before a failed save.
+export const inventoryFieldLimits = {
+  name: 120,
+  serviceName: 80,
+  interfaceName: 80,
+  text: 120,
+  longText: 160,
+} as const;
+
+/**
+ * Copy text to the clipboard. The Clipboard API only exists on HTTPS and localhost, so
+ * installations reached over plain HTTP, common on a LAN, use a temporary text field.
+ */
+export async function copyText(value: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // Fall back to the selection-based copy below.
+    }
+  }
+  const field = document.createElement("textarea");
+  field.value = value;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  field.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    field.remove();
+  }
 }

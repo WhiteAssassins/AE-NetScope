@@ -25,6 +25,31 @@ export type ImportResult = {
   previous_backup_filename: string;
 };
 
+export type ImportLimits = {
+  max_bytes: number;
+  current_backup_bytes: number;
+  current_backup_restorable: boolean;
+};
+
+export async function fetchImportLimits() {
+  const response = await fetch(`${API_BASE_URL}/inventory/import/limits`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("import-limits-unavailable");
+  return (await response.json()) as ImportLimits;
+}
+
+export class BackupTooLargeError extends Error {}
+
+export class RestoreError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super("restore-failed");
+    this.status = status;
+  }
+}
+
 export async function previewBackup(payload: unknown, csrfToken: string) {
   const response = await fetch(`${API_BASE_URL}/inventory/import/preview`, {
     method: "POST",
@@ -35,6 +60,7 @@ export async function previewBackup(payload: unknown, csrfToken: string) {
     },
     body: JSON.stringify(payload),
   });
+  if (response.status === 413) throw new BackupTooLargeError("backup-too-large");
   if (!response.ok) {
     throw new Error("preview-failed");
   }
@@ -52,7 +78,7 @@ export async function restoreBackupPayload(payload: unknown, csrfToken: string) 
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error("restore-failed");
+    throw new RestoreError(response.status);
   }
   return (await response.json()) as ImportResult;
 }

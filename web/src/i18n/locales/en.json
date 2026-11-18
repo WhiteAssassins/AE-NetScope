@@ -18,7 +18,8 @@
     "refresh": "Refresh",
     "saveChanges": "Save changes",
     "gateway": "Gateway",
-    "notAvailable": "Not available"
+    "notAvailable": "Not available",
+    "retry": "Retry"
   },
   "language": {
     "label": "Language",
@@ -102,6 +103,9 @@
     "signIn": "Sign in",
     "verifying": "Verifying...",
     "locked": "The account is temporarily locked.",
+    "tooManyAttempts": "Too many sign-in attempts. Wait a minute and try again.",
+    "serviceUnavailable": "Sign-in is temporarily unavailable. Try again in a few minutes.",
+    "invalidLoginRequest": "Check the email address and the authenticator code format.",
     "invalidCredentials": "Invalid email or password.",
     "apiUnavailable": "Could not connect to the API.",
     "sessionExpired": "Your session expired. Sign in again.",
@@ -114,6 +118,8 @@
     "authenticatorCode": "Authenticator code",
     "signInWithPasskey": "Sign in with a passkey",
     "passkeyEmailRequired": "Enter your email before using a passkey.",
+    "passkeyUnsupported": "This browser does not support passkeys.",
+    "signOutIncomplete": "You left the account on this browser, but the server could not be reached to end the session. It ends after the idle timeout.",
     "passkeyFailed": "Passkey authentication failed."
   },
   "changePassword": {
@@ -125,6 +131,9 @@
     "passwordMismatch": "The passwords do not match.",
     "passwordReused": "Choose a password different from the current one.",
     "changeFailed": "The password could not be changed.",
+    "currentPasswordInvalid": "The current password is incorrect.",
+    "newPasswordRejected": "The new password was rejected. Use at least 12 characters besides surrounding spaces.",
+    "signOut": "Sign out",
     "submit": "Update password"
   },
   "profile": {
@@ -139,6 +148,7 @@
     "currentPasswordForEmail": "Current password for changing email",
     "changeEmail": "Change email",
     "emailConflict": "That email is already in use.",
+    "emailUnchanged": "This is already your account email.",
     "emailChangeFailed": "The email could not be changed. Verify your password.",
     "emailChanged": "Email updated successfully.",
     "activePermissions": "Active permissions",
@@ -289,6 +299,7 @@
       "target": "Update target",
       "noNotes": "This release does not include a changelog.",
       "truncated": "The preview was shortened. Open the release to read the complete notes.",
+      "image": "Open image",
       "openFull": "Open complete release on GitHub"
     },
     "checklistTitle": "Upgrade checklist",
@@ -407,6 +418,7 @@
     "deactivate": "Deactivate device",
     "delete": "Delete device",
     "confirmDelete": "Delete device \"{{name}}\"? This action cannot be undone.",
+    "confirmDeactivate": "Deactivate {{name}}? Its IP addresses are shown as inactive.",
     "fields": {
       "vendor": "Vendor",
       "model": "Model",
@@ -427,7 +439,8 @@
       "interface": "The interface could not be added. Check duplicates or formatting.",
       "deactivate": "The device could not be deactivated.",
       "delete": "The device could not be deleted.",
-      "create": "The device could not be created. Check duplicate or invalid fields."
+      "create": "The device could not be created. Check duplicate or invalid fields.",
+      "subnetNeedsIp": "Enter an IP address for the selected subnet, or choose no subnet."
     }
   },
   "ipMacs": {
@@ -698,6 +711,7 @@
     "title": "Data",
     "description": "Backups, restore, and portable inventory exports.",
     "noPermission": "You do not have permission to export inventory.",
+    "backupExceedsRestoreLimit": "A backup of the current inventory is larger than the {{size}} MB this installation can restore. Raise MAX_IMPORT_JSON_BYTES before relying on it.",
     "toolsLabel": "Data tools",
     "backupTab": "JSON backup",
     "backupLabel": "Backup",
@@ -741,8 +755,28 @@
       "validation": "The backup failed validation. Review the details before continuing.",
       "invalidJson": "The file does not appear to be valid AE NetScope JSON.",
       "preview": "The backup preview service is unavailable. Try again without selecting another file.",
-      "restore": "The validated backup could not be restored."
+      "tooLarge": "The backup is larger than the {{size}} MB this installation accepts. Raise MAX_IMPORT_JSON_BYTES to restore it.",
+      "restore": "The validated backup could not be restored.",
+      "restoreDuplicates": "The backup contains duplicate records. The inventory was not changed.",
+      "restoreTooLarge": "The backup is too large for this installation. The inventory was not changed.",
+      "restoreInvalid": "The backup is not valid. The inventory was not changed.",
+      "restoreNotStarted": "The restore could not start, so the inventory was not changed. Check the backup storage and try again."
     }
+  },
+  "inventory": {
+    "loadFailed": "Some inventory data could not be loaded. The last loaded data is shown."
+  },
+  "inventoryErrors": {
+    "ipOutsideNetwork": "The IP address does not belong to the selected subnet.",
+    "cidrStrandsIps": "Some assigned IP addresses would fall outside the new CIDR. Reassign or remove them first.",
+    "networkOrBroadcast": "The network or broadcast address of a subnet cannot be assigned.",
+    "gatewayOutsideNetwork": "The gateway must belong to the subnet.",
+    "invalidWarranty": "Enter the warranty expiry as a date, such as 2028-12-31.",
+    "invalidMac": "Enter a valid MAC address, such as aa:bb:cc:dd:ee:ff.",
+    "invalidAddress": "Enter a valid IP address or CIDR.",
+    "blankName": "Names cannot be blank.",
+    "duplicate": "A record with the same name, address or identifier already exists.",
+    "relatedNotFound": "A related record no longer exists. Refresh the page and try again."
   },
   "topology": {
     "title": "Topology",
@@ -790,6 +824,7 @@
   },
   "notes": {
     "title": "Technical notes",
+    "discardChanges": "Discard the unsaved notes for {{name}}?",
     "description": "Operational notes associated with inventory devices.",
     "summary": "Technical notes summary",
     "withNotes": "With notes",

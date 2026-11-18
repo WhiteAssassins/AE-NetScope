@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 from sqlalchemy import select
 
 from app.api.deps import SessionDep, require_csrf, require_permission
@@ -23,7 +23,11 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
 class TokenCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: Annotated[
+        str,
+        BeforeValidator(lambda value: value.strip() if isinstance(value, str) else value),
+        Field(min_length=1, max_length=120),
+    ]
     password: str = Field(min_length=1, max_length=1024, repr=False)
     allow_write: bool = False
     expires_in_days: int = Field(default=30, ge=1, le=365)

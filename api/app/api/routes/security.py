@@ -450,6 +450,9 @@ async def verify_passkey_authentication(
     credential.sign_count = verified.new_sign_count
     credential.last_used_at = datetime.now(UTC)
     user.last_login_at = datetime.now(UTC)
+    # A successful sign-in clears earlier failures, as a password sign-in does.
+    user.failed_login_count = 0
+    user.locked_until = None
     token, csrf_token = await create_user_session(
         session,
         user=user,

@@ -169,4 +169,23 @@ describe("SetupScreen", () => {
 
     expect(await screen.findByText("The initial administrator has already been created.")).toBeInTheDocument();
   });
+
+  it("sends the browser to sign-in when another one completed the setup", async () => {
+    const user = userEvent.setup();
+    const onAlreadyCompleted = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(jsonResponse({ detail: "Initial setup has already been completed." }, 409)),
+      ),
+    );
+    render(<SetupScreen onAlreadyCompleted={onAlreadyCompleted} onSetupComplete={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Administrator email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Password"), "first-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "first-secure-password");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+
+    await waitFor(() => expect(onAlreadyCompleted).toHaveBeenCalledTimes(1));
+  });
 });

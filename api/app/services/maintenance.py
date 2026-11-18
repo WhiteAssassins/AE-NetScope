@@ -13,6 +13,7 @@ from app.core.version import (
 )
 from app.db.session import SessionLocal
 from app.models.audit import AuditEvent
+from app.models.integration import IntegrationToken
 from app.models.security import UpdateHistory, WebAuthnChallenge
 from app.models.session import UserSession
 
@@ -29,6 +30,16 @@ async def purge_expired_records(session: AsyncSession) -> tuple[int, int]:
             or_(
                 UserSession.expires_at < session_cutoff,
                 UserSession.revoked_at < session_cutoff,
+            )
+        )
+    )
+
+    # Revoked and expired integration tokens follow the session record retention.
+    await session.execute(
+        delete(IntegrationToken).where(
+            or_(
+                IntegrationToken.expires_at < session_cutoff,
+                IntegrationToken.revoked_at < session_cutoff,
             )
         )
     )

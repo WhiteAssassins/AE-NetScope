@@ -1,10 +1,18 @@
 import { Plus, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { DeviceDetail, DeviceRecord, NetworkRecord } from "../types";
-import { deviceTypeLabel, hasPermission, stateLabel, typeTone } from "../utils";
+import {
+  deviceTypeLabel,
+  hasPermission,
+  inventoryErrorMessage,
+  inventoryFieldLimits,
+  stateLabel,
+  stateTone,
+  typeTone,
+} from "../utils";
 
 const deviceTypes = [
   "workstation",
@@ -64,6 +72,7 @@ export default function DevicesView({
   csrfToken,
   devices,
   focusDeviceId,
+  focusRequest,
   networks,
   onCreated,
   permissions,
@@ -71,6 +80,7 @@ export default function DevicesView({
   csrfToken: string;
   devices: DeviceRecord[];
   focusDeviceId?: number;
+  focusRequest?: number;
   networks: NetworkRecord[];
   onCreated: () => Promise<void>;
   permissions: string[];
@@ -91,6 +101,8 @@ export default function DevicesView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceDetail | null>(null);
   const [detailError, setDetailError] = useState("");
+  const [detailBusy, setDetailBusy] = useState(false);
+  const detailRequestIdRef = useRef(0);
 
   const canCreate = hasPermission(permissions, "devices:create");
   const canUpdate = hasPermission(permissions, "devices:update");
@@ -161,15 +173,26 @@ export default function DevicesView({
   }
 
   const loadDeviceDetail = useCallback(async (deviceId: number) => {
+    // Only the latest request may fill the panel, so a slow earlier response cannot
+    // replace the device that was opened last.
+    const requestId = ++detailRequestIdRef.current;
     setDetailError("");
-    const response = await fetch(`${API_BASE_URL}/inventory/devices/${deviceId}`, {
-      credentials: "include",
-    });
-    if (!response.ok) {
-      setDetailError(t("devices.errors.load"));
+    let device: DeviceDetail;
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory/devices/${deviceId}`, {
+        credentials: "include",
+      });
+      if (requestId !== detailRequestIdRef.current) return;
+      if (!response.ok) {
+        setDetailError(t("devices.errors.load"));
+        return;
+      }
+      device = (await response.json()) as DeviceDetail;
+    } catch {
+      if (requestId === detailRequestIdRef.current) setDetailError(t("auth.apiUnavailable"));
       return;
     }
-    const device = (await response.json()) as DeviceDetail;
+    if (requestId !== detailRequestIdRef.current) return;
     setSelectedDevice(device);
     setEditForm({
       name: device.name,
@@ -196,88 +219,109 @@ export default function DevicesView({
     if (focusDeviceId) {
       queueMicrotask(() => loadDeviceDetail(focusDeviceId).catch(() => undefined));
     }
-  }, [focusDeviceId, loadDeviceDetail]);
+  }, [focusDeviceId, focusRequest, loadDeviceDetail]);
+
+  // Detail actions run one at a time and report network failures instead of failing silently.
+  async function runDetailAction(action: () => Promise<void>) {
+    setDetailBusy(true);
+    setDetailError("");
+    try {
+      await action();
+    } catch {
+      setDetailError(t("auth.apiUnavailable"));
+    } finally {
+      setDetailBusy(false);
+    }
+  }
 
   async function saveDeviceChanges(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedDevice || !canUpdate) {
+    if (!selectedDevice || !canUpdate || detailBusy) {
       return;
     }
-    setDetailError("");
-
-    const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken,
-      },
-      body: JSON.stringify(devicePayload(editForm)),
-    });
-    if (!response.ok) {
-      setDetailError(t("devices.errors.save"));
-      return;
-    }
-    setSelectedDevice((await response.json()) as DeviceDetail);
-    await onCreated();
-  }
-
-  async function addInterface(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedDevice || !canUpdate) {
-      return;
-    }
-    setDetailError("");
-
-    const response = await fetch(
-      `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/interfaces`,
-      {
-        method: "POST",
+    await runDetailAction(async () => {
+      const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
+        method: "PATCH",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken,
         },
-        body: JSON.stringify({
-          name: interfaceForm.name,
-          mac_address: interfaceForm.mac_address || null,
-          ip_address: interfaceForm.ip_address || null,
-          network_id: interfaceForm.network_id ? Number(interfaceForm.network_id) : null,
-        }),
-      },
-    );
-    if (!response.ok) {
-      setDetailError(t("devices.errors.interface"));
+        body: JSON.stringify(devicePayload(editForm)),
+      });
+      if (!response.ok) {
+        setDetailError(await inventoryErrorMessage(response, "devices.errors.save", t));
+        return;
+      }
+      setSelectedDevice((await response.json()) as DeviceDetail);
+      await onCreated();
+    });
+  }
+
+  async function addInterface(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedDevice || !canUpdate || detailBusy) {
       return;
     }
-    setInterfaceForm({ name: "eth1", mac_address: "", ip_address: "", network_id: "" });
-    await loadDeviceDetail(selectedDevice.id);
-    await onCreated();
+    if (interfaceForm.network_id && !interfaceForm.ip_address) {
+      setDetailError(t("devices.errors.subnetNeedsIp"));
+      return;
+    }
+    await runDetailAction(async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/interfaces`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify({
+            name: interfaceForm.name,
+            mac_address: interfaceForm.mac_address || null,
+            ip_address: interfaceForm.ip_address || null,
+            network_id: interfaceForm.network_id ? Number(interfaceForm.network_id) : null,
+          }),
+        },
+      );
+      if (!response.ok) {
+        setDetailError(await inventoryErrorMessage(response, "devices.errors.interface", t));
+        return;
+      }
+      setInterfaceForm({ name: "eth1", mac_address: "", ip_address: "", network_id: "" });
+      await loadDeviceDetail(selectedDevice.id);
+      await onCreated();
+    });
   }
 
   async function deactivateSelectedDevice() {
-    if (!selectedDevice || !canUpdate) {
+    if (!selectedDevice || !canUpdate || detailBusy) {
       return;
     }
-    setDetailError("");
-    const response = await fetch(
-      `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/deactivate`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: { "X-CSRF-Token": csrfToken },
-      },
-    );
-    if (!response.ok) {
-      setDetailError(t("devices.errors.deactivate"));
+    if (!window.confirm(t("devices.confirmDeactivate", { name: selectedDevice.name }))) {
       return;
     }
-    setSelectedDevice((await response.json()) as DeviceDetail);
-    await onCreated();
+    await runDetailAction(async () => {
+      const response = await fetch(
+        `${API_BASE_URL}/inventory/devices/${selectedDevice.id}/deactivate`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "X-CSRF-Token": csrfToken },
+        },
+      );
+      if (!response.ok) {
+        setDetailError(t("devices.errors.deactivate"));
+        return;
+      }
+      setSelectedDevice((await response.json()) as DeviceDetail);
+      await onCreated();
+    });
   }
 
   async function deleteSelectedDevice() {
-    if (!selectedDevice || !canDelete) {
+    if (!selectedDevice || !canDelete || detailBusy) {
       return;
     }
     const confirmed = window.confirm(
@@ -286,18 +330,19 @@ export default function DevicesView({
     if (!confirmed) {
       return;
     }
-    setDetailError("");
-    const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "X-CSRF-Token": csrfToken },
+    await runDetailAction(async () => {
+      const response = await fetch(`${API_BASE_URL}/inventory/devices/${selectedDevice.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+      if (!response.ok) {
+        setDetailError(t("devices.errors.delete"));
+        return;
+      }
+      setSelectedDevice(null);
+      await onCreated();
     });
-    if (!response.ok) {
-      setDetailError(t("devices.errors.delete"));
-      return;
-    }
-    setSelectedDevice(null);
-    await onCreated();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -307,6 +352,11 @@ export default function DevicesView({
     }
     setError("");
     setMessage("");
+    // A subnet belongs to an address; without one the API would have nothing to attach.
+    if (form.network_id && !form.ip_address) {
+      setError(t("devices.errors.subnetNeedsIp"));
+      return;
+    }
     setIsSubmitting(true);
 
     const payload = {
@@ -334,7 +384,7 @@ export default function DevicesView({
       });
 
       if (!response.ok) {
-        setError(t("devices.errors.create"));
+        setError(await inventoryErrorMessage(response, "devices.errors.create", t));
         return;
       }
 
@@ -412,7 +462,7 @@ export default function DevicesView({
                     <td>{device.serial_number ?? "-"}</td>
                     <td>{device.location ?? "-"}</td>
                     <td>
-                      <span className="status-dot" /> {stateLabel(device.status, t)}
+                      <span className={`status-dot ${stateTone(device.status)}`} /> {stateLabel(device.status, t)}
                     </td>
                   </tr>
                 ))}
@@ -429,6 +479,7 @@ export default function DevicesView({
               <label>
                 {t("devices.interface")}
                 <input
+                  maxLength={inventoryFieldLimits.interfaceName}
                   onChange={(event) => updateField("interface_name", event.target.value)}
                   value={form.interface_name}
                 />
@@ -480,7 +531,7 @@ export default function DevicesView({
             {canUpdate && (
               <form className="inventory-form" onSubmit={saveDeviceChanges}>
                 <DeviceFields mode="edit" values={editForm} onChange={updateEditField} />
-                <button className="login-button form-wide" type="submit">
+                <button className="login-button form-wide" disabled={detailBusy} type="submit">
                   {t("common.saveChanges")}
                 </button>
               </form>
@@ -509,6 +560,7 @@ export default function DevicesView({
                 <label>
                   {t("common.name")}
                   <input
+                    maxLength={inventoryFieldLimits.interfaceName}
                     onChange={(event) => updateInterfaceField("name", event.target.value)}
                     required
                     value={interfaceForm.name}
@@ -535,19 +587,19 @@ export default function DevicesView({
                   onChange={(value) => updateInterfaceField("network_id", value)}
                   value={interfaceForm.network_id}
                 />
-                <button className="login-button form-wide" type="submit">
+                <button className="login-button form-wide" disabled={detailBusy} type="submit">
                   {t("devices.addInterface")}
                 </button>
               </form>
             )}
 
-            {canUpdate && (
-              <button className="danger-action" onClick={deactivateSelectedDevice}>
+            {canUpdate && selectedDevice.status !== "inactive" && (
+              <button className="danger-action" disabled={detailBusy} onClick={deactivateSelectedDevice}>
                 {t("devices.deactivate")}
               </button>
             )}
             {canDelete && (
-              <button className="danger-action" onClick={deleteSelectedDevice}>
+              <button className="danger-action" disabled={detailBusy} onClick={deleteSelectedDevice}>
                 {t("devices.delete")}
               </button>
             )}
@@ -572,7 +624,12 @@ function DeviceFields({
     <>
       <label>
         {t("common.name")}
-        <input onChange={(event) => onChange("name", event.target.value)} required value={values.name} />
+        <input
+          maxLength={inventoryFieldLimits.name}
+          onChange={(event) => onChange("name", event.target.value)}
+          required
+          value={values.name}
+        />
       </label>
       <label>
         {t("common.type")}
@@ -630,7 +687,11 @@ function DeviceFields({
       <TextField field="location" label={t("devices.fields.location")} onChange={onChange} value={values.location} />
       <label className="form-wide">
         {t("devices.fields.notes")}
-        <textarea onChange={(event) => onChange("notes", event.target.value)} value={values.notes} />
+        <textarea
+          maxLength={65_536}
+          onChange={(event) => onChange("notes", event.target.value)}
+          value={values.notes}
+        />
       </label>
     </>
   );
@@ -653,6 +714,11 @@ function TextField({
     <label>
       {label}
       <input
+        maxLength={
+          field === "cpu" || field === "storage"
+            ? inventoryFieldLimits.longText
+            : inventoryFieldLimits.text
+        }
         onChange={(event) => onChange(field, event.target.value)}
         placeholder={placeholder}
         value={value}

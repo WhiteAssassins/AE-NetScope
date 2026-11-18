@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import CurrentUser, SessionDep, require_permission
@@ -30,6 +32,7 @@ async def audit_events(
     session: SessionDep,
     _: CurrentUser,
     event_type: str | None = None,
+    group: Annotated[str | None, Query(pattern=r"^[a-z_]+$", max_length=32)] = None,
     actor_user_id: int | None = None,
     q: str | None = None,
     limit: int = Query(default=100, ge=1, le=250),
@@ -37,6 +40,7 @@ async def audit_events(
     events = await list_audit_events(
         session,
         event_type=event_type,
+        event_group=group,
         actor_user_id=actor_user_id,
         query=q,
         limit=limit,

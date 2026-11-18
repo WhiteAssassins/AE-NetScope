@@ -1,4 +1,5 @@
 import base64
+import logging
 import secrets
 from functools import lru_cache
 
@@ -10,6 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 ENCRYPTED_VALUE_PREFIX = "enc:v1:"
 DATA_NONCE_BYTES = 12
@@ -41,6 +44,10 @@ SENSITIVE_DATABASE_COLUMNS = {
 
 class DataDecryptionError(ValueError):
     pass
+
+
+class DataKeyUnavailableError(DataDecryptionError):
+    """A well-formed value that none of the configured keys can authenticate."""
 
 
 @lru_cache(maxsize=8)
@@ -90,7 +97,7 @@ def decrypt_sensitive_text(
             return plaintext.decode("utf-8")
         except (InvalidTag, UnicodeDecodeError):
             continue
-    raise DataDecryptionError("Sensitive data could not be authenticated.")
+    raise DataKeyUnavailableError("Sensitive data could not be authenticated.")
 
 
 def sensitive_text_uses_primary_key(value: str) -> bool:
@@ -104,14 +111,28 @@ def sensitive_text_uses_primary_key(value: str) -> bool:
 
 
 async def migrate_sensitive_fields_to_primary_key(session: AsyncSession) -> int:
+    """Encrypt plaintext values and move values under fallback keys to the primary key.
+
+    Well-formed values that no configured key can decrypt are left untouched and
+    reported, so a missing fallback key after a rotation can still be added later.
+    Re-encrypting them would wrap the ciphertext and make the original value
+    unrecoverable.
+    """
     migrated = 0
+    unreadable = 0
+    # Without fallback keys every encrypted value already uses the primary key or cannot
+    # be read at all, so only plaintext values need work and startup skips the full scan.
+    check_encrypted = len(settings.data_decryption_keys) > 1
     for table_name, column_names in SENSITIVE_DATABASE_COLUMNS.items():
         for column_name in column_names:
+            condition = f"{column_name} IS NOT NULL"
+            if not check_encrypted:
+                condition += f" AND {column_name} NOT LIKE '{ENCRYPTED_VALUE_PREFIX}%'"
             rows = (
                 await session.execute(
                     text(
                         f"SELECT id, {column_name} AS protected_value "  # noqa: S608
-                        f"FROM {table_name} WHERE {column_name} IS NOT NULL"
+                        f"FROM {table_name} WHERE {condition}"
                     )
                 )
             ).mappings()
@@ -121,9 +142,12 @@ async def migrate_sensitive_fields_to_primary_key(session: AsyncSession) -> int:
                     continue
                 try:
                     plaintext = decrypt_sensitive_text(current_value)
+                except DataKeyUnavailableError:
+                    unreadable += 1
+                    continue
                 except DataDecryptionError:
-                    # Preserve malformed or unavailable legacy ciphertext as literal text.
-                    # New ORM writes always encrypt this value, including the reserved prefix.
+                    # Malformed values are legacy text that merely starts with the reserved
+                    # prefix, so they are kept as literal text.
                     plaintext = current_value
                 encrypted = encrypt_sensitive_text(plaintext)
                 await session.execute(
@@ -134,4 +158,10 @@ async def migrate_sensitive_fields_to_primary_key(session: AsyncSession) -> int:
                     {"encrypted": encrypted, "record_id": row["id"]},
                 )
                 migrated += 1
+    if unreadable:
+        logger.warning(
+            "%s protected values could not be decrypted with the configured keys and were "
+            "left unchanged. Add the previous key to DATA_DECRYPTION_FALLBACK_KEYS.",
+            unreadable,
+        )
     return migrated

@@ -24,9 +24,13 @@ export default function TopologyView({
   onOpenVlan,
 }: TopologyViewProps) {
   const { t } = useTranslation();
-  const [expandedNetworks, setExpandedNetworks] = useState<Set<number>>(
-    () => new Set(networks.slice(0, 2).map((network) => network.id)),
-  );
+  // Until the user expands or collapses a subnet, the first two are open. Deriving the
+  // default at render keeps it right when the inventory arrives after the view mounts.
+  const [customExpanded, setCustomExpanded] = useState<Set<number> | null>(null);
+  const expandedNetworks =
+    customExpanded ?? new Set(networks.slice(0, 2).map((network) => network.id));
+  const setExpandedNetworks = (update: Set<number> | ((current: Set<number>) => Set<number>)) =>
+    setCustomExpanded(typeof update === "function" ? update(expandedNetworks) : update);
   const deviceById = useMemo(
     () => new Map(devices.map((device) => [device.id, device])),
     [devices],

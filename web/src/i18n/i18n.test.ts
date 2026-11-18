@@ -1,12 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { createInstance } from "i18next";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n, {
   DEFAULT_LANGUAGE,
   LANGUAGE_STORAGE_KEY,
   MAX_LANGUAGE_CODE_LENGTH,
   localeResources,
+  readStoredLanguage,
+  resolveSupportedLanguage,
   setLanguage,
   supportedLanguages,
 } from ".";
@@ -167,5 +169,17 @@ describe("translation resources", () => {
     }
 
     expect(failures).toEqual([]);
+  });
+
+  it("uses the bundled language for regional variants and the browser language first", async () => {
+    expect(resolveSupportedLanguage("es-MX")).toBe("es");
+    expect(resolveSupportedLanguage("fr-FR")).toBeNull();
+    expect(await setLanguage("es-mx")).toBe("es");
+
+    window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    vi.spyOn(navigator, "languages", "get").mockReturnValue(["fr-FR", "es-AR"]);
+    expect(readStoredLanguage()).toBe("es");
+    vi.restoreAllMocks();
+    await setLanguage(DEFAULT_LANGUAGE);
   });
 });

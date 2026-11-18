@@ -18,7 +18,8 @@
     "refresh": "Actualizar",
     "saveChanges": "Guardar cambios",
     "gateway": "Puerta de enlace",
-    "notAvailable": "No disponible"
+    "notAvailable": "No disponible",
+    "retry": "Reintentar"
   },
   "language": {
     "label": "Idioma",
@@ -102,6 +103,9 @@
     "signIn": "Entrar",
     "verifying": "Verificando...",
     "locked": "La cuenta está bloqueada temporalmente.",
+    "tooManyAttempts": "Demasiados intentos de inicio de sesión. Espera un minuto e inténtalo de nuevo.",
+    "serviceUnavailable": "El inicio de sesión no está disponible ahora. Inténtalo de nuevo en unos minutos.",
+    "invalidLoginRequest": "Revisa el email y el formato del código del autenticador.",
     "invalidCredentials": "Correo o contraseña inválidos.",
     "apiUnavailable": "No se pudo conectar con la API.",
     "sessionExpired": "La sesión expiró. Inicia sesión nuevamente.",
@@ -114,6 +118,8 @@
     "authenticatorCode": "Código del autenticador",
     "signInWithPasskey": "Entrar con passkey",
     "passkeyEmailRequired": "Introduce tu correo antes de usar una passkey.",
+    "passkeyUnsupported": "Este navegador no admite passkeys.",
+    "signOutIncomplete": "Saliste de la cuenta en este navegador, pero no se pudo contactar con el servidor para cerrar la sesión. Se cerrará al cumplirse el tiempo de inactividad.",
     "passkeyFailed": "La autenticación con passkey falló."
   },
   "changePassword": {
@@ -125,6 +131,9 @@
     "passwordMismatch": "Las contraseñas no coinciden.",
     "passwordReused": "Elige una contraseña distinta de la actual.",
     "changeFailed": "No se pudo cambiar la contraseña.",
+    "currentPasswordInvalid": "La contraseña actual no es correcta.",
+    "newPasswordRejected": "La contraseña nueva no es válida. Usa al menos 12 caracteres sin contar los espacios de los extremos.",
+    "signOut": "Cerrar sesión",
     "submit": "Actualizar contraseña"
   },
   "profile": {
@@ -139,6 +148,7 @@
     "currentPasswordForEmail": "Contraseña actual para cambiar el correo",
     "changeEmail": "Cambiar correo",
     "emailConflict": "Ese correo ya está en uso.",
+    "emailUnchanged": "Este ya es el email de tu cuenta.",
     "emailChangeFailed": "No se pudo cambiar el correo. Verifica tu contraseña.",
     "emailChanged": "Correo actualizado correctamente.",
     "activePermissions": "Permisos activos",
@@ -289,6 +299,7 @@
       "target": "Objetivo de actualización",
       "noNotes": "Esta versión no incluye un changelog.",
       "truncated": "La vista previa fue recortada. Abre la release para leer las notas completas.",
+      "image": "Abrir imagen",
       "openFull": "Abrir release completa en GitHub"
     },
     "checklistTitle": "Checklist de upgrade",
@@ -407,6 +418,7 @@
     "deactivate": "Desactivar dispositivo",
     "delete": "Eliminar dispositivo",
     "confirmDelete": "¿Eliminar el dispositivo \"{{name}}\"? Esta acción no se puede deshacer.",
+    "confirmDeactivate": "¿Desactivar {{name}}? Sus direcciones IP se mostrarán como inactivas.",
     "fields": {
       "vendor": "Fabricante",
       "model": "Modelo",
@@ -427,7 +439,8 @@
       "interface": "No se pudo agregar la interfaz. Revisa duplicados o formato.",
       "deactivate": "No se pudo desactivar el dispositivo.",
       "delete": "No se pudo eliminar el dispositivo.",
-      "create": "No se pudo crear el dispositivo. Revisa campos duplicados o inválidos."
+      "create": "No se pudo crear el dispositivo. Revisa campos duplicados o inválidos.",
+      "subnetNeedsIp": "Escribe una dirección IP para la subred elegida o selecciona sin subred."
     }
   },
   "ipMacs": {
@@ -698,6 +711,7 @@
     "title": "Datos",
     "description": "Backups, restauración y exportaciones portables del inventario.",
     "noPermission": "No tienes permisos para exportar inventario.",
+    "backupExceedsRestoreLimit": "Un backup del inventario actual supera los {{size}} MB que esta instalación puede restaurar. Aumenta MAX_IMPORT_JSON_BYTES antes de depender de él.",
     "toolsLabel": "Herramientas de datos",
     "backupTab": "Backup JSON",
     "backupLabel": "Backup",
@@ -741,8 +755,28 @@
       "validation": "El backup no pasó la validación. Revisa los detalles antes de continuar.",
       "invalidJson": "El archivo no parece ser un JSON válido de AE NetScope.",
       "preview": "El servicio de vista previa no está disponible. Inténtalo de nuevo sin seleccionar otro archivo.",
-      "restore": "No se pudo restaurar el backup validado."
+      "tooLarge": "El backup supera los {{size}} MB que acepta esta instalación. Aumenta MAX_IMPORT_JSON_BYTES para restaurarlo.",
+      "restore": "No se pudo restaurar el backup validado.",
+      "restoreDuplicates": "El backup contiene registros duplicados. El inventario no se modificó.",
+      "restoreTooLarge": "El backup es demasiado grande para esta instalación. El inventario no se modificó.",
+      "restoreInvalid": "El backup no es válido. El inventario no se modificó.",
+      "restoreNotStarted": "La restauración no pudo empezar, así que el inventario no se modificó. Revisa el almacenamiento de backups e inténtalo de nuevo."
     }
+  },
+  "inventory": {
+    "loadFailed": "No se pudieron cargar algunos datos del inventario. Se muestran los últimos datos cargados."
+  },
+  "inventoryErrors": {
+    "ipOutsideNetwork": "La dirección IP no pertenece a la subred seleccionada.",
+    "cidrStrandsIps": "Algunas IP asignadas quedarían fuera del nuevo CIDR. Reasígnalas o elimínalas primero.",
+    "networkOrBroadcast": "No se puede asignar la dirección de red ni la de broadcast de una subred.",
+    "gatewayOutsideNetwork": "El gateway debe pertenecer a la subred.",
+    "invalidWarranty": "Escribe la fecha de fin de garantía, por ejemplo 2028-12-31.",
+    "invalidMac": "Escribe una MAC válida, por ejemplo aa:bb:cc:dd:ee:ff.",
+    "invalidAddress": "Escribe una dirección IP o un CIDR válidos.",
+    "blankName": "Los nombres no pueden estar en blanco.",
+    "duplicate": "Ya existe un registro con el mismo nombre, dirección o identificador.",
+    "relatedNotFound": "Un registro relacionado ya no existe. Actualiza la página e inténtalo de nuevo."
   },
   "topology": {
     "title": "Topología",
@@ -790,6 +824,7 @@
   },
   "notes": {
     "title": "Notas técnicas",
+    "discardChanges": "¿Descartar las notas sin guardar de {{name}}?",
     "description": "Notas operativas asociadas a dispositivos del inventario.",
     "summary": "Resumen de notas técnicas",
     "withNotes": "Con notas",

@@ -6,17 +6,21 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.version import project_version
 from app.db.session import SessionLocal
+from app.middleware.client_ip import ClientIpMiddleware
 from app.middleware.maintenance_mode import maintenance_mode_middleware
 from app.middleware.request_limits import RequestSizeLimitMiddleware
 from app.middleware.security_headers import security_headers_middleware
 from app.services import embedded_mcp, search_indexing
-from app.services.data_protection import migrate_sensitive_fields_to_primary_key
+from app.services.data_protection import (
+    DataDecryptionError,
+    migrate_sensitive_fields_to_primary_key,
+)
 from app.services.maintenance import (
     purge_expired_records,
     reconcile_interrupted_updates,
@@ -92,8 +96,28 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestSizeLimitMiddleware)
     app.middleware("http")(maintenance_mode_middleware)
     app.middleware("http")(security_headers_middleware)
+    # Outermost, so the client address is known before any other middleware runs.
+    app.add_middleware(ClientIpMiddleware)
 
     app.include_router(api_router, prefix="/api")
+
+    @app.exception_handler(DataDecryptionError)
+    async def protected_data_unavailable(_request, exc: DataDecryptionError) -> JSONResponse:
+        # A missing fallback key after a rotation is a configuration problem the
+        # administrator can fix, not an unexplained server error.
+        logger.error("Protected data could not be decrypted: %s", exc)
+        return JSONResponse(
+            {
+                "detail": {
+                    "code": "protected_data_unavailable",
+                    "message": (
+                        "Protected data cannot be decrypted with the configured keys. Add "
+                        "the previous key to DATA_DECRYPTION_FALLBACK_KEYS and restart."
+                    ),
+                }
+            },
+            status_code=503,
+        )
 
     @app.get("/robots.txt", include_in_schema=False)
     async def robots_txt() -> PlainTextResponse:
@@ -117,8 +141,11 @@ def mount_static_web(app: FastAPI) -> None:
 
     app.mount("/assets", StaticFiles(directory=f"{static_dir.rstrip('/')}/assets"), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
-    async def spa_fallback(path: str) -> HTMLResponse:
+    @app.get("/{path:path}", include_in_schema=False, response_model=None)
+    async def spa_fallback(path: str) -> HTMLResponse | JSONResponse:
+        # Unknown API and MCP paths are API errors, not pages of the web interface.
+        if path == "api" or path.startswith(("api/", "mcp/")):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
         html = Path(index_file).read_text(encoding="utf-8")
         if await search_indexing.is_search_engine_indexing_allowed():
             html = html.replace(

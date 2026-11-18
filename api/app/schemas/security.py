@@ -1,10 +1,14 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 
 from app.schemas.auth import SessionResponse
 from app.schemas.email import AccountEmail
+
+
+def strip_name(value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
 
 
 class PasskeyCapabilityResponse(BaseModel):
@@ -34,7 +38,7 @@ class PasskeyOptionsResponse(BaseModel):
 
 class PasskeyRegistrationVerifyRequest(BaseModel):
     challenge_id: str = Field(min_length=32, max_length=64)
-    name: str = Field(min_length=1, max_length=80)
+    name: Annotated[str, BeforeValidator(strip_name), Field(min_length=1, max_length=80)]
     credential: dict[str, Any]
 
 

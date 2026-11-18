@@ -1,21 +1,25 @@
 import asyncio
 import csv
 import ipaddress
+import json
 from datetime import UTC, datetime
 from io import StringIO
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from pydantic import ValidationError
+from fastapi.responses import JSONResponse
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permission
+from app.core.config import settings
 from app.models.inventory import Device, IpAddress, Network, NetworkInterface, Service, Vlan
 from app.schemas.inventory import (
     DashboardSummary,
     DeviceDetailResponse,
     DeviceResponse,
+    DeviceStatus,
     DeviceUpdate,
     DeviceWithInterfaceCreate,
     InterfaceCreate,
@@ -27,13 +31,16 @@ from app.schemas.inventory import (
     IpAddressUpdate,
     NetworkCreate,
     NetworkResponse,
+    NetworkStatus,
     NetworkUpdate,
     ServiceCreate,
     ServiceRecordResponse,
+    ServiceStatus,
     ServiceUpdate,
     VlanCreate,
     VlanSummaryResponse,
     VlanUpdate,
+    normalize_warranty_date,
 )
 from app.services.audit import write_audit_event
 from app.services.backups import enforce_inventory_backup_retention, persist_inventory_backup
@@ -59,6 +66,7 @@ from app.services.inventory import (
     get_network,
     get_service,
     get_vlan,
+    interface_device_id,
     inventory_quality_report,
     ip_address_to_response,
     ip_addresses_outside_network,
@@ -72,6 +80,7 @@ from app.services.inventory import (
     list_vlans,
     network_to_response,
     service_to_response,
+    touch_devices,
     update_device,
     update_ip_address,
     update_network,
@@ -132,7 +141,7 @@ async def quality(
 async def export_inventory_json(
     session: SessionDep,
     current_user: CurrentUser,
-) -> dict[str, object]:
+) -> JSONResponse:
     payload = await export_inventory_payload(session)
     await write_audit_event(
         session,
@@ -141,7 +150,11 @@ async def export_inventory_json(
         actor_user_id=current_user.id,
     )
     await session.commit()
-    return payload
+    filename = f"ae-netscope-inventory-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}.json"
+    # Downloaded as a file, like the CSV exports, instead of opening in a browser tab.
+    return JSONResponse(
+        payload, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.post(
@@ -165,6 +178,21 @@ async def preview_inventory_import(
 
 
 @router.get(
+    "/import/limits",
+    dependencies=[Depends(require_permission("settings:manage"))],
+)
+async def inventory_import_limits(session: SessionDep, _: CurrentUser) -> dict[str, object]:
+    """Tell administrators whether a backup of the current inventory can be restored here."""
+    payload = await export_inventory_payload(session)
+    backup_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    return {
+        "max_bytes": settings.max_import_json_bytes,
+        "current_backup_bytes": backup_bytes,
+        "current_backup_restorable": backup_bytes <= settings.max_import_json_bytes,
+    }
+
+
+@router.get(
     "/export/{resource}.csv",
     dependencies=[Depends(require_permission("inventory:export"))],
 )
@@ -175,7 +203,7 @@ async def export_inventory_csv(
 ) -> Response:
     rows = [flatten_csv_row(row) for row in await export_rows_for_resource(session, resource)]
     output = StringIO()
-    fieldnames = sorted({key for row in rows for key in row})
+    fieldnames = csv_field_order({key for row in rows for key in row})
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(sanitize_csv_rows(rows))
@@ -342,7 +370,7 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
 
     for row in data["networks"]:
         try:
-            item = NetworkCreate.model_validate(row)
+            item = NetworkCreate.model_validate(legacy_backup_row("network", row))
             source_id = int(row["id"])
             if row.get("vlan_id") is not None and int(row["vlan_id"]) not in vlan_source_ids:
                 errors.append(f"Network {source_id} references a missing VLAN.")
@@ -354,7 +382,9 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
 
     for row in data["devices"]:
         try:
-            item = DeviceWithInterfaceCreate.model_validate({**row, "interface": None})
+            item = DeviceWithInterfaceCreate.model_validate(
+                {**legacy_backup_row("device", row), "interface": None}
+            )
             # Match the database constraint, which treats names case-sensitively.
             if item.name in device_names:
                 errors.append(f"Duplicate device name: {item.name}.")
@@ -411,7 +441,7 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
             source_device_id = int(row["device_id"])
             if source_device_id not in device_source_ids:
                 errors.append(f"Service {row.get('id', '?')} references a missing device.")
-            item = ServiceCreate.model_validate(row)
+            item = ServiceCreate.model_validate(legacy_backup_row("service", row))
             service_key = (source_device_id, item.name.lower(), item.port, item.protocol.lower())
             if service_key in service_keys:
                 # The inventory allows repeated services, so restoring them must work too.
@@ -424,6 +454,38 @@ def analyze_backup_payload(payload: dict[str, object]) -> dict[str, object]:
         warnings.append("Backup contains no inventory records.")
 
     return {"valid": not errors, "counts": counts, "warnings": warnings, "errors": errors}
+
+
+LEGACY_STATUS_TYPES = {
+    "device": TypeAdapter(DeviceStatus),
+    "network": TypeAdapter(NetworkStatus),
+    "service": TypeAdapter(ServiceStatus),
+}
+
+
+def legacy_backup_row(kind: str, row: dict[str, object]) -> dict[str, object]:
+    """Adapt values that earlier versions accepted, so their backups still restore.
+
+    Unrecognized statuses become "unknown", a blank service protocol becomes "other",
+    and a warranty that is not a date moves into the device notes instead of being lost.
+    """
+    data = dict(row)
+    if "status" in data:
+        try:
+            data["status"] = LEGACY_STATUS_TYPES[kind].validate_python(data["status"])
+        except ValidationError:
+            data["status"] = "unknown"
+    if kind == "service" and isinstance(data.get("protocol"), str) and not data["protocol"].strip():
+        data["protocol"] = "other"
+    if kind == "device" and isinstance(data.get("warranty_expires"), str):
+        warranty = data["warranty_expires"]
+        try:
+            data["warranty_expires"] = normalize_warranty_date(warranty)
+        except ValueError:
+            data["warranty_expires"] = None
+            notes = data.get("notes") if isinstance(data.get("notes"), str) else ""
+            data["notes"] = f"{notes}\n\nWarranty: {warranty.strip()}".strip()
+    return data
 
 
 def validate_unique_source_ids(rows: list[dict[str, object]], label: str) -> list[str]:
@@ -479,6 +541,15 @@ def flatten_csv_row(row: dict[str, object], prefix: str = "") -> dict[str, objec
     return flat
 
 
+CSV_LEADING_FIELDS = ("id", "name", "vlan_id", "cidr", "address", "device_id", "device_name")
+
+
+def csv_field_order(fields: set[str]) -> list[str]:
+    """Put identifying columns first, then the rest alphabetically."""
+    leading = [field for field in CSV_LEADING_FIELDS if field in fields]
+    return leading + sorted(fields - set(leading))
+
+
 def sanitize_csv_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return [{key: sanitize_csv_cell(value) for key, value in row.items()} for row in rows]
 
@@ -530,14 +601,18 @@ async def restore_inventory_from_payload(
         data = dict(item)
         if data.get("vlan_id") is not None:
             data["vlan_id"] = vlan_map[int(data["vlan_id"])]
-        network = await create_network(session, NetworkCreate.model_validate(data))
+        network = await create_network(
+            session, NetworkCreate.model_validate(legacy_backup_row("network", data))
+        )
         network_map[source_id] = network.id
 
     for item in sorted(devices, key=lambda row: int(row["id"])):
         source_id = int(item["id"])
         device = await create_device(
             session,
-            DeviceWithInterfaceCreate.model_validate({**item, "interface": None}),
+            DeviceWithInterfaceCreate.model_validate(
+                {**legacy_backup_row("device", item), "interface": None}
+            ),
         )
         device_map[source_id] = device.id
 
@@ -565,7 +640,9 @@ async def restore_inventory_from_payload(
     for item in sorted(services, key=lambda row: int(row["id"])):
         data = dict(item)
         data["device_id"] = device_map[int(data["device_id"])]
-        await create_service(session, ServiceCreate.model_validate(data))
+        await create_service(
+            session, ServiceCreate.model_validate(legacy_backup_row("service", data))
+        )
 
     await session.flush()
     return {
@@ -604,6 +681,12 @@ async def validate_interface_network(
     network = await session.get(Network, interface.network_id)
     if network is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found.")
+    if not interface.ip_address:
+        # The subnet belongs to an address; without one it would be silently dropped.
+        raise HTTPException(
+            status_code=422,
+            detail="A subnet can only be set together with an IP address.",
+        )
     if interface.ip_address and not await ip_belongs_to_network(
         session,
         interface.ip_address,
@@ -717,6 +800,7 @@ async def add_device_interface_endpoint(
 
     try:
         interface = await add_device_interface(session, device, payload)
+        await touch_devices(session, device.id)
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
@@ -778,6 +862,7 @@ async def create_ip_address_endpoint(
 
     try:
         ip_address = await create_ip_address(session, payload)
+        await touch_devices(session, await interface_device_id(session, ip_address.interface_id))
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
@@ -830,7 +915,13 @@ async def update_ip_address_endpoint(
         ensure_assignable_address(next_address, network.cidr, "IP address")
 
     try:
+        previous_device_id = await interface_device_id(session, ip_address.interface_id)
         ip_address = await update_ip_address(session, ip_address, payload)
+        await touch_devices(
+            session,
+            previous_device_id,
+            await interface_device_id(session, ip_address.interface_id),
+        )
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
@@ -863,7 +954,9 @@ async def delete_ip_address_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IP address not found.")
 
     address = ip_address.address
+    ip_device_id = await interface_device_id(session, ip_address.interface_id)
     await delete_ip_address(session, ip_address)
+    await touch_devices(session, ip_device_id)
     await write_audit_event(
         session,
         "inventory.ip_deleted",
@@ -1068,6 +1161,7 @@ async def create_service_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
 
     service = await create_service(session, payload)
+    await touch_devices(session, service.device_id)
     await write_audit_event(
         session,
         "inventory.service_created",
@@ -1095,7 +1189,9 @@ async def update_service_endpoint(
     if payload.device_id is not None and await get_device(session, payload.device_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
 
+    previous_device_id = service.device_id
     service = await update_service(session, service, payload)
+    await touch_devices(session, previous_device_id, service.device_id)
     await write_audit_event(
         session,
         "inventory.service_updated",
@@ -1121,7 +1217,9 @@ async def delete_service_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found.")
 
     name = service.name
+    service_device_id = service.device_id
     await delete_service(session, service)
+    await touch_devices(session, service_device_id)
     await write_audit_event(
         session,
         "inventory.service_deleted",

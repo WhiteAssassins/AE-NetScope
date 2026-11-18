@@ -149,6 +149,24 @@ describe("TopologyView", () => {
     expect(screen.queryByText(/e\+24/)).not.toBeInTheDocument();
   });
 
+  it("opens the first subnets when the inventory arrives after the view", () => {
+    const props = {
+      devices: [],
+      ipMacs: [],
+      networks: [],
+      onOpenDevice: vi.fn(),
+      onOpenIp: vi.fn(),
+      onOpenNetwork: vi.fn(),
+      onOpenVlan: vi.fn(),
+    };
+    const { rerender } = render(<TopologyView {...props} />);
+
+    rerender(<TopologyView {...props} devices={devices} ipMacs={ipMacs} networks={networks} />);
+
+    expect(screen.getAllByText("SW-Core-01").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Collapse" })).toBeInTheDocument();
+  });
+
   it("expands and collapses network details", async () => {
     const testUser = userEvent.setup();
     renderTopology();

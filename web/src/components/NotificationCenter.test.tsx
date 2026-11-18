@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuditEvent, HealthStatus, UpdateStatusInfo } from "../types";
 import NotificationCenter from "./NotificationCenter";
 
+// Made by another account; the viewer of the notifications is user 1.
 const event: AuditEvent = {
   id: 14,
-  actor_user_id: 1,
-  actor_username: "admin",
-  actor_email: "admin@example.com",
+  actor_user_id: 2,
+  actor_username: "operator",
+  actor_email: "operator@example.com",
   event_type: "auth.login_success",
   message: "Login succeeded for admin@example.com",
   ip_address: "127.0.0.1",
@@ -54,6 +55,13 @@ describe("NotificationCenter", () => {
     expect(props.onOpenAuditEvent).toHaveBeenCalledWith(event);
     expect(JSON.parse(window.localStorage.getItem("ae-netscope-notifications-read:1") ?? "[]"))
       .toContain("audit:14");
+  });
+
+  it("does not report your own actions as unread notifications", () => {
+    renderCenter({ auditEvents: [{ ...event, id: 15, actor_user_id: 1 }] });
+
+    expect(screen.queryByRole("button", { name: /unread notification/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Login succeeded/i })).not.toBeInTheDocument();
   });
 
   it("still opens a notification when browser storage is unavailable", () => {

@@ -7,11 +7,11 @@ from app.core.config import settings
 from app.core.security import (
     consume_password_verification_time,
     csrf_token_hash_candidates,
-    generate_csrf_token,
     generate_session_token,
     hash_csrf_token,
     hash_password,
     hash_session_token,
+    session_csrf_token,
     session_token_hash_candidates,
     verify_password_and_update,
     verify_user_password,
@@ -19,6 +19,7 @@ from app.core.security import (
 from app.models.session import UserSession
 from app.models.user import User
 from app.services.audit import write_audit_event
+from app.services.integrations import revoke_integration_tokens
 from app.services.mfa import MfaSecretError, decrypt_totp_secret, match_totp_counter
 from app.services.users import revoke_user_sessions
 
@@ -176,7 +177,7 @@ async def create_user_session(
     ip_address: str | None,
 ) -> tuple[str, str]:
     token = generate_session_token()
-    csrf_token = generate_csrf_token()
+    csrf_token = session_csrf_token(token)
     now = _now()
     session.add(
         UserSession(
@@ -246,7 +247,7 @@ async def rotate_csrf_token(session: AsyncSession, token: str | None) -> str | N
     if user_session is None:
         return None
 
-    csrf_token = generate_csrf_token()
+    csrf_token = session_csrf_token(token)
     current_session_hash = hash_session_token(token)
     if user_session.token_hash != current_session_hash:
         user_session.token_hash = current_session_hash
@@ -316,6 +317,8 @@ async def change_user_password(
     user.password_hash = hash_password(new_password)
     user.must_change_password = False
     await revoke_user_sessions(session, user, except_session_id=current_session_id)
+    # Tokens issued under the old password must not outlive it.
+    await revoke_integration_tokens(session, user)
 
     await write_audit_event(
         session,

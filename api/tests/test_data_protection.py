@@ -106,6 +106,8 @@ async def test_ciphertext_prefix_in_plaintext_is_not_trusted(monkeypatch) -> Non
 
 async def test_migration_preserves_malformed_ciphertext_as_literal(monkeypatch) -> None:
     monkeypatch.setattr(settings, "data_encryption_key", "malformed-migration-key" * 3)
+    # Encrypted-looking values are only examined while a key rotation is configured.
+    monkeypatch.setattr(settings, "data_decryption_fallback_keys", "previous-migration-key" * 3)
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:

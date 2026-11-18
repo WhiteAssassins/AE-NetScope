@@ -11,6 +11,10 @@ from app.services.auth import get_user_by_session_token
 logger = logging.getLogger(__name__)
 
 PUBLIC_API_PATHS = {
+    # Session state stays readable so signed-in users see the maintenance notice
+    # instead of appearing signed out.
+    "/api/auth/me",
+    "/api/auth/csrf",
     "/api/auth/login",
     "/api/auth/logout",
     "/api/auth/setup",

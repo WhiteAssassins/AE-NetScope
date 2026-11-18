@@ -9,6 +9,7 @@ import type { RegionalPreferences } from "../dateTime";
 import {
   DEFAULT_LANGUAGE,
   isSupportedLanguage,
+  resolveSupportedLanguage,
   setLanguage,
   supportedLanguages,
 } from "../i18n";
@@ -30,7 +31,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
   const { i18n, t } = useTranslation();
   const [settings, setSettings] = useState<LocalSettings>(readLocalSettings);
   const [language, setSelectedLanguage] = useState(
-    isSupportedLanguage(user.preferred_language) ? user.preferred_language : DEFAULT_LANGUAGE,
+    resolveSupportedLanguage(user.preferred_language) ?? DEFAULT_LANGUAGE,
   );
   const [regional, setRegional] = useState<RegionalPreferences>({
     timezone: user.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
@@ -41,7 +42,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const savedLanguage = useRef(
-    isSupportedLanguage(user.preferred_language) ? user.preferred_language : DEFAULT_LANGUAGE,
+    resolveSupportedLanguage(user.preferred_language) ?? DEFAULT_LANGUAGE,
   );
 
   const i18nRef = useRef(i18n);
@@ -75,9 +76,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
     setIsSaving(true);
     setMessage("");
     setError("");
-    const persistedLanguage = isSupportedLanguage(user.preferred_language)
-      ? user.preferred_language
-      : DEFAULT_LANGUAGE;
+    const persistedLanguage = resolveSupportedLanguage(user.preferred_language) ?? DEFAULT_LANGUAGE;
     let localSettingsSaved = false;
 
     try {
@@ -89,9 +88,8 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
         { language, ...regional },
         csrfToken,
       );
-      const storedLanguage = isSupportedLanguage(data.user.preferred_language)
-        ? data.user.preferred_language
-        : DEFAULT_LANGUAGE;
+      const storedLanguage =
+        resolveSupportedLanguage(data.user.preferred_language) ?? DEFAULT_LANGUAGE;
       savedLanguage.current = storedLanguage;
       setSelectedLanguage(storedLanguage);
       await setLanguage(storedLanguage);
@@ -166,7 +164,7 @@ export default function SettingsView({ csrfToken, onUserChanged, user }: Setting
         <div className="settings-row">
           <div><strong>{t("settings.timezone")}</strong><span>{t("settings.timezoneDescription")}</span></div>
           <select className="filter-select" onChange={(event) => setRegional((current) => ({ ...current, timezone: event.target.value }))} value={regional.timezone}>
-            {["UTC", ...(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [])].filter((timezone, index, values) => values.indexOf(timezone) === index).map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+            {["UTC", regional.timezone, ...(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [])].filter((timezone, index, values) => values.indexOf(timezone) === index).map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
           </select>
         </div>
         <div className="settings-row">

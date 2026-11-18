@@ -1,6 +1,5 @@
 import secrets
 from datetime import UTC, datetime
-from zoneinfo import available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -27,6 +26,7 @@ from app.schemas.auth import (
     TotpSetupResponse,
     UserResponse,
     UserSessionResponse,
+    supported_timezones,
 )
 from app.services.audit import write_audit_event
 from app.services.auth import (
@@ -128,7 +128,10 @@ async def initial_setup(
         )
     if expected_setup_token is not None and (
         payload.setup_token is None
-        or not secrets.compare_digest(payload.setup_token, expected_setup_token)
+        # Bytes, because compare_digest rejects strings with non-ASCII characters.
+        or not secrets.compare_digest(
+            payload.setup_token.encode("utf-8"), expected_setup_token.encode("utf-8")
+        )
     ):
         # Record guesses at the installation token while setup is still open.
         if await initial_setup_required(session):
@@ -157,6 +160,8 @@ async def initial_setup(
         role="admin",
         is_active=True,
         must_change_password=False,
+        preferred_language=payload.language or "en",
+        timezone=payload.timezone or "UTC",
     )
     session.add(user)
     await session.flush()
@@ -316,7 +321,7 @@ async def change_preferences(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> SessionResponse:
-    if payload.timezone not in available_timezones():
+    if payload.timezone not in supported_timezones():
         raise HTTPException(status_code=400, detail="Unsupported timezone.")
     current_user.preferred_language = payload.language.lower()
     current_user.timezone = payload.timezone
@@ -351,7 +356,7 @@ async def change_regional_preferences(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> SessionResponse:
-    if payload.timezone not in available_timezones():
+    if payload.timezone not in supported_timezones():
         raise HTTPException(status_code=400, detail="Unsupported timezone.")
     current_user.timezone = payload.timezone
     current_user.date_format = payload.date_format
@@ -500,9 +505,11 @@ async def logout(
     response: Response,
     session: SessionDep,
     current_user: CurrentUser,
-    _: None = Depends(require_csrf),
     session_token: SessionCookie = None,
 ) -> None:
+    # Signing out never needs a CSRF token: a forged sign-out only ends a session, and a
+    # stale token must not leave the session open on the server. Cross-site requests are
+    # still rejected by the security headers middleware and the strict session cookie.
     await write_audit_event(
         session,
         "auth.logout",

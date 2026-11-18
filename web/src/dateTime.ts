@@ -69,14 +69,29 @@ function orderedDate(value: Date, language: string | undefined, preferences: Reg
   return order.join("/");
 }
 
-export function formatDate(value: string | Date, language?: string) {
+// A time zone the browser does not support, or a value that is not a date, must not
+// break every page that shows a date: the zone falls back to UTC and the raw value is
+// shown as it is.
+function usablePreferences(): RegionalPreferences {
   const preferences = readRegionalPreferences();
-  return orderedDate(new Date(value), language, preferences);
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: preferences.timezone });
+    return preferences;
+  } catch {
+    return { ...preferences, timezone: defaults.timezone };
+  }
+}
+
+export function formatDate(value: string | Date, language?: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return orderedDate(date, language, usablePreferences());
 }
 
 export function formatDateTime(value: string | Date, language?: string) {
-  const preferences = readRegionalPreferences();
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const preferences = usablePreferences();
   const time = new Intl.DateTimeFormat(language, {
     timeZone: preferences.timezone,
     hour: "2-digit",

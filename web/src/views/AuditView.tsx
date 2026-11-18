@@ -1,5 +1,5 @@
 import { Clock3, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import { auditEventMessage } from "../auditMessages";
@@ -23,12 +23,53 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(canReadAudit);
 
+  const loadEvents = useCallback(async (serverQuery = "", group = "all") => {
+    async function fetchEvents(params: Record<string, string>) {
+      const search = new URLSearchParams({ limit: "150", ...params });
+      const response = await fetch(`${API_BASE_URL}/audit/events?${search}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("audit");
+      }
+      return (await response.json()) as AuditEvent[];
+    }
+
+    setIsLoading(true);
+    setError("");
+    try {
+      const groupParams: Record<string, string> = group === "all" ? {} : { group };
+      // Stored messages are English, so a translated search also needs the recent
+      // events, which are matched below against their translated text.
+      const [recent, matches] = await Promise.all([
+        fetchEvents(groupParams),
+        serverQuery ? fetchEvents({ ...groupParams, q: serverQuery }) : Promise.resolve([]),
+      ]);
+      const merged = new Map([...recent, ...matches].map((event) => [event.id, event]));
+      setEvents(
+        [...merged.values()].sort(
+          (left, right) =>
+            new Date(right.created_at).getTime() - new Date(left.created_at).getTime() ||
+            right.id - left.id,
+        ),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const serverQuery = query.trim();
   useEffect(() => {
     if (!canReadAudit) {
-      return;
+      return undefined;
     }
-    loadEvents().catch(() => setError(t("audit.loadError")));
-  }, [canReadAudit, t]);
+    // Searching and grouping reach older events through the API, not only the latest
+    // page that is already loaded.
+    const timer = window.setTimeout(() => {
+      loadEvents(serverQuery, eventGroup).catch(() => setError(t("audit.loadError")));
+    }, serverQuery ? 300 : 0);
+    return () => window.clearTimeout(timer);
+  }, [canReadAudit, eventGroup, loadEvents, serverQuery, t]);
 
   useEffect(() => {
     if (initialQuery) {
@@ -59,22 +100,6 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
     });
   }, [events, eventGroup, query, t]);
 
-  async function loadEvents() {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch(`${API_BASE_URL}/audit/events?limit=150`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("audit");
-      }
-      setEvents((await response.json()) as AuditEvent[]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   if (!canReadAudit) {
     return (
       <div className="page-title">
@@ -91,7 +116,9 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
           <h1>{t("audit.title")}</h1>
           <p>{t("audit.description")}</p>
         </div>
-        <button className="primary-action" onClick={() => loadEvents().catch(() => setError(t("audit.loadError")))}>
+        <button className="primary-action" onClick={() =>
+            loadEvents(serverQuery, eventGroup).catch(() => setError(t("audit.loadError")))
+          }>
           <Clock3 size={18} strokeWidth={2} />
           {t("audit.refresh")}
         </button>

@@ -1,8 +1,9 @@
 import ipaddress
 import re
-from typing import Literal
+from datetime import date
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 
 from app.core.device_types import DeviceType, normalize_device_type
 
@@ -12,9 +13,92 @@ AssignmentType = Literal["static", "dhcp", "reserved"]
 def normalize_assignment_type(value: object) -> object:
     return value.strip().lower() if isinstance(value, str) else value
 
-MAC_PATTERN = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
+# Colon or hyphen pairs (Linux, Windows), Cisco dotted groups, or twelve bare digits.
+MAC_PATTERNS = (
+    re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"),
+    re.compile(r"^[0-9a-f]{2}(-[0-9a-f]{2}){5}$"),
+    re.compile(r"^[0-9a-f]{4}(\.[0-9a-f]{4}){2}$"),
+    re.compile(r"^[0-9a-f]{12}$"),
+)
+WARRANTY_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+STATUS_ALIASES = {
+    "activo": "active",
+    "activa": "active",
+    "inactivo": "inactive",
+    "inactiva": "inactive",
+    "reservado": "reserved",
+    "reservada": "reserved",
+    "desconocido": "unknown",
+    "advertencia": "warning",
+    "aviso": "warning",
+}
 DESCRIPTION_MAX_LENGTH = 16_384
 NOTES_MAX_LENGTH = 65_536
+
+
+def strip_text(value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
+
+
+def normalize_status(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    normalized = value.strip().lower()
+    return STATUS_ALIASES.get(normalized, normalized)
+
+
+def normalize_mac_address(value: str) -> str:
+    """Return a MAC address as lowercase colon pairs, accepting the common notations."""
+    candidate = value.strip().lower()
+    if not any(pattern.match(candidate) for pattern in MAC_PATTERNS):
+        raise ValueError("Invalid MAC address.")
+    digits = re.sub(r"[^0-9a-f]", "", candidate)
+    return ":".join(digits[index : index + 2] for index in range(0, 12, 2))
+
+
+def normalize_warranty_date(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if not WARRANTY_DATE_PATTERN.match(stripped):
+        raise ValueError("Warranty expiry must be a date in YYYY-MM-DD format.")
+    try:
+        date.fromisoformat(stripped)
+    except ValueError as exc:
+        raise ValueError("Warranty expiry must be a valid calendar date.") from exc
+    return stripped
+
+
+def blank_to_none(value: object) -> object:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return value
+
+
+# Optional details lose surrounding spaces, and a blank value is stored as empty.
+OptionalText = Annotated[str | None, BeforeValidator(blank_to_none)]
+# Names are compared and displayed without surrounding spaces, and cannot be blank.
+RecordName = Annotated[str, BeforeValidator(strip_text), Field(min_length=1, max_length=120)]
+ServiceName = Annotated[str, BeforeValidator(strip_text), Field(min_length=1, max_length=80)]
+InterfaceName = Annotated[str, BeforeValidator(strip_text), Field(min_length=1, max_length=80)]
+DeviceStatus = Annotated[
+    Literal["active", "inactive", "reserved", "unknown"], BeforeValidator(normalize_status)
+]
+NetworkStatus = Annotated[
+    Literal["active", "inactive", "reserved", "unknown"], BeforeValidator(normalize_status)
+]
+ServiceStatus = Annotated[
+    Literal["active", "warning", "inactive", "unknown"], BeforeValidator(normalize_status)
+]
+ServiceProtocol = Annotated[
+    str,
+    BeforeValidator(lambda value: value.strip().lower() if isinstance(value, str) else value),
+    Field(min_length=1, max_length=20),
+]
+WarrantyDate = Annotated[str | None, BeforeValidator(normalize_warranty_date)]
 
 
 def reject_explicit_nulls(model: BaseModel, *fields: str) -> None:
@@ -30,14 +114,14 @@ def reject_explicit_nulls(model: BaseModel, *fields: str) -> None:
 
 class VlanCreate(BaseModel):
     vlan_id: int = Field(ge=1, le=4094)
-    name: str = Field(min_length=1, max_length=120)
-    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
+    name: RecordName
+    description: OptionalText = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
 
 
 class VlanUpdate(BaseModel):
     vlan_id: int | None = Field(default=None, ge=1, le=4094)
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
+    name: RecordName | None = None
+    description: OptionalText = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
 
     @model_validator(mode="after")
     def require_non_null_fields(self) -> "VlanUpdate":
@@ -61,10 +145,10 @@ class VlanSummaryResponse(VlanResponse):
 
 class NetworkCreate(BaseModel):
     cidr: str
-    name: str = Field(min_length=1, max_length=120)
+    name: RecordName
     gateway: str | None = None
-    location: str | None = Field(default=None, max_length=120)
-    status: str = Field(default="active", max_length=32)
+    location: OptionalText = Field(default=None, max_length=120)
+    status: NetworkStatus = "active"
     vlan_id: int | None = None
 
     @field_validator("cidr")
@@ -91,10 +175,10 @@ class NetworkCreate(BaseModel):
 
 class NetworkUpdate(BaseModel):
     cidr: str | None = None
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    name: RecordName | None = None
     gateway: str | None = None
-    location: str | None = Field(default=None, max_length=120)
-    status: str | None = Field(default=None, max_length=32)
+    location: OptionalText = Field(default=None, max_length=120)
+    status: NetworkStatus | None = None
     vlan_id: int | None = None
 
     @field_validator("cidr")
@@ -117,8 +201,15 @@ class NetworkUpdate(BaseModel):
         return self
 
 
-class NetworkResponse(NetworkCreate):
+class NetworkResponse(BaseModel):
+    # Responses describe stored records, which may predate the current input rules.
     id: int
+    cidr: str
+    name: str
+    gateway: str | None = None
+    location: str | None = None
+    status: str
+    vlan_id: int | None = None
     vlan: VlanResponse | None = None
     ip_count: int = 0
     usable_hosts: int = 0
@@ -126,22 +217,22 @@ class NetworkResponse(NetworkCreate):
 
 
 class DeviceCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: RecordName
     device_type: DeviceType
-    status: str = Field(default="active", max_length=32)
-    vendor: str | None = Field(default=None, max_length=120)
-    model: str | None = Field(default=None, max_length=120)
-    serial_number: str | None = Field(default=None, max_length=120)
-    asset_tag: str | None = Field(default=None, max_length=120)
-    operating_system: str | None = Field(default=None, max_length=120)
-    firmware_version: str | None = Field(default=None, max_length=120)
-    cpu: str | None = Field(default=None, max_length=160)
-    memory: str | None = Field(default=None, max_length=120)
-    storage: str | None = Field(default=None, max_length=160)
-    warranty_expires: str | None = Field(default=None, max_length=60)
-    owner: str | None = Field(default=None, max_length=120)
-    rack_position: str | None = Field(default=None, max_length=120)
-    location: str | None = Field(default=None, max_length=120)
+    status: DeviceStatus = "active"
+    vendor: OptionalText = Field(default=None, max_length=120)
+    model: OptionalText = Field(default=None, max_length=120)
+    serial_number: OptionalText = Field(default=None, max_length=120)
+    asset_tag: OptionalText = Field(default=None, max_length=120)
+    operating_system: OptionalText = Field(default=None, max_length=120)
+    firmware_version: OptionalText = Field(default=None, max_length=120)
+    cpu: OptionalText = Field(default=None, max_length=160)
+    memory: OptionalText = Field(default=None, max_length=120)
+    storage: OptionalText = Field(default=None, max_length=160)
+    warranty_expires: WarrantyDate = None
+    owner: OptionalText = Field(default=None, max_length=120)
+    rack_position: OptionalText = Field(default=None, max_length=120)
+    location: OptionalText = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
 
     @field_validator("device_type", mode="before")
@@ -156,22 +247,22 @@ class DeviceCreate(BaseModel):
 
 
 class DeviceUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
+    name: RecordName | None = None
     device_type: DeviceType | None = None
-    status: str | None = Field(default=None, max_length=32)
-    vendor: str | None = Field(default=None, max_length=120)
-    model: str | None = Field(default=None, max_length=120)
-    serial_number: str | None = Field(default=None, max_length=120)
-    asset_tag: str | None = Field(default=None, max_length=120)
-    operating_system: str | None = Field(default=None, max_length=120)
-    firmware_version: str | None = Field(default=None, max_length=120)
-    cpu: str | None = Field(default=None, max_length=160)
-    memory: str | None = Field(default=None, max_length=120)
-    storage: str | None = Field(default=None, max_length=160)
-    warranty_expires: str | None = Field(default=None, max_length=60)
-    owner: str | None = Field(default=None, max_length=120)
-    rack_position: str | None = Field(default=None, max_length=120)
-    location: str | None = Field(default=None, max_length=120)
+    status: DeviceStatus | None = None
+    vendor: OptionalText = Field(default=None, max_length=120)
+    model: OptionalText = Field(default=None, max_length=120)
+    serial_number: OptionalText = Field(default=None, max_length=120)
+    asset_tag: OptionalText = Field(default=None, max_length=120)
+    operating_system: OptionalText = Field(default=None, max_length=120)
+    firmware_version: OptionalText = Field(default=None, max_length=120)
+    cpu: OptionalText = Field(default=None, max_length=160)
+    memory: OptionalText = Field(default=None, max_length=120)
+    storage: OptionalText = Field(default=None, max_length=160)
+    warranty_expires: WarrantyDate = None
+    owner: OptionalText = Field(default=None, max_length=120)
+    rack_position: OptionalText = Field(default=None, max_length=120)
+    location: OptionalText = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=NOTES_MAX_LENGTH)
 
     @field_validator("device_type", mode="before")
@@ -191,7 +282,7 @@ class DeviceUpdate(BaseModel):
 
 
 class InterfaceCreate(BaseModel):
-    name: str = Field(default="eth0", min_length=1, max_length=80)
+    name: InterfaceName = "eth0"
     mac_address: str | None = None
     ip_address: str | None = None
     network_id: int | None = None
@@ -202,9 +293,7 @@ class InterfaceCreate(BaseModel):
     def validate_mac(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        if not MAC_PATTERN.match(value):
-            raise ValueError("Invalid MAC address.")
-        return value.lower()
+        return normalize_mac_address(value)
 
     @field_validator("ip_address")
     @classmethod
@@ -323,18 +412,18 @@ class InterfaceRecordResponse(BaseModel):
 
 class ServiceCreate(BaseModel):
     device_id: int
-    name: str = Field(min_length=1, max_length=80)
+    name: ServiceName
     port: int | None = Field(default=None, ge=1, le=65535)
-    protocol: str = Field(default="tcp", max_length=20)
-    status: str = Field(default="active", max_length=32)
+    protocol: ServiceProtocol = "tcp"
+    status: ServiceStatus = "active"
 
 
 class ServiceUpdate(BaseModel):
     device_id: int | None = None
-    name: str | None = Field(default=None, min_length=1, max_length=80)
+    name: ServiceName | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
-    protocol: str | None = Field(default=None, max_length=20)
-    status: str | None = Field(default=None, max_length=32)
+    protocol: ServiceProtocol | None = None
+    status: ServiceStatus | None = None
 
     @model_validator(mode="after")
     def require_non_null_fields(self) -> "ServiceUpdate":
@@ -398,6 +487,7 @@ class DashboardSummary(BaseModel):
     recent_devices: list[RecentDevice]
     services: list[ServiceSummary]
     networks: list[NetworkNode]
+    busiest_network: NetworkNode | None = None
 
 
 class InventoryQualityIssue(BaseModel):

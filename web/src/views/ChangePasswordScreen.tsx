@@ -8,9 +8,11 @@ import type { User } from "../types";
 export default function ChangePasswordScreen({
   csrfToken,
   onPasswordChanged,
+  onSignOut,
 }: {
   csrfToken: string;
   onPasswordChanged: (user: User) => void;
+  onSignOut?: () => void;
 }) {
   const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -49,11 +51,7 @@ export default function ChangePasswordScreen({
       });
 
       if (!response.ok) {
-        setError(
-          response.status === 403
-            ? t("auth.sessionExpired")
-            : t("changePassword.changeFailed"),
-        );
+        setError(t(changePasswordErrorKey(response.status)));
         return;
       }
 
@@ -116,8 +114,22 @@ export default function ChangePasswordScreen({
           <button className="login-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? t("common.saving") : t("changePassword.submit")}
           </button>
+          {onSignOut && (
+            <button className="secondary-login-button" onClick={onSignOut} type="button">
+              {t("changePassword.signOut")}
+            </button>
+          )}
         </form>
       </section>
     </main>
   );
+}
+
+// The current password, the new password and the session fail for different reasons.
+function changePasswordErrorKey(status: number) {
+  if (status === 400) return "changePassword.currentPasswordInvalid";
+  if (status === 422) return "changePassword.newPasswordRejected";
+  if (status === 403 || status === 401) return "auth.sessionExpired";
+  if (status === 429) return "auth.tooManyAttempts";
+  return "changePassword.changeFailed";
 }

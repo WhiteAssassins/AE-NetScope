@@ -490,6 +490,7 @@ async def test_start_update_executes_without_shell(monkeypatch) -> None:
         "docker compose up -d ae-netscope:{tag}",
     )
     monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+    publish_releases(monkeypatch, "v0.1.8-alpha")
 
     fake_session = FakeSession()
     current_user = type("CurrentUser", (), {"id": 7})()
@@ -672,6 +673,7 @@ async def test_start_update_refuses_while_another_update_runs(monkeypatch) -> No
     monkeypatch.setattr(version_route.settings, "auto_update_enabled", True)
     monkeypatch.setattr(version_route.settings, "auto_update_command", "docker compose pull")
     monkeypatch.setattr(version_route.subprocess, "Popen", fake_popen)
+    publish_releases(monkeypatch, "v0.3.3-alpha")
 
     with pytest.raises(version_route.HTTPException) as excinfo:
         await version_route.start_update(
@@ -715,3 +717,23 @@ async def test_update_in_progress_query_matches_recent_started_runs() -> None:
         await session.commit()
         assert await session.scalar(query) is not None
     await engine.dispose()
+
+
+def publish_releases(monkeypatch, *tags: str, installed: str = "0.1.0-alpha") -> None:
+    """Make update targets known releases newer than the installed version."""
+    from app.api.routes import version as version_route
+
+    async def releases():
+        return [
+            version_route.ReleaseDetails(
+                tag_name=tag,
+                html_url=f"https://example.com/{tag}",
+                prerelease="-" in tag,
+                draft=False,
+            )
+            for tag in tags
+        ]
+
+    monkeypatch.setattr(version_route, "fetch_github_releases_cached", releases)
+    monkeypatch.setattr(version_route, "project_version", lambda: installed)
+

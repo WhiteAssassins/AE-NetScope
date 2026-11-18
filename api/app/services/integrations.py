@@ -3,7 +3,7 @@ import secrets
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.integration import IntegrationToken
@@ -71,3 +71,14 @@ def check_integration_permission(request: Request, permission: str) -> None:
         permission != "inventory:read" and not token.allow_write
     ):
         raise HTTPException(403, "Integration token scope does not allow this operation.")
+
+
+async def revoke_integration_tokens(session: AsyncSession, user: User) -> int:
+    """Revoke every active token of an account whose credentials were reset or replaced."""
+    result = await session.execute(
+        update(IntegrationToken)
+        .where(IntegrationToken.user_id == user.id, IntegrationToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+        .execution_options(synchronize_session=False)
+    )
+    return int(result.rowcount or 0)

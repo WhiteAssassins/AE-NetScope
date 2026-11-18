@@ -40,17 +40,38 @@ export function isSupportedLanguage(value: unknown): value is string {
   return typeof value === "string" && Object.hasOwn(localeResources, value);
 }
 
-export function readStoredLanguage(): string {
-  try {
-    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return isSupportedLanguage(stored) ? stored : DEFAULT_LANGUAGE;
-  } catch {
-    return DEFAULT_LANGUAGE;
+// Regional variants such as "es-MX" use the bundled language they belong to.
+export function resolveSupportedLanguage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  const base = normalized.split("-", 1)[0];
+  if (isSupportedLanguage(normalized)) return normalized;
+  return isSupportedLanguage(base) ? base : null;
+}
+
+function browserLanguage(): string | null {
+  const candidates =
+    typeof navigator === "undefined" ? [] : [...(navigator.languages ?? []), navigator.language];
+  for (const candidate of candidates) {
+    const resolved = resolveSupportedLanguage(candidate);
+    if (resolved) return resolved;
   }
+  return null;
+}
+
+export function readStoredLanguage(): string {
+  let stored: string | null;
+  try {
+    stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  // A first visit follows the browser language until the user chooses one.
+  return resolveSupportedLanguage(stored) ?? browserLanguage() ?? DEFAULT_LANGUAGE;
 }
 
 export async function setLanguage(language: string): Promise<string> {
-  const resolved = isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE;
+  const resolved = resolveSupportedLanguage(language) ?? DEFAULT_LANGUAGE;
   try {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, resolved);
   } catch {

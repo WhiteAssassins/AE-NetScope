@@ -7,9 +7,11 @@ import type { User } from "../types";
 import { authenticationOptionsFromJson, credentialToJson } from "../webauthn";
 
 export default function LoginScreen({
+  maintenanceMessage,
   message,
   onLogin,
 }: {
+  maintenanceMessage?: string | null;
   message?: string;
   onLogin: (user: User, csrfToken: string) => void;
 }) {
@@ -40,7 +42,7 @@ export default function LoginScreen({
           setError(t("auth.totpRequired"));
           return;
         }
-        setError(response.status === 423 ? t("auth.locked") : t("auth.invalidCredentials"));
+        setError(t(loginErrorKey(response.status)));
         return;
       }
 
@@ -57,7 +59,11 @@ export default function LoginScreen({
     setError("");
     setIsSubmitting(true);
     try {
-      if (!navigator.credentials?.get || !email) {
+      if (!navigator.credentials?.get) {
+        setError(t("auth.passkeyUnsupported"));
+        return;
+      }
+      if (!email) {
         setError(t("auth.passkeyEmailRequired"));
         return;
       }
@@ -105,7 +111,7 @@ export default function LoginScreen({
           {totpRequired && (
             <label>
               {t("auth.authenticatorCode")}
-              <input autoComplete="one-time-code" inputMode="numeric" maxLength={6} onChange={(event) => setTotpCode(event.target.value)} required value={totpCode} />
+              <input autoComplete="one-time-code" inputMode="numeric" maxLength={7} onChange={(event) => setTotpCode(event.target.value)} required value={totpCode} />
             </label>
           )}
           <label>
@@ -119,6 +125,11 @@ export default function LoginScreen({
               value={password}
             />
           </label>
+          {maintenanceMessage && (
+            <p className="login-notice" role="status">
+              <strong>{t("settings.admin.maintenanceMode")}</strong> {maintenanceMessage}
+            </p>
+          )}
           {message && <p className="login-notice">{message}</p>}
           {error && <p className="login-error">{error}</p>}
           <button className="login-button" disabled={isSubmitting} type="submit">
@@ -131,4 +142,13 @@ export default function LoginScreen({
       </section>
     </main>
   );
+}
+
+// Rate limits and outages are not credential problems, so they get their own message.
+function loginErrorKey(status: number) {
+  if (status === 423) return "auth.locked";
+  if (status === 429) return "auth.tooManyAttempts";
+  if (status === 503) return "auth.serviceUnavailable";
+  if (status === 422) return "auth.invalidLoginRequest";
+  return "auth.invalidCredentials";
 }

@@ -137,6 +137,31 @@ describe("NotesView", () => {
     expect(screen.getByText("Note updated: SRV-APP-01")).toBeInTheDocument();
   });
 
+  it("asks before discarding unsaved notes when switching devices", async () => {
+    const user = userEvent.setup();
+    const confirmMock = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(
+      <NotesView
+        csrfToken="csrf-token"
+        devices={devices}
+        onChanged={vi.fn(() => Promise.resolve())}
+        onOpenDevice={vi.fn()}
+        permissions={["inventory:read", "devices:update"]}
+      />,
+    );
+    await user.selectOptions(screen.getAllByRole("combobox")[0], "all");
+    await user.click(screen.getByRole("button", { name: /SRV-APP-01/i }));
+    await user.type(screen.getByLabelText("Technical note"), " y BGP");
+
+    await user.click(screen.getByRole("button", { name: /CAM-DOOR-01/i }));
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining("SRV-APP-01"));
+    expect(screen.getByLabelText("Technical note")).toHaveValue("Tiene OSPF configurado y BGP");
+
+    await user.click(screen.getByRole("button", { name: /CAM-DOOR-01/i }));
+    expect(screen.getByLabelText("Technical note")).toHaveValue("");
+    confirmMock.mockRestore();
+  });
+
   it("keeps the editor read-only without update permission", async () => {
     const user = userEvent.setup();
 

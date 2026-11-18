@@ -34,7 +34,9 @@ class Network(Base):
     gateway: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
     location: Mapped[str | None] = mapped_column(EncryptedText(), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
-    vlan_id: Mapped[int | None] = mapped_column(ForeignKey("vlans.id"), nullable=True)
+    vlan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vlans.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -113,10 +115,13 @@ class IpAddress(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     address: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     assignment_type: Mapped[str] = mapped_column(String(32), nullable=False, default="static")
-    network_id: Mapped[int | None] = mapped_column(ForeignKey("networks.id"), nullable=True)
+    network_id: Mapped[int | None] = mapped_column(
+        ForeignKey("networks.id"), nullable=True, index=True
+    )
     interface_id: Mapped[int | None] = mapped_column(
         ForeignKey("network_interfaces.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -135,6 +140,7 @@ class Service(Base):
     device_id: Mapped[int] = mapped_column(
         ForeignKey("devices.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -117,7 +117,8 @@ export default function NotificationCenter({
     });
   }
 
-  for (const event of auditEvents.slice(0, 8)) {
+  // Your own changes are not news to you, so they never count as unread.
+  for (const event of auditEvents.filter((item) => item.actor_user_id !== userId).slice(0, 8)) {
     notifications.push({
       auditEvent: event,
       description: event.actor_email ?? event.actor_username ?? t("common.system"),

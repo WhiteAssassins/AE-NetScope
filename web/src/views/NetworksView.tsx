@@ -1,13 +1,22 @@
 import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { NetworkRecord, VlanRecord } from "../types";
-import { formatHostCount, hasPermission, isIpv4Cidr, stateLabel, stateTone } from "../utils";
+import {
+  formatHostCount,
+  hasPermission,
+  inventoryErrorMessage,
+  inventoryFieldLimits,
+  isIpv4Cidr,
+  stateLabel,
+  stateTone,
+} from "../utils";
 export default function NetworksView({
   csrfToken,
   focusNetworkId,
+  focusRequest,
   networks,
   vlans,
   onChanged,
@@ -15,6 +24,7 @@ export default function NetworksView({
 }: {
   csrfToken: string;
   focusNetworkId?: number;
+  focusRequest?: number;
   networks: NetworkRecord[];
   vlans: VlanRecord[];
   onChanged: () => Promise<void>;
@@ -24,6 +34,7 @@ export default function NetworksView({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const appliedFocusRef = useRef<string | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState<NetworkRecord | null>(null);
   const [form, setForm] = useState({
     cidr: "",
@@ -40,18 +51,22 @@ export default function NetworksView({
   const canUpdate = hasPermission(permissions, "networks:update");
   const canDelete = hasPermission(permissions, "networks:delete");
 
+  // A refreshed list must not reselect the record a navigation focused earlier, which
+  // would discard the form and its confirmation after saving another record.
   useEffect(() => {
     if (!focusNetworkId) {
       return;
     }
     const network = networks.find((item) => item.id === focusNetworkId);
-    if (network) {
+    const focusKey = `${focusNetworkId}:${focusRequest ?? 0}`;
+    if (network && appliedFocusRef.current !== focusKey) {
+      appliedFocusRef.current = focusKey;
       queueMicrotask(() => {
         selectNetwork(network);
         setQuery(network.cidr);
       });
     }
-  }, [focusNetworkId, networks]);
+  }, [focusNetworkId, focusRequest, networks]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredNetworks = networks.filter((network) => {
@@ -142,7 +157,7 @@ export default function NetworksView({
       });
 
       if (!response.ok) {
-        setError(t("networks.errors.save"));
+        setError(await inventoryErrorMessage(response, "networks.errors.save", t));
         return;
       }
 
@@ -182,8 +197,8 @@ export default function NetworksView({
       }
 
       setMessage(t("networks.deleted"));
+      // The form stays open in creation mode so the confirmation remains visible.
       resetForm();
-      setShowForm(false);
       await onChanged();
     } catch {
       setError(t("auth.apiUnavailable"));
@@ -252,6 +267,7 @@ export default function NetworksView({
               <option value="active">{t("values.states.active")}</option>
               <option value="inactive">{t("values.states.inactive")}</option>
               <option value="reserved">{t("values.states.reserved")}</option>
+              <option value="unknown">{t("values.states.unknown")}</option>
             </select>
             <span>{t("networks.count", { count: filteredNetworks.length })}</span>
           </div>
@@ -328,6 +344,7 @@ export default function NetworksView({
               <label>
                 {t("common.name")}
                 <input
+                  maxLength={inventoryFieldLimits.name}
                   onChange={(event) => updateField("name", event.target.value)}
                   required
                   value={form.name}
@@ -350,6 +367,8 @@ export default function NetworksView({
                   <option value="active">{t("values.states.active")}</option>
                   <option value="inactive">{t("values.states.inactive")}</option>
                   <option value="reserved">{t("values.states.reserved")}</option>
+                  {/* Restored backups can hold this status; keep it instead of changing it. */}
+                  <option value="unknown">{t("values.states.unknown")}</option>
                 </select>
               </label>
               <label>
@@ -369,6 +388,7 @@ export default function NetworksView({
               <label>
                 {t("devices.fields.location")}
                 <input
+                  maxLength={inventoryFieldLimits.text}
                   onChange={(event) => updateField("location", event.target.value)}
                   value={form.location}
                 />

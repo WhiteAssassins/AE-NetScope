@@ -153,4 +153,104 @@ describe("ImportExportView", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/does not appear to be valid/i)).not.toBeInTheDocument();
   });
+
+  it("warns when a backup is larger than this installation can restore", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith("/inventory/import/limits")
+          ? jsonResponse({ max_bytes: 1_000_000, current_backup_bytes: 1_500_000, current_backup_restorable: false })
+          : jsonResponse({}),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(
+      <ImportExportView
+        csrfToken="csrf-token"
+        onImported={vi.fn()}
+        permissions={["inventory:read", "inventory:export", "settings:manage"]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/larger than the 1 MB this installation can restore/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Restore" }));
+    await user.upload(
+      container.querySelector('input[type="file"]') as HTMLInputElement,
+      new File(["x".repeat(1_000_001)], "backup.json", { type: "application/json" }),
+    );
+
+    expect(await screen.findByText(/larger than the 1 MB this installation accepts/i)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/import/preview"))).toBe(false);
+  });
+
+  it("explains a backup rejected by the API for its size", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/inventory/import/limits")
+            ? jsonResponse({}, 500)
+            : jsonResponse({ detail: "Inventory import JSON is too large." }, 413),
+        ),
+      ),
+    );
+    const { container } = render(
+      <ImportExportView
+        csrfToken="csrf-token"
+        onImported={vi.fn()}
+        permissions={["inventory:read", "settings:manage"]}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Restore" }));
+    await user.upload(
+      container.querySelector('input[type="file"]') as HTMLInputElement,
+      new File([JSON.stringify({ format: "ae-netscope.inventory.v1" })], "backup.json", {
+        type: "application/json",
+      }),
+    );
+
+    expect(await screen.findByText(/this installation accepts/i)).toBeInTheDocument();
+  });
+
+  it("says the inventory was not changed when a restore is rejected", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.endsWith("/import/preview")) {
+          return Promise.resolve(
+            jsonResponse({
+              valid: true,
+              mode: "replace",
+              counts: { vlans: 0, networks: 0, devices: 1, interfaces: 0, ip_addresses: 0, services: 0 },
+              current_counts: { vlans: 0, networks: 0, devices: 1, interfaces: 0, ip_addresses: 0, services: 0 },
+              warnings: [],
+              errors: [],
+            }),
+          );
+        }
+        if (url.endsWith("/import.json")) {
+          return Promise.resolve(jsonResponse({ detail: "Backup contains duplicate inventory records." }, 409));
+        }
+        return Promise.resolve(jsonResponse({}, 500));
+      }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { container } = render(
+      <ImportExportView csrfToken="csrf-token" onImported={vi.fn()} permissions={["inventory:read", "settings:manage"]} />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Restore" }));
+    await user.upload(
+      container.querySelector('input[type="file"]') as HTMLInputElement,
+      new File([JSON.stringify({ format: "ae-netscope.inventory.v1" })], "backup.json", { type: "application/json" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Replace inventory" }));
+
+    expect(
+      await screen.findByText("The backup contains duplicate records. The inventory was not changed."),
+    ).toBeInTheDocument();
+  });
 });

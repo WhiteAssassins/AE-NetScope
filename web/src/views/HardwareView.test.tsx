@@ -39,6 +39,48 @@ describe("HardwareView", () => {
     expect(screen.getByText("Warranty OK")).toBeInTheDocument();
   });
 
+  it("marks expired warranties apart from those expiring soon", () => {
+    const soon = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    render(
+      <HardwareView
+        devices={[
+          { ...baseDevice, id: 2, name: "OLD", warranty_expires: "2020-01-01" },
+          { ...baseDevice, id: 3, name: "SOON", warranty_expires: soon },
+        ]}
+        onOpenDevice={vi.fn()}
+      />,
+    );
+
+    const pill = (name: string) =>
+      within(screen.getByRole("heading", { name }).closest("article") as HTMLElement)
+        .getAllByText(/warranty/i)[0];
+    expect(pill("OLD")).toHaveClass("red");
+    expect(pill("SOON")).toHaveClass("orange");
+  });
+
+  it("treats printers, phones, sensors and access control as physical assets", () => {
+    const bare = { ...baseDevice, vendor: null, model: null, serial_number: null, asset_tag: null,
+      cpu: null, memory: null, storage: null, warranty_expires: null, rack_position: null,
+      firmware_version: null };
+    render(
+      <HardwareView
+        devices={[
+          { ...bare, id: 2, name: "PRN-01", device_type: "printer" },
+          { ...bare, id: 3, name: "PHONE-01", device_type: "voip" },
+          { ...bare, id: 4, name: "TEMP-01", device_type: "sensor" },
+          { ...bare, id: 5, name: "DOOR-01", device_type: "access_control" },
+          { ...bare, id: 6, name: "VM-01", device_type: "virtualization" },
+        ]}
+        onOpenDevice={vi.fn()}
+      />,
+    );
+
+    for (const name of ["PRN-01", "PHONE-01", "TEMP-01", "DOOR-01"]) {
+      expect(screen.getByRole("heading", { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("heading", { name: "VM-01" })).not.toBeInTheDocument();
+  });
+
   it("filters by missing serial and opens the real device", async () => {
     const user = userEvent.setup();
     const onOpenDevice = vi.fn();

@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   deviceTypeLabel,
   hasPermission,
@@ -7,8 +7,7 @@ import {
   stateLabel,
   stateTone,
   titleCase,
-  typeTone,
-} from "./utils";
+  typeTone, copyText } from "./utils";
 import type { DeviceRecord } from "./types";
 
 const device = (device_type: string, overrides: Partial<DeviceRecord> = {}): DeviceRecord => ({
@@ -81,5 +80,16 @@ describe("utils", () => {
       key === "values.deviceTypes.access_point" ? "Access point" : options?.defaultValue ?? key) as unknown as TFunction;
     expect(deviceTypeLabel("access_point", t)).toBe("Access point");
     expect(deviceTypeLabel("Custom", t)).toBe("Custom");
+  });
+
+  it("copies text without the Clipboard API on plain HTTP", async () => {
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+
+    expect(await copyText("temporary-secret")).toBe(true);
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(document.querySelector("textarea")).toBeNull();
+    vi.unstubAllGlobals();
   });
 });

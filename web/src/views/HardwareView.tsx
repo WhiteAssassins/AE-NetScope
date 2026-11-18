@@ -77,7 +77,7 @@ export default function HardwareView({ devices, onOpenDevice }: HardwareViewProp
           <strong>{missingAssetTag}</strong>
           <span>{t("hardware.missingAssetTag")}</span>
         </article>
-        <article className="mini-stat green">
+        <article className="mini-stat orange">
           <strong>{warrantySoon}</strong>
           <span>{t("hardware.warrantySoon")}</span>
         </article>
@@ -200,7 +200,7 @@ function warrantyState(value: string | null) {
 
 function warrantyTone(value: string | null) {
   const state = warrantyState(value);
-  if (state === "expired") return "orange";
+  if (state === "expired") return "red";
   if (state === "soon") return "orange";
   if (state === "ok") return "green";
   return "gray";

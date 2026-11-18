@@ -69,6 +69,15 @@ export default function NotesView({
   });
 
   function selectDevice(device: DeviceRecord) {
+    // Switching devices replaces the editor, so unsaved notes are only dropped on request.
+    const hasUnsavedNotes = selectedDevice !== null && notes !== (selectedDevice.notes ?? "");
+    if (
+      hasUnsavedNotes &&
+      device.id !== selectedDevice.id &&
+      !window.confirm(t("notes.discardChanges", { name: selectedDevice.name }))
+    ) {
+      return;
+    }
     setSelectedDevice(device);
     setNotes(device.notes ?? "");
     setMessage("");

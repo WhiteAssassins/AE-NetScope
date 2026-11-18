@@ -2811,6 +2811,28 @@ th {
   color: #66728a;
 }
 
+.mini-pill.red {
+  background: #fde4e4;
+  color: #c62828;
+}
+
+/* The dot follows the record status; active keeps the default green. */
+.status-dot.orange {
+  background: #f07800;
+}
+
+.status-dot.gray {
+  background: #9aa5b8;
+}
+
+.inventory-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .hardware-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

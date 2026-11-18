@@ -44,6 +44,7 @@ import TopbarSystemStatus from "./components/TopbarSystemStatus";
 import { formatDateTime, storeRegionalPreferences } from "./dateTime";
 import { setLanguage } from "./i18n";
 import { readLocalSettings } from "./settings";
+import { watchForEndedSession } from "./sessionWatch";
 import { rememberSignedIn, wasSignedIn } from "./sessionHint";
 import type { LocalSettings } from "./settings";
 import { applySearchIndexingPolicy } from "./searchIndexing";
@@ -170,6 +171,8 @@ function App() {
     localSettings.startSidebarCollapsed,
   );
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [inventoryLoadFailed, setInventoryLoadFailed] = useState(false);
+  const [focusRequest, setFocusRequest] = useState(0);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [topbarHealth, setTopbarHealth] = useState<HealthStatus | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusInfo | null>(null);
@@ -180,17 +183,25 @@ function App() {
 
   const refreshInventory = useCallback(async () => {
     const epoch = authEpochRef.current;
-    const inventoryData = await fetchInventoryData();
+    let inventoryData: Awaited<ReturnType<typeof fetchInventoryData>>;
+    try {
+      inventoryData = await fetchInventoryData();
+    } catch (error) {
+      if (epoch === authEpochRef.current && activeUserRef.current) setInventoryLoadFailed(true);
+      throw error;
+    }
     if (epoch !== authEpochRef.current || !activeUserRef.current) return;
-    setDashboard(inventoryData.dashboard);
-    setDevices(inventoryData.devices);
-    setNetworks(inventoryData.networks);
-    setVlans(inventoryData.vlans);
-    setServices(inventoryData.services);
-    setIpMacs(inventoryData.ipMacs);
-    setInterfaces(inventoryData.interfaces);
-    setQuality(inventoryData.quality);
-    setLastUpdatedAt(new Date());
+    // Resources that failed keep their last loaded data instead of appearing empty.
+    if (inventoryData.dashboard) setDashboard(inventoryData.dashboard);
+    if (inventoryData.devices) setDevices(inventoryData.devices);
+    if (inventoryData.networks) setNetworks(inventoryData.networks);
+    if (inventoryData.vlans) setVlans(inventoryData.vlans);
+    if (inventoryData.services) setServices(inventoryData.services);
+    if (inventoryData.ipMacs) setIpMacs(inventoryData.ipMacs);
+    if (inventoryData.interfaces) setInterfaces(inventoryData.interfaces);
+    if (inventoryData.quality) setQuality(inventoryData.quality);
+    setInventoryLoadFailed(inventoryData.failed.length > 0);
+    if (!inventoryData.failed.length) setLastUpdatedAt(new Date());
   }, []);
 
   const updateCurrentUser = useCallback((nextUser: User | null) => {
@@ -218,11 +229,13 @@ function App() {
     setTopbarHealth(null);
     setUpdateStatus(null);
     setLastUpdatedAt(null);
+    setInventoryLoadFailed(false);
     setSearchQuery("");
     setActiveSearchIndex(0);
     setActiveTopbarMenu(null);
     setFocusTarget(null);
-    setView("dashboard");
+    // A new account opens on the preferred initial view, not always on the dashboard.
+    setView(readLocalSettings().defaultView);
     if (previousUser && nextUser && !previousUser.must_change_password && !nextUser.must_change_password) {
       refreshInventory().catch(() => undefined);
     }
@@ -287,6 +300,16 @@ function App() {
       })
       .finally(() => setIsLoading(false));
   }, [i18n, refreshInventory, updateCurrentUser]);
+
+  const signedIn = user !== null;
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    return watchForEndedSession(() => {
+      if (!activeUserRef.current) return;
+      updateCurrentUser(null);
+      setSessionMessage(i18n.t("auth.sessionExpired"));
+    });
+  }, [i18n, signedIn, updateCurrentUser]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -406,13 +429,22 @@ function App() {
   }
 
   async function handleLogout() {
-    await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "X-CSRF-Token": csrfToken },
-    });
+    // The browser always leaves the account; if the server could not end the session,
+    // the sign-in screen says so instead of implying the session is closed.
+    let serverSignedOut: boolean;
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-CSRF-Token": csrfToken },
+      });
+      serverSignedOut = response.ok || response.status === 401;
+    } catch {
+      serverSignedOut = false;
+    }
     updateCurrentUser(null);
     setCsrfToken("");
+    setSessionMessage(serverSignedOut ? "" : t("auth.signOutIncomplete"));
   }
 
   const visibleManagedUsers = user?.permissions.includes("users:manage") && !user.must_change_password
@@ -565,6 +597,8 @@ function App() {
   function goToView(nextView: ViewName, target?: SearchTarget) {
     setView(nextView);
     setFocusTarget(target ?? null);
+    // Each navigation is a new request, so opening the same record again still works.
+    setFocusRequest((current) => current + 1);
     setSearchQuery("");
     setActiveTopbarMenu(null);
   }
@@ -611,6 +645,10 @@ function App() {
     return (
       <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
         <SetupScreen
+          onAlreadyCompleted={() => {
+            setSetupRequired(false);
+            setSessionMessage(t("setup.alreadyCompleted"));
+          }}
           tokenRequired={setupTokenRequired}
           onSetupComplete={(nextUser, nextCsrfToken) => {
             void setLanguage(nextUser.preferred_language);
@@ -628,6 +666,7 @@ function App() {
     return (
       <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
         <LoginScreen
+          maintenanceMessage={maintenanceStatus?.enabled ? maintenanceStatus.message : null}
           message={sessionMessage}
           onLogin={(nextUser, nextCsrfToken) => {
             void setLanguage(nextUser.preferred_language);
@@ -654,6 +693,7 @@ function App() {
       <Suspense fallback={<div className="auth-loading">AE NetScope</div>}>
         <ChangePasswordScreen
           csrfToken={csrfToken}
+          onSignOut={() => void handleLogout()}
           onPasswordChanged={(nextUser) => {
             updateCurrentUser(nextUser);
             refreshInventory().catch(() => undefined);
@@ -894,6 +934,14 @@ function App() {
           </div>
         </header>
 
+        {inventoryLoadFailed && (
+          <div className="inline-error inventory-load-error" role="alert">
+            <span>{t("inventory.loadFailed")}</span>
+            <button className="user-action" onClick={() => void refreshInventory().catch(() => undefined)} type="button">
+              {t("common.retry")}
+            </button>
+          </div>
+        )}
         {maintenanceStatus?.enabled && (
           <div className="maintenance-banner" role="status">
             <Wrench size={18} />
@@ -961,6 +1009,7 @@ function App() {
             csrfToken={csrfToken}
             devices={devices}
             focusDeviceId={focusTarget?.view === "devices" ? focusTarget.id : undefined}
+            focusRequest={focusRequest}
             networks={networks}
             onCreated={refreshInventory}
             permissions={currentUser.permissions}
@@ -974,6 +1023,7 @@ function App() {
           <IpMacsView
             csrfToken={csrfToken}
             focusIpId={focusTarget?.view === "ipMacs" ? focusTarget.id : undefined}
+            focusRequest={focusRequest}
             interfaces={interfaces}
             ipMacs={ipMacs}
             networks={networks}
@@ -989,6 +1039,7 @@ function App() {
           <NetworksView
             csrfToken={csrfToken}
             focusNetworkId={focusTarget?.view === "networks" ? focusTarget.id : undefined}
+            focusRequest={focusRequest}
             networks={networks}
             onChanged={refreshInventory}
             permissions={currentUser.permissions}
@@ -1029,6 +1080,7 @@ function App() {
           <VlansView
             csrfToken={csrfToken}
             focusVlanId={focusTarget?.view === "vlans" ? focusTarget.id : undefined}
+            focusRequest={focusRequest}
             onChanged={refreshInventory}
             permissions={currentUser.permissions}
             vlans={vlans}
@@ -1043,6 +1095,7 @@ function App() {
             csrfToken={csrfToken}
             devices={devices}
             focusServiceId={focusTarget?.view === "services" ? focusTarget.id : undefined}
+            focusRequest={focusRequest}
             onChanged={refreshInventory}
             permissions={currentUser.permissions}
             services={services}

@@ -1,12 +1,16 @@
 import { Download, FileJson, RotateCcw, Table, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import {
   type BackupCounts,
   type BackupPreview,
+  BackupTooLargeError,
   downloadJson,
+  fetchImportLimits,
+  type ImportLimits,
   previewBackup,
+  RestoreError,
   restoreBackupPayload,
 } from "../backupImport";
 import { hasPermission } from "../utils";
@@ -45,6 +49,24 @@ export default function ImportExportView({
   const canReadInventory = hasPermission(permissions, "inventory:read");
   const canRestoreInventory = hasPermission(permissions, "settings:manage");
   const canExportInventory = hasPermission(permissions, "inventory:export");
+  const [importLimits, setImportLimits] = useState<ImportLimits | null>(null);
+
+  useEffect(() => {
+    if (!canRestoreInventory) return undefined;
+    let active = true;
+    fetchImportLimits()
+      .then((limits) => {
+        if (active) setImportLimits(limits);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [canRestoreInventory]);
+
+  const maxImportMegabytes = importLimits
+    ? (importLimits.max_bytes / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })
+    : "";
 
   function openExport(path: string) {
     window.open(`${API_BASE_URL}${path}`, "_blank", "noopener,noreferrer");
@@ -56,6 +78,11 @@ export default function ImportExportView({
     setError("");
     setPendingPayload(null);
     setPreview(null);
+    if (importLimits && file.size > importLimits.max_bytes) {
+      setError(t("data.errors.tooLarge", { size: maxImportMegabytes }));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setIsPreviewing(true);
     let payload: unknown;
     try {
@@ -78,8 +105,12 @@ export default function ImportExportView({
       } else {
         setError(t("data.errors.validation"));
       }
-    } catch {
-      setError(t("data.errors.preview"));
+    } catch (previewError) {
+      setError(
+        previewError instanceof BackupTooLargeError
+          ? t("data.errors.tooLarge", { size: maxImportMegabytes || "?" })
+          : t("data.errors.preview"),
+      );
     } finally {
       setIsPreviewing(false);
       if (fileInputRef.current) {
@@ -113,8 +144,8 @@ export default function ImportExportView({
       );
       setPendingPayload(null);
       setPreview(null);
-    } catch {
-      setError(t("data.errors.restore"));
+    } catch (restoreError) {
+      setError(t(restoreErrorKey(restoreError)));
     } finally {
       setIsImporting(false);
     }
@@ -172,6 +203,11 @@ export default function ImportExportView({
               <p>{t("data.fullBackupDescription")}</p>
             </div>
             {!canExportInventory && <p className="muted-note">{t("data.noPermission")}</p>}
+            {importLimits && !importLimits.current_backup_restorable && (
+              <p className="inline-error" role="alert">
+                {t("data.backupExceedsRestoreLimit", { size: maxImportMegabytes })}
+              </p>
+            )}
             <button
               className="primary-action"
               disabled={!canExportInventory}
@@ -319,4 +355,14 @@ function PreviewCount({ counts, label }: { counts: BackupCounts; label: string }
       <span>{t("services.count", { count: counts.services })}</span>
     </div>
   );
+}
+
+// Every rejected restore leaves the inventory unchanged; the message says why.
+function restoreErrorKey(error: unknown) {
+  if (!(error instanceof RestoreError)) return "data.errors.restore";
+  if (error.status === 409) return "data.errors.restoreDuplicates";
+  if (error.status === 413) return "data.errors.restoreTooLarge";
+  if (error.status === 422) return "data.errors.restoreInvalid";
+  if (error.status >= 500) return "data.errors.restoreNotStarted";
+  return "data.errors.restore";
 }

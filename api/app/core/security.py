@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import secrets
@@ -51,6 +52,20 @@ def generate_session_token() -> str:
 
 def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def session_csrf_token(session_token: str) -> str:
+    """Return the CSRF token bound to a session.
+
+    It is derived from the session token, so every tab of the same session receives the
+    same value and asking for it in a new tab does not invalidate the others.
+    """
+    digest = hmac.new(
+        settings.session_secret.encode("utf-8"),
+        f"csrf-v2:{session_token}".encode(),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def hash_session_token(token: str) -> str:

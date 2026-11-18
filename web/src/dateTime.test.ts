@@ -44,4 +44,11 @@ describe("regional date and time preferences", () => {
     ).toBe(false);
     setItem.mockRestore();
   });
+
+  it("keeps working with a time zone the browser rejects or a value that is not a date", () => {
+    storeRegionalPreferences({ timezone: "Factory", date_format: "ymd", hour_format: "24" });
+
+    expect(formatDateTime("2026-07-20T18:30:00Z", "en")).toBe("2026/07/20, 18:30:00");
+    expect(formatDateTime("not a date", "en")).toBe("not a date");
+  });
 });

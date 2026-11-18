@@ -84,7 +84,7 @@ describe("api client", () => {
     await expect(fetchInventoryData()).rejects.toThrow("unauthorized");
   });
 
-  it("returns empty lists when optional inventory resources fail", async () => {
+  it("reports failed inventory resources instead of returning empty lists", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -96,13 +96,15 @@ describe("api client", () => {
 
     const data = await fetchInventoryData();
 
+    // An empty list is only returned for a resource that really is empty.
     expect(data.devices).toEqual([]);
-    expect(data.networks).toEqual([]);
-    expect(data.vlans).toEqual([]);
-    expect(data.services).toEqual([]);
-    expect(data.ipMacs).toEqual([]);
-    expect(data.interfaces).toEqual([]);
+    expect(data.networks).toBeNull();
+    expect(data.vlans).toBeNull();
+    expect(data.services).toBeNull();
+    expect(data.ipMacs).toBeNull();
+    expect(data.interfaces).toBeNull();
     expect(data.quality).toBeNull();
+    expect(data.failed).toEqual(["networks", "vlans", "services", "ipMacs", "interfaces", "quality"]);
   });
 
   it("fetches installed version information from the API", async () => {

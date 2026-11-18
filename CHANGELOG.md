@@ -40,6 +40,64 @@ All notable changes to AE NetScope will be documented in this file.
 - Cleared earlier errors and messages in the security settings, and translated unknown browsers and systems in the session list.
 - Disabled closing other sessions for your own account when only the current session is active, and cleared earlier success messages in user management when a later action fails.
 - Started each new integration token as read-only with the default expiry, instead of reusing the previous token's access.
+- Trimmed inventory names and rejected blank ones, so padded names no longer create duplicates.
+- Limited device, subnet and service statuses to the values the interface offers, accepting common Spanish names and any letter case.
+- Required warranty expiry dates in `YYYY-MM-DD` format, stored a blank value as empty, and required a service protocol, stored in lowercase.
+- Accepted MAC addresses written with hyphens, Cisco dotted groups or no separators, stored as lowercase colon pairs.
+- Restored backups from earlier versions that contain values the stricter rules reject: unrecognized statuses become `unknown`, a blank protocol becomes `other`, and a warranty that is not a date moves into the device notes.
+- Reported IP addresses of deactivated devices as inactive, with a matching filter.
+- Recorded the client address in every audit event, including inventory changes.
+- Explained validation and conflict errors through the MCP server, instead of a generic message.
+- Set short Redis connection timeouts, so an unreachable Redis no longer holds sign-in and health checks.
+- Kept the last loaded inventory and showed a warning when part of it cannot be loaded, instead of showing empty lists.
+- Reported network failures in device details, prevented repeated actions while one is running, and kept the panel on the device opened last.
+- Explained inventory save errors, such as an IP outside the subnet or IPs a CIDR change would leave out, and limited form fields to the lengths the API accepts.
+- Colored device status dots by status, and showed expired warranties apart from those expiring soon.
+- Asked before discarding unsaved notes and before deactivating a device, and hid deactivation for inactive devices.
+- Opened the first subnets in the topology when the inventory loads after the view.
+- Kept the confirmation visible after deleting a subnet, IP address, service or VLAN.
+- Answered unknown API paths with `404` instead of the web page when the interface is served by the application.
+- Listed five recent devices on the dashboard when devices have several addresses, chose the busiest subnet from every subnet, and summarized service status by relevance instead of alphabetical order.
+- Loaded subnet and VLAN address counts with grouped queries instead of one query per subnet.
+- Trimmed optional inventory details and stored blank ones as empty, so they no longer count as documented.
+- Gave every tab of a session the same CSRF token, so opening a new tab no longer breaks saves in the others.
+- Accepted authenticator codes written with a space or hyphen, as authenticator apps display them.
+- Kept the session readable during maintenance, showed the maintenance notice on the sign-in screen, and returned to sign-in with an explanation when the session ends while the app is open.
+- Reported whether a backup of the current inventory fits the restore limit, and explained backups that are too large to restore.
+- Cleared failed password attempts after a passkey sign-in.
+- Explained rate limits, outages and unsupported passkeys on the sign-in screen instead of reporting invalid credentials.
+- Sent a browser to sign-in when another one completed the initial setup.
+- Kept unlisted service protocols in the edit form and added an unknown status filter for services.
+- Stopped reporting an unchanged account email as changed, and cleared a rejected password from the email form.
+- Left protected values that no configured key can decrypt untouched at startup, instead of re-encrypting the ciphertext and making it unrecoverable after a key rotation without its fallback key, and skipped the full scan when no rotation is configured.
+- Revoked integration tokens when a password is changed or reset, multi-factor authentication is reset, or the account is deactivated.
+- Rejected time zones that browsers cannot use, passwords made only of spaces, and blank integration token and passkey names.
+- Downloaded the JSON backup as a file, and put identifying columns first in CSV exports.
+- Read a full page of GitHub releases, so an older stable release stays visible behind many prereleases.
+- Removed revoked and expired integration tokens after the session record retention period.
+- Kept every page working with an unsupported time zone or a value that is not a date, and kept a saved time zone that the browser lists under another name.
+- Opened the preferred initial view after signing in.
+- Listed printers, phones, sensors, IoT and access-control devices as physical hardware.
+- Requested release history by channel, and offered release screenshots as links.
+- Searched and grouped older audit events through the API.
+- Stopped counting your own actions as unread notifications.
+- Explained why a restore was rejected and that the inventory was not changed.
+- Rejected a pasted setup token with accented or other non-ASCII characters with `403` instead of a server error.
+- Answered requests that need protected data no configured key can decrypt with `503` and the missing key setting, instead of a server error.
+- Started automatic updates only for published releases newer than the installed version, since migrations cannot be undone.
+- Added indexes on the subnet, interface, device, VLAN and actor columns used by inventory and audit queries (migration `0016_foreign_key_indexes`).
+- Recorded interface, address and service changes as the device's last change.
+- Kept the language and time zone of the setup screen for the first administrator.
+- Rejected a subnet for an interface without an IP address, instead of ignoring it.
+- Searched audit event types and actors across the whole history, not only the latest 2,000 events.
+- Ended the session on sign-out without requiring a CSRF token, and reported the remaining time of a rate limit window in `Retry-After`.
+- Opened the same record again from search and notifications, and stopped reselecting a record reached through navigation after saving another one.
+- Used the bundled language for regional variants such as `es-MX`, and the browser language on a first visit.
+- Kept the unknown status of subnets and services in their edit forms.
+- Told users when signing out could not reach the server, and offered signing out from the mandatory password change.
+- Explained whether the current or the new password was rejected.
+- Asked for an IP address when a subnet is chosen for a new interface.
+- Copied temporary passwords on installations reached over plain HTTP.
 
 ### Documentation
 

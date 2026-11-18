@@ -562,6 +562,24 @@ def service_to_record(
     )
 
 
+async def touch_devices(session: AsyncSession, *device_ids: int | None) -> None:
+    """Record a change to a device's interfaces, addresses or services as its last change."""
+    now = datetime.now(UTC)
+    for device_id in {item for item in device_ids if item is not None}:
+        device = await session.get(Device, device_id)
+        if device is not None:
+            device.updated_at = now
+    await session.flush()
+
+
+async def interface_device_id(session: AsyncSession, interface_id: int | None) -> int | None:
+    if interface_id is None:
+        return None
+    return await session.scalar(
+        select(NetworkInterface.device_id).where(NetworkInterface.id == interface_id)
+    )
+
+
 async def add_device_interface(
     session: AsyncSession,
     device: Device,
@@ -727,15 +745,22 @@ def ip_address_to_record(
         network_cidr=network.cidr if network else None,
         vlan_id=vlan.vlan_id if vlan else None,
         vlan_name=vlan.name if vlan else None,
-        state=ip_address_state(ip_address, interface),
+        state=ip_address_state(ip_address, interface, device),
     )
 
 
-def ip_address_state(ip_address: IpAddress, interface: NetworkInterface | None) -> str:
+def ip_address_state(
+    ip_address: IpAddress,
+    interface: NetworkInterface | None,
+    device: Device | None = None,
+) -> str:
     if ip_address.assignment_type == "reserved":
         return "reserved"
     if interface is None:
         return "unassigned"
+    # An address on a deactivated device is documented but not in use.
+    if device is not None and device.status == "inactive":
+        return "inactive"
     return "active"
 
 
@@ -850,20 +875,31 @@ async def device_to_detail_response(session: AsyncSession, device: Device) -> De
 
 
 async def list_vlans(session: AsyncSession) -> list[VlanSummaryResponse]:
-    result = await session.execute(select(Vlan).order_by(Vlan.vlan_id))
-    return [await vlan_to_summary_response(session, vlan) for vlan in result.scalars()]
+    vlans = list((await session.scalars(select(Vlan).order_by(Vlan.vlan_id))).all())
+    networks_by_vlan: dict[int, list[Network]] = defaultdict(list)
+    for network in await session.scalars(select(Network).where(Network.vlan_id.is_not(None))):
+        networks_by_vlan[network.vlan_id].append(network)
+    ip_counts = await ip_counts_by_network(session)
+    return [
+        vlan_summary(vlan, networks_by_vlan[vlan.id], ip_counts) for vlan in vlans
+    ]
 
 
 async def vlan_to_summary_response(session: AsyncSession, vlan: Vlan) -> VlanSummaryResponse:
-    network_rows = await session.execute(select(Network).where(Network.vlan_id == vlan.id))
-    networks = list(network_rows.scalars())
+    networks = list(
+        (await session.scalars(select(Network).where(Network.vlan_id == vlan.id))).all()
+    )
+    return vlan_summary(vlan, networks, await ip_counts_by_network(session))
+
+
+def vlan_summary(
+    vlan: Vlan, networks: list[Network], ip_counts: dict[int, int]
+) -> VlanSummaryResponse:
     ip_count = 0
     ipv4_ip_count = 0
     usable_hosts = 0
     for network in networks:
-        network_ip_count = await session.scalar(
-            select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
-        ) or 0
+        network_ip_count = ip_counts.get(network.id, 0)
         ip_count += network_ip_count
         # IPv6 subnets hold far more addresses than any inventory and than a JSON number
         # can carry exactly, so VLAN capacity and usage summarize the IPv4 subnets.
@@ -886,15 +922,33 @@ async def vlan_to_summary_response(session: AsyncSession, vlan: Vlan) -> VlanSum
     )
 
 
+async def ip_counts_by_network(session: AsyncSession) -> dict[int, int]:
+    """Count addresses for every subnet in one query instead of one query per subnet."""
+    rows = await session.execute(
+        select(IpAddress.network_id, func.count(IpAddress.id))
+        .where(IpAddress.network_id.is_not(None))
+        .group_by(IpAddress.network_id)
+    )
+    return {network_id: count for network_id, count in rows.all()}
+
+
+async def device_counts_by_network(session: AsyncSession) -> dict[int, int]:
+    rows = await session.execute(
+        select(IpAddress.network_id, func.count(func.distinct(NetworkInterface.device_id)))
+        .join(NetworkInterface, IpAddress.interface_id == NetworkInterface.id)
+        .where(IpAddress.network_id.is_not(None))
+        .group_by(IpAddress.network_id)
+    )
+    return {network_id: count for network_id, count in rows.all()}
+
+
 async def list_networks(session: AsyncSession) -> list[NetworkResponse]:
     result = await session.execute(select(Network, Vlan).outerjoin(Vlan))
-    responses: list[NetworkResponse] = []
-    for network, vlan in sorted(result.all(), key=lambda row: cidr_sort_key(row[0].cidr)):
-        ip_count = await session.scalar(
-            select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
-        )
-        responses.append(network_response(network, vlan, ip_count or 0))
-    return responses
+    ip_counts = await ip_counts_by_network(session)
+    return [
+        network_response(network, vlan, ip_counts.get(network.id, 0))
+        for network, vlan in sorted(result.all(), key=lambda row: cidr_sort_key(row[0].cidr))
+    ]
 
 
 async def network_to_response(session: AsyncSession, network: Network) -> NetworkResponse:
@@ -950,7 +1004,12 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
         or 0,
     )
 
-    device_rows = await session.execute(device_select().limit(5))
+    # Limit devices before joining their interfaces and addresses, which repeat a device
+    # once per address and would otherwise leave fewer than five recent devices.
+    recent_ids = (
+        select(Device.id).order_by(Device.updated_at.desc(), Device.id.desc()).limit(5)
+    ).scalar_subquery()
+    device_rows = await session.execute(device_select().where(Device.id.in_(recent_ids)))
     recent_devices: list[RecentDevice] = []
     seen: set[int] = set()
     for device, ip_address, mac_address in device_rows.all():
@@ -970,60 +1029,71 @@ async def dashboard_summary(session: AsyncSession) -> DashboardSummary:
         )
 
     service_rows = await session.execute(
-        select(
-            Service.name,
-            func.count(func.distinct(Service.device_id)),
-            func.max(Service.status),
-        )
-        .group_by(Service.name)
-        .order_by(Service.name)
+        select(Service.name, Service.device_id, Service.status).order_by(Service.name)
     )
+    devices_by_service: dict[str, set[int]] = defaultdict(set)
+    statuses_by_service: dict[str, set[str]] = defaultdict(set)
+    for name, device_id, service_status in service_rows.all():
+        devices_by_service[name].add(device_id)
+        statuses_by_service[name].add(service_status or "active")
     services = [
-        ServiceSummary(name=name, device_count=count, status=status or "active")
-        for name, count, status in service_rows.all()
+        ServiceSummary(
+            name=name,
+            device_count=len(device_ids),
+            status=summary_service_status(statuses_by_service[name]),
+        )
+        for name, device_ids in devices_by_service.items()
     ]
 
     network_rows = await session.execute(select(Network, Vlan).outerjoin(Vlan))
-    first_networks = sorted(network_rows.all(), key=lambda row: cidr_sort_key(row[0].cidr))[:4]
-    networks: list[NetworkNode] = []
-    for network, vlan in first_networks:
-        device_count = await session.scalar(
-            select(func.count(func.distinct(NetworkInterface.device_id)))
-            .join(IpAddress, IpAddress.interface_id == NetworkInterface.id)
-            .where(IpAddress.network_id == network.id)
-        )
-        ip_count = await session.scalar(
-            select(func.count(IpAddress.id)).where(IpAddress.network_id == network.id)
-        )
+    sorted_networks = sorted(network_rows.all(), key=lambda row: cidr_sort_key(row[0].cidr))
+    ip_counts = await ip_counts_by_network(session)
+    device_counts = await device_counts_by_network(session)
+
+    def network_node(network: Network, vlan: Vlan | None) -> NetworkNode:
+        ip_count = ip_counts.get(network.id, 0)
         usable_hosts = network_usable_hosts(network.cidr)
-        utilization_percent = (
-            round(((ip_count or 0) / usable_hosts) * 100, 1) if usable_hosts else 0
-        )
-        networks.append(
-            NetworkNode(
-                cidr=network.cidr,
-                name=network.name,
-                device_count=device_count or 0,
-                ip_count=ip_count or 0,
-                usable_hosts=usable_hosts,
-                utilization_percent=utilization_percent,
-                vlan=VlanResponse(
-                    id=vlan.id,
-                    vlan_id=vlan.vlan_id,
-                    name=vlan.name,
-                    description=vlan.description,
-                )
-                if vlan
-                else None,
+        return NetworkNode(
+            cidr=network.cidr,
+            name=network.name,
+            device_count=device_counts.get(network.id, 0),
+            ip_count=ip_count,
+            usable_hosts=usable_hosts,
+            utilization_percent=round((ip_count / usable_hosts) * 100, 1) if usable_hosts else 0,
+            vlan=VlanResponse(
+                id=vlan.id,
+                vlan_id=vlan.vlan_id,
+                name=vlan.name,
+                description=vlan.description,
             )
+            if vlan
+            else None,
         )
 
+    # The busiest subnet is chosen from every subnet, not only the four that are listed.
+    busiest = max(
+        (row for row in sorted_networks if ip_counts.get(row[0].id, 0)),
+        key=lambda row: ip_counts.get(row[0].id, 0),
+        default=None,
+    )
     return DashboardSummary(
         stats=stats,
         recent_devices=recent_devices,
         services=services,
-        networks=networks,
+        networks=[network_node(network, vlan) for network, vlan in sorted_networks[:4]],
+        busiest_network=network_node(*busiest) if busiest else None,
     )
+
+
+# Most attention-worthy first: one degraded or stopped instance describes the service.
+SERVICE_STATUS_PRIORITY = ("warning", "inactive", "unknown", "active")
+
+
+def summary_service_status(statuses: set[str]) -> str:
+    for candidate in SERVICE_STATUS_PRIORITY:
+        if candidate in statuses:
+            return candidate
+    return sorted(statuses)[0] if statuses else "active"
 
 
 async def count_rows(session: AsyncSession, model: type) -> int:

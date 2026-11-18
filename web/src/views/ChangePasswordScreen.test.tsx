@@ -104,4 +104,30 @@ describe("ChangePasswordScreen", () => {
       await screen.findByText("Your session expired. Sign in again."),
     ).toBeInTheDocument();
   });
+
+  it("explains why a password change failed and allows signing out", async () => {
+    const user = userEvent.setup();
+    const onSignOut = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ detail: "Current password is invalid." }, 400))
+        .mockResolvedValueOnce(jsonResponse({ detail: [{ msg: "Value error" }] }, 422)),
+    );
+    render(
+      <ChangePasswordScreen csrfToken="csrf" onPasswordChanged={vi.fn()} onSignOut={onSignOut} />,
+    );
+    await user.type(screen.getByLabelText("Current password"), "old-secure-password");
+    await user.type(screen.getByLabelText("New password"), "new-secure-password");
+    await user.type(screen.getByLabelText("Confirm password"), "new-secure-password");
+
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    expect(await screen.findByText("The current password is incorrect.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    expect(await screen.findByText(/The new password was rejected/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
 });

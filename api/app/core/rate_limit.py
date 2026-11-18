@@ -33,10 +33,12 @@ def rate_limit(scope: str, *, limit: int | None = None, window_seconds: int = 60
             await redis.aclose()
 
         if current > max_requests:
+            # The counter resets when the current window ends, not a full window later.
+            retry_after = max(1, int((bucket + 1) * window_seconds - time.time()))
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Too many requests. Try again later.",
-                headers={"Retry-After": str(window_seconds)},
+                headers={"Retry-After": str(retry_after)},
             )
 
     return dependency

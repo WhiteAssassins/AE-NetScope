@@ -1,6 +1,10 @@
+import re
 from datetime import datetime
+from functools import lru_cache
+from typing import Annotated
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator
 
 from app.schemas.email import AccountEmail
 
@@ -8,10 +12,38 @@ from app.schemas.email import AccountEmail
 SUPPORTED_LANGUAGES = ("en", "es")
 
 
+def strip_code_separators(value: object) -> object:
+    # Authenticator apps display "123 456"; password managers may paste it that way.
+    return re.sub(r"[\s-]", "", value) if isinstance(value, str) else value
+
+
+def require_meaningful_password(value: str) -> str:
+    # Spaces count inside a passphrase, but a password cannot be padding alone.
+    if len(value.strip()) < 12:
+        raise ValueError("Password must contain at least 12 characters besides surrounding spaces.")
+    return value
+
+
+NewPassword = Annotated[
+    str, Field(min_length=12, max_length=1024), AfterValidator(require_meaningful_password)
+]
+
+# Names in the time zone database that browsers do not accept as a time zone.
+UNSUPPORTED_BROWSER_TIMEZONES = frozenset({"Factory", "localtime"})
+
+
+@lru_cache(maxsize=1)
+def supported_timezones() -> frozenset[str]:
+    return frozenset(available_timezones() - UNSUPPORTED_BROWSER_TIMEZONES)
+
+
+TotpCode = Annotated[str, BeforeValidator(strip_code_separators), Field(pattern=r"^\d{6}$")]
+
+
 class LoginRequest(BaseModel):
     email: AccountEmail
     password: str = Field(min_length=1, max_length=1024)
-    totp_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    totp_code: TotpCode | None = None
 
 
 class InitialSetupStatusResponse(BaseModel):
@@ -22,8 +54,27 @@ class InitialSetupStatusResponse(BaseModel):
 class InitialSetupRequest(BaseModel):
     email: AccountEmail
     username: str = Field(min_length=2, max_length=80)
-    password: str = Field(min_length=12, max_length=1024)
+    password: NewPassword
     setup_token: str | None = Field(default=None, min_length=16, max_length=1024)
+    # The administrator keeps the language and time zone the setup screen used.
+    language: str | None = Field(default=None, max_length=64)
+    timezone: str | None = Field(default=None, max_length=64)
+
+    @field_validator("language")
+    @classmethod
+    def optional_supported_language(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized.split("-", 1)[0] not in SUPPORTED_LANGUAGES:
+            return None
+        return normalized
+
+    @field_validator("timezone")
+    @classmethod
+    def optional_browser_timezone(cls, value: str | None) -> str | None:
+        # An unknown zone falls back to UTC instead of blocking the first sign-in.
+        return value if value in supported_timezones() else None
 
     @field_validator("setup_token", mode="before")
     @classmethod
@@ -68,7 +119,7 @@ class CsrfResponse(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
-    new_password: str = Field(min_length=12, max_length=1024)
+    new_password: NewPassword
 
 
 class ChangeEmailRequest(BaseModel):
@@ -94,6 +145,14 @@ class ChangeLanguageRequest(BaseModel):
 
 class ChangeRegionalPreferencesRequest(BaseModel):
     timezone: str = Field(min_length=1, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def require_browser_timezone(cls, value: str) -> str:
+        # Every page formats dates in this zone, so it must be one browsers understand.
+        if value not in supported_timezones():
+            raise ValueError("Unsupported timezone.")
+        return value
     date_format: str = Field(pattern=r"^(locale|ymd|dmy|mdy)$")
     hour_format: str = Field(pattern=r"^(12|24)$")
 
@@ -133,9 +192,9 @@ class TotpSetupResponse(BaseModel):
 
 
 class TotpConfirmRequest(BaseModel):
-    code: str = Field(pattern=r"^\d{6}$")
+    code: TotpCode
 
 
 class TotpDisableRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=1024)
-    code: str = Field(pattern=r"^\d{6}$")
+    code: TotpCode

@@ -48,21 +48,35 @@ export async function fetchInventoryData() {
     throw new Error("unauthorized");
   }
 
+  // A failed resource is reported as null, never as an empty list, so callers can keep
+  // the last loaded data instead of showing an inventory that looks empty.
+  const responses = {
+    dashboard: dashboardResponse,
+    devices: devicesResponse,
+    networks: networksResponse,
+    vlans: vlansResponse,
+    services: servicesResponse,
+    ipMacs: ipMacsResponse,
+    interfaces: interfacesResponse,
+    quality: qualityResponse,
+  };
+  const failed = Object.entries(responses)
+    .filter(([, response]) => !response.ok)
+    .map(([name]) => name);
+  async function body<T>(response: Response) {
+    return response.ok ? ((await response.json()) as T) : null;
+  }
+
   return {
-    dashboard: dashboardResponse.ok
-      ? ((await dashboardResponse.json()) as DashboardSummary)
-      : null,
-    devices: devicesResponse.ok ? ((await devicesResponse.json()) as DeviceRecord[]) : [],
-    networks: networksResponse.ok ? ((await networksResponse.json()) as NetworkRecord[]) : [],
-    vlans: vlansResponse.ok ? ((await vlansResponse.json()) as VlanRecord[]) : [],
-    services: servicesResponse.ok ? ((await servicesResponse.json()) as ServiceRecord[]) : [],
-    ipMacs: ipMacsResponse.ok ? ((await ipMacsResponse.json()) as IpMacRecord[]) : [],
-    interfaces: interfacesResponse.ok
-      ? ((await interfacesResponse.json()) as InterfaceRecord[])
-      : [],
-    quality: qualityResponse.ok
-      ? ((await qualityResponse.json()) as InventoryQualityReport)
-      : null,
+    failed,
+    dashboard: await body<DashboardSummary>(dashboardResponse),
+    devices: await body<DeviceRecord[]>(devicesResponse),
+    networks: await body<NetworkRecord[]>(networksResponse),
+    vlans: await body<VlanRecord[]>(vlansResponse),
+    services: await body<ServiceRecord[]>(servicesResponse),
+    ipMacs: await body<IpMacRecord[]>(ipMacsResponse),
+    interfaces: await body<InterfaceRecord[]>(interfacesResponse),
+    quality: await body<InventoryQualityReport>(qualityResponse),
   };
 }
 
@@ -104,8 +118,11 @@ export async function fetchUpdateStatus() {
   return (await response.json()) as UpdateStatusInfo;
 }
 
-export async function fetchReleaseHistory(limit = 5) {
-  const params = new URLSearchParams({ channel: "all", limit: String(limit) });
+export async function fetchReleaseHistory(
+  limit = 5,
+  channel: "all" | "stable" | "prerelease" = "all",
+) {
+  const params = new URLSearchParams({ channel, limit: String(limit) });
   const response = await fetch(`${API_BASE_URL}/version/releases?${params}`, {
     credentials: "include",
   });

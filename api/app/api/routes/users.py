@@ -18,6 +18,7 @@ from app.schemas.users import (
     ManagedUserUpdate,
 )
 from app.services.audit import write_audit_event
+from app.services.integrations import revoke_integration_tokens
 from app.services.users import (
     LastAdminError,
     create_managed_user,
@@ -239,6 +240,7 @@ async def reset_user_password_endpoint(
 
     user, temporary_password = await reset_managed_user_password(session, user)
     await revoke_user_sessions(session, user)
+    await revoke_integration_tokens(session, user)
     await write_audit_event(
         session,
         "users.password_reset",
@@ -283,6 +285,7 @@ async def reset_user_mfa_endpoint(
     user.last_totp_counter = None
     await session.execute(delete(WebAuthnCredential).where(WebAuthnCredential.user_id == user.id))
     await revoke_user_sessions(session, user)
+    await revoke_integration_tokens(session, user)
     await write_audit_event(
         session,
         "users.mfa_reset",
@@ -321,6 +324,8 @@ async def delete_user_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except_session_id = current_session.id if user.id == current_user.id else None
     await revoke_user_sessions(session, user, except_session_id=except_session_id)
+    # Reactivating the account later must not bring its old tokens back.
+    await revoke_integration_tokens(session, user)
 
     await write_audit_event(
         session,

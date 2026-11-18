@@ -1,19 +1,21 @@
 import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { VlanRecord } from "../types";
-import { hasPermission } from "../utils";
+import { hasPermission, inventoryErrorMessage, inventoryFieldLimits } from "../utils";
 export default function VlansView({
   csrfToken,
   focusVlanId,
+  focusRequest,
   vlans,
   onChanged,
   permissions,
 }: {
   csrfToken: string;
   focusVlanId?: number;
+  focusRequest?: number;
   vlans: VlanRecord[];
   onChanged: () => Promise<void>;
   permissions: string[];
@@ -21,6 +23,7 @@ export default function VlansView({
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const appliedFocusRef = useRef<string | null>(null);
   const [selectedVlan, setSelectedVlan] = useState<VlanRecord | null>(null);
   const [form, setForm] = useState({
     vlan_id: "",
@@ -34,18 +37,22 @@ export default function VlansView({
   const canUpdate = hasPermission(permissions, "vlans:update");
   const canDelete = hasPermission(permissions, "vlans:delete");
 
+  // A refreshed list must not reselect the record a navigation focused earlier, which
+  // would discard the form and its confirmation after saving another record.
   useEffect(() => {
     if (!focusVlanId) {
       return;
     }
     const vlan = vlans.find((item) => item.id === focusVlanId);
-    if (vlan) {
+    const focusKey = `${focusVlanId}:${focusRequest ?? 0}`;
+    if (vlan && appliedFocusRef.current !== focusKey) {
+      appliedFocusRef.current = focusKey;
       queueMicrotask(() => {
         selectVlan(vlan);
         setQuery(String(vlan.vlan_id));
       });
     }
-  }, [focusVlanId, vlans]);
+  }, [focusVlanId, focusRequest, vlans]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredVlans = vlans.filter((vlan) => {
@@ -111,7 +118,7 @@ export default function VlansView({
       });
 
       if (!response.ok) {
-        setError(t("vlans.errors.save"));
+        setError(await inventoryErrorMessage(response, "vlans.errors.save", t));
         return;
       }
 
@@ -151,8 +158,8 @@ export default function VlansView({
       }
 
       setMessage(t("vlans.deleted"));
+      // The form stays open in creation mode so the confirmation remains visible.
       resetForm();
-      setShowForm(false);
       await onChanged();
     } catch {
       setError(t("auth.apiUnavailable"));
@@ -271,6 +278,7 @@ export default function VlansView({
               <label>
                 {t("common.name")}
                 <input
+                  maxLength={inventoryFieldLimits.name}
                   onChange={(event) => updateField("name", event.target.value)}
                   required
                   value={form.name}

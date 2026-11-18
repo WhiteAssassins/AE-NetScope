@@ -1,13 +1,14 @@
 import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE_URL } from "../api";
 import type { InterfaceRecord, IpMacRecord, NetworkRecord } from "../types";
-import { assignmentTypeLabel, hasPermission, stateLabel, stateTone } from "../utils";
+import { assignmentTypeLabel, hasPermission, inventoryErrorMessage, stateLabel, stateTone } from "../utils";
 export default function IpMacsView({
   csrfToken,
   focusIpId,
+  focusRequest,
   ipMacs,
   interfaces,
   networks,
@@ -16,6 +17,7 @@ export default function IpMacsView({
 }: {
   csrfToken: string;
   focusIpId?: number;
+  focusRequest?: number;
   ipMacs: IpMacRecord[];
   interfaces: InterfaceRecord[];
   networks: NetworkRecord[];
@@ -26,6 +28,7 @@ export default function IpMacsView({
   const [query, setQuery] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const appliedFocusRef = useRef<string | null>(null);
   const [selectedIp, setSelectedIp] = useState<IpMacRecord | null>(null);
   const [form, setForm] = useState({
     address: "",
@@ -40,18 +43,22 @@ export default function IpMacsView({
   const canUpdate = hasPermission(permissions, "ip_addresses:update");
   const canDelete = hasPermission(permissions, "ip_addresses:delete");
 
+  // A refreshed list must not reselect the record a navigation focused earlier, which
+  // would discard the form and its confirmation after saving another record.
   useEffect(() => {
     if (!focusIpId) {
       return;
     }
     const item = ipMacs.find((record) => record.id === focusIpId);
-    if (item) {
+    const focusKey = `${focusIpId}:${focusRequest ?? 0}`;
+    if (item && appliedFocusRef.current !== focusKey) {
+      appliedFocusRef.current = focusKey;
       queueMicrotask(() => {
         selectIp(item);
         setQuery(item.address);
       });
     }
-  }, [focusIpId, ipMacs]);
+  }, [focusIpId, focusRequest, ipMacs]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredIpMacs = ipMacs.filter((item) => {
@@ -130,7 +137,7 @@ export default function IpMacsView({
       });
 
       if (!response.ok) {
-        setError(t("ipMacs.errors.save"));
+        setError(await inventoryErrorMessage(response, "ipMacs.errors.save", t));
         return;
       }
 
@@ -170,8 +177,8 @@ export default function IpMacsView({
       }
 
       setMessage(t("ipMacs.deleted"));
+      // The form stays open in creation mode so the confirmation remains visible.
       resetForm();
-      setShowForm(false);
       await onChanged();
     } catch {
       setError(t("auth.apiUnavailable"));
@@ -238,6 +245,7 @@ export default function IpMacsView({
             >
               <option value="all">{t("ipMacs.allStates")}</option>
               <option value="active">{t("values.states.active")}</option>
+              <option value="inactive">{t("values.states.inactive")}</option>
               <option value="reserved">{t("values.states.reserved")}</option>
               <option value="unassigned">{t("values.states.unassigned")}</option>
             </select>

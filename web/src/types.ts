@@ -110,6 +110,7 @@ export type DashboardSummary = {
     utilization_percent: number;
     vlan: VlanRecord | null;
   }>;
+  busiest_network?: DashboardSummary["networks"][number] | null;
 };
 
 export type DeviceRecord = {

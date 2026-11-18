@@ -82,20 +82,46 @@ class InventoryClient:
             )
         if response.is_error:
             messages = {
+                400: "The inventory request was rejected.",
                 401: "Invalid or expired integration token.",
                 403: "Permission denied for this operation.",
                 404: "Inventory record not found.",
                 409: "The record conflicts with existing inventory data.",
                 422: "Invalid inventory data or relationships.",
+                429: "Too many inventory requests. Wait before retrying.",
                 503: "Inventory service is temporarily unavailable.",
             }
-            raise InventoryAPIError(
-                response.status_code,
-                messages.get(response.status_code, "Inventory request failed."),
-            )
+            message = messages.get(response.status_code, "Inventory request failed.")
+            # Validation and conflict details say which field or relationship to fix.
+            if response.status_code in {400, 404, 409, 422}:
+                explanation = describe_error_detail(response)
+                if explanation:
+                    message = f"{message} {explanation}"
+            raise InventoryAPIError(response.status_code, message)
         if response.status_code != 200 and response.status_code != 201:
             raise ValueError("Unexpected inventory response.")
         return response.json()
+
+
+def describe_error_detail(response: httpx.Response) -> str:
+    try:
+        detail = response.json().get("detail")
+    except (ValueError, AttributeError):
+        return ""
+    if isinstance(detail, str):
+        return detail[:300]
+    if isinstance(detail, list):
+        parts = []
+        for item in detail[:5]:
+            if not isinstance(item, dict):
+                continue
+            location = ".".join(
+                str(part) for part in item.get("loc", []) if part not in {"body", "query"}
+            )
+            text = str(item.get("msg", "")).removeprefix("Value error, ")
+            parts.append(f"{location}: {text}" if location else text)
+        return "; ".join(parts)[:300]
+    return ""
 
 
 def compact(value: Any) -> Any:

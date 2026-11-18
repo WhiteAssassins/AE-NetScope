@@ -37,12 +37,15 @@ from app.schemas.version import (
 from app.services.audit import write_audit_event
 
 router = APIRouter()
-GITHUB_RELEASES_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetScope/releases"
+# One page of 100 releases keeps an older stable release visible behind many prereleases.
+GITHUB_RELEASES_API_URL = (
+    "https://api.github.com/repos/WhiteAssassins/AE-NetScope/releases?per_page=100"
+)
 RELEASE_TAG_PATTERN = re.compile(r"^v?\d+\.\d+\.\d+(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$")
 RELEASE_CACHE_TTL_SECONDS = 600
 MAX_RELEASE_BODY_CHARACTERS = 20_000
 MAX_GITHUB_RESPONSE_BYTES = 1_000_000
-MAX_RELEASE_OBJECTS = 20
+MAX_RELEASE_OBJECTS = 100
 GITHUB_ERROR_CACHE_TTL_SECONDS = 30
 REPOSITORY_CACHE_TTL_SECONDS = 3600
 GITHUB_REPOSITORY_API_URL = "https://api.github.com/repos/WhiteAssassins/AE-NetScope"
@@ -177,6 +180,7 @@ async def start_update(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid release tag.",
             )
+        tag_name = await verified_update_tag(tag_name)
         command = command.replace("{tag}", tag_name)
     elif "{tag}" in command:
         raise HTTPException(
@@ -247,6 +251,46 @@ async def start_update(
         message="Update command started. The app may restart when the container is replaced.",
         tag_name=tag_name,
     )
+
+
+async def verified_update_tag(tag_name: str) -> str:
+    """Return the published tag for an update target, refusing unknown or older ones.
+
+    Migrations only move forward, so starting an older release would leave the database
+    on a newer schema than the application that runs it.
+    """
+    try:
+        releases = await fetch_github_releases_cached()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "GitHub releases could not be checked, so the release tag cannot be verified."
+            ),
+        ) from exc
+    wanted = normalize_version(tag_name)
+    release = next(
+        (
+            item
+            for item in releases
+            if not item.draft and normalize_version(item.tag_name) == wanted
+        ),
+        None,
+    )
+    if release is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unknown release tag.",
+        )
+    if not is_release_newer(release.tag_name, project_version()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "The release is not newer than the installed version. "
+                "Downgrades are not supported."
+            ),
+        )
+    return release.tag_name
 
 
 async def monitor_update_process(process: subprocess.Popen, history_id: int) -> None:
