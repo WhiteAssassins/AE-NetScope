@@ -2,7 +2,7 @@
 
 All notable changes to AE NetScope will be documented in this file.
 
-## Unreleased
+## v0.3.4-alpha - 2026-11-18
 
 ### Fixed
 
