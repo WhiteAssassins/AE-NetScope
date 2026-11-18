@@ -5,6 +5,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from support import publish_releases
 
 from app.api.routes import version as version_route
 from app.core import rate_limit as rate_limit_module
@@ -12,8 +13,6 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
-from tests.test_health import publish_releases
-from tests.test_inventory import inventory_client  # noqa: F401
 
 
 @pytest.fixture()
@@ -66,7 +65,7 @@ async def test_setup_keeps_the_language_and_time_zone_of_the_setup_screen(setup_
 
 
 async def test_unreadable_protected_data_explains_the_missing_key(
-    inventory_client,  # noqa: F811
+    inventory_client,
     monkeypatch,
 ) -> None:
     client, csrf = inventory_client
@@ -103,17 +102,13 @@ async def test_automatic_updates_only_start_known_newer_releases(monkeypatch, ta
     assert excinfo.value.status_code == status
 
 
-def test_foreign_keys_used_in_queries_are_indexed(tmp_path, monkeypatch) -> None:
+def test_foreign_keys_used_in_queries_are_indexed(tmp_path) -> None:
     from alembic import command
-    from alembic.config import Config
     from sqlalchemy import create_engine
+    from test_migrations import migration_config
 
     database = tmp_path / "indexes.db"
-    monkeypatch.setattr(settings, "database_url_override", f"sqlite+aiosqlite:///{database}")
-    settings.__dict__.pop("database_url", None)
-    config = Config(str(settings_path()))
-    command.upgrade(config, "head")
-    settings.__dict__.pop("database_url", None)
+    command.upgrade(migration_config(f"sqlite:///{database}"), "head")
 
     inspector = inspect(create_engine(f"sqlite:///{database}"))
     indexed = {
@@ -132,14 +127,8 @@ def test_foreign_keys_used_in_queries_are_indexed(tmp_path, monkeypatch) -> None
     } <= indexed
 
 
-def settings_path():
-    from pathlib import Path
-
-    return Path(__file__).resolve().parents[1] / "alembic.ini"
-
-
 async def test_interface_and_service_changes_update_the_device_last_change(
-    inventory_client,  # noqa: F811
+    inventory_client,
 ) -> None:
     client, csrf = inventory_client
     headers = {"X-CSRF-Token": csrf}
@@ -175,7 +164,7 @@ async def test_interface_and_service_changes_update_the_device_last_change(
     assert changes == [True, True]
 
 
-async def test_a_subnet_without_an_address_is_rejected(inventory_client) -> None:  # noqa: F811
+async def test_a_subnet_without_an_address_is_rejected(inventory_client) -> None:
     client, csrf = inventory_client
     headers = {"X-CSRF-Token": csrf}
     network = await client.post(
@@ -196,7 +185,7 @@ async def test_a_subnet_without_an_address_is_rejected(inventory_client) -> None
 
 
 async def test_audit_search_finds_old_events_by_actor_and_type(
-    inventory_client,  # noqa: F811
+    inventory_client,
     monkeypatch,
 ) -> None:
     from app.services import audit as audit_module
@@ -214,7 +203,7 @@ async def test_audit_search_finds_old_events_by_actor_and_type(
     assert [event["event_type"] for event in found] == ["auth.login_success"]
 
 
-async def test_sign_out_ends_the_session_without_a_csrf_token(inventory_client) -> None:  # noqa: F811
+async def test_sign_out_ends_the_session_without_a_csrf_token(inventory_client) -> None:
     client, _ = inventory_client
 
     response = await client.post("/api/auth/logout")

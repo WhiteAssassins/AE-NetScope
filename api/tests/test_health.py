@@ -3,6 +3,7 @@ import time
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from support import publish_releases
 
 from app.api.routes import health as health_route
 from app.main import app
@@ -717,23 +718,4 @@ async def test_update_in_progress_query_matches_recent_started_runs() -> None:
         await session.commit()
         assert await session.scalar(query) is not None
     await engine.dispose()
-
-
-def publish_releases(monkeypatch, *tags: str, installed: str = "0.1.0-alpha") -> None:
-    """Make update targets known releases newer than the installed version."""
-    from app.api.routes import version as version_route
-
-    async def releases():
-        return [
-            version_route.ReleaseDetails(
-                tag_name=tag,
-                html_url=f"https://example.com/{tag}",
-                prerelease="-" in tag,
-                draft=False,
-            )
-            for tag in tags
-        ]
-
-    monkeypatch.setattr(version_route, "fetch_github_releases_cached", releases)
-    monkeypatch.setattr(version_route, "project_version", lambda: installed)
 

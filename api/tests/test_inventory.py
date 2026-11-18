@@ -10,43 +10,6 @@ from app.main import app
 from app.models.user import User
 
 
-@pytest.fixture()
-async def inventory_client():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-
-    async with session_factory() as session:
-        session.add(
-            User(
-                email="admin@example.com",
-                username="admin",
-                password_hash=hash_password("correct-password"),
-                role="admin",
-                must_change_password=False,
-            )
-        )
-        await session.commit()
-
-    async def override_session():
-        async with session_factory() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override_session
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        login = await client.post(
-            "/api/auth/login",
-            json={"email": "admin@example.com", "password": "correct-password"},
-        )
-        yield client, login.json()["csrf_token"]
-
-    app.dependency_overrides.clear()
-    await engine.dispose()
-
-
 async def test_inventory_core_crud_and_dashboard(inventory_client) -> None:
     client, csrf_token = inventory_client
 

@@ -1,55 +1,18 @@
 import time
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401
-from app.core.security import hash_password
 from app.core.version import UNTAGGED_UPDATE_MESSAGE_PREFIX, project_version
 from app.db.base import Base
-from app.db.session import get_session
-from app.main import app
 from app.models.audit import AuditEvent
 from app.models.security import UpdateHistory
 from app.models.user import User
 from app.services.maintenance import reconcile_interrupted_updates
 from app.services.mfa import _totp_code
-
-
-@pytest.fixture()
-async def admin_api():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    async with factory() as session:
-        session.add(
-            User(
-                email="admin@example.com",
-                username="admin",
-                password_hash=hash_password("correct-password"),
-                role="admin",
-                must_change_password=False,
-            )
-        )
-        await session.commit()
-
-    async def override_session():
-        async with factory() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override_session
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        login = await client.post(
-            "/api/auth/login",
-            json={"email": "admin@example.com", "password": "correct-password"},
-        )
-        yield client, {"X-CSRF-Token": login.json()["csrf_token"]}, factory
-    app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def event_count(factory, event_type: str) -> int:

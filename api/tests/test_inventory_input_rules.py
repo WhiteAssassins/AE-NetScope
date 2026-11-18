@@ -5,7 +5,6 @@ from sqlalchemy import select
 from app.core import redis as redis_module
 from app.main import app
 from app.models.audit import AuditEvent
-from tests.test_inventory import inventory_client  # noqa: F401
 
 
 async def post(client, csrf, path, payload):
@@ -20,12 +19,12 @@ async def post(client, csrf, path, payload):
         ("vlans", {"vlan_id": 10, "name": "\t"}),
     ],
 )
-async def test_blank_names_are_rejected(inventory_client, path, payload) -> None:  # noqa: F811
+async def test_blank_names_are_rejected(inventory_client, path, payload) -> None:
     client, csrf = inventory_client
     assert (await post(client, csrf, path, payload)).status_code == 422
 
 
-async def test_names_are_trimmed_so_padded_duplicates_conflict(inventory_client) -> None:  # noqa: F811
+async def test_names_are_trimmed_so_padded_duplicates_conflict(inventory_client) -> None:
     client, csrf = inventory_client
     created = await post(client, csrf, "devices", {"name": " SW-01 ", "device_type": "switch"})
     assert created.json()["name"] == "SW-01"
@@ -42,7 +41,7 @@ async def test_names_are_trimmed_so_padded_duplicates_conflict(inventory_client)
     ("status", "expected"),
     [("Activo", "active"), (" Inactive ", "inactive"), ("RESERVED", "reserved"), ("broken", None)],
 )
-async def test_device_status_is_normalized(inventory_client, status, expected) -> None:  # noqa: F811
+async def test_device_status_is_normalized(inventory_client, status, expected) -> None:
     client, csrf = inventory_client
     response = await post(
         client, csrf, "devices", {"name": "NAS", "device_type": "nas", "status": status}
@@ -57,7 +56,7 @@ async def test_device_status_is_normalized(inventory_client, status, expected) -
     ("warranty", "expected"),
     [("2028-12-31", "2028-12-31"), ("  ", None), ("31/12/2028", 422), ("2028-02-30", 422)],
 )
-async def test_warranty_must_be_an_iso_date(inventory_client, warranty, expected) -> None:  # noqa: F811
+async def test_warranty_must_be_an_iso_date(inventory_client, warranty, expected) -> None:
     client, csrf = inventory_client
     response = await post(
         client,
@@ -73,7 +72,7 @@ async def test_warranty_must_be_an_iso_date(inventory_client, warranty, expected
         assert detail.json()["warranty_expires"] == expected
 
 
-async def test_service_protocol_is_required_and_lowercase(inventory_client) -> None:  # noqa: F811
+async def test_service_protocol_is_required_and_lowercase(inventory_client) -> None:
     client, csrf = inventory_client
     device = await post(client, csrf, "devices", {"name": "WEB", "device_type": "server"})
     device_id = device.json()["id"]
@@ -92,7 +91,7 @@ async def test_service_protocol_is_required_and_lowercase(inventory_client) -> N
 @pytest.mark.parametrize(
     "mac", ["AA-BB-CC-DD-EE-01", "aabb.ccdd.ee01", "AABBCCDDEE01", " aa:bb:cc:dd:ee:01 "]
 )
-async def test_common_mac_notations_are_normalized(inventory_client, mac) -> None:  # noqa: F811
+async def test_common_mac_notations_are_normalized(inventory_client, mac) -> None:
     client, csrf = inventory_client
     device = await post(client, csrf, "devices", {"name": "AP", "device_type": "access_point"})
     response = await client.post(
@@ -106,7 +105,7 @@ async def test_common_mac_notations_are_normalized(inventory_client, mac) -> Non
 
 
 @pytest.mark.parametrize("mac", ["aa:bb-cc:dd:ee:01", "aabb.ccdd", "zz:bb:cc:dd:ee:01"])
-async def test_malformed_mac_addresses_are_rejected(inventory_client, mac) -> None:  # noqa: F811
+async def test_malformed_mac_addresses_are_rejected(inventory_client, mac) -> None:
     client, csrf = inventory_client
     device = await post(client, csrf, "devices", {"name": "AP", "device_type": "access_point"})
     response = await client.post(
@@ -118,7 +117,7 @@ async def test_malformed_mac_addresses_are_rejected(inventory_client, mac) -> No
     assert response.status_code == 422
 
 
-async def test_addresses_of_deactivated_devices_are_inactive(inventory_client) -> None:  # noqa: F811
+async def test_addresses_of_deactivated_devices_are_inactive(inventory_client) -> None:
     client, csrf = inventory_client
     device = await post(
         client,
@@ -135,7 +134,7 @@ async def test_addresses_of_deactivated_devices_are_inactive(inventory_client) -
     assert [item["state"] for item in addresses] == ["inactive"]
 
 
-async def test_backups_with_legacy_values_still_restore(inventory_client) -> None:  # noqa: F811
+async def test_backups_with_legacy_values_still_restore(inventory_client) -> None:
     client, csrf = inventory_client
     device = await post(client, csrf, "devices", {"name": "OLD", "device_type": "server"})
     await post(client, csrf, "services", {"device_id": device.json()["id"], "name": "ssh"})

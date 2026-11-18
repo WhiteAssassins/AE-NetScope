@@ -3,15 +3,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from support import login
 
 import app.models  # noqa: F401
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.base import Base
-from app.db.session import get_session
-from app.main import app
 from app.models.security import WebAuthnChallenge
 from app.models.user import User
 from app.services.mfa import (
@@ -21,44 +20,6 @@ from app.services.mfa import (
     totp_secret_uses_primary_key,
     verify_totp,
 )
-
-
-@pytest.fixture()
-async def security_client():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-    async with session_factory() as session:
-        session.add(
-            User(
-                email="security@example.com",
-                username="security-admin",
-                password_hash=hash_password("correct-password"),
-                role="admin",
-                must_change_password=False,
-            )
-        )
-        await session.commit()
-
-    async def override_session():
-        async with session_factory() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override_session
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        yield client
-    app.dependency_overrides.clear()
-    await engine.dispose()
-
-
-async def login(client: AsyncClient) -> dict:
-    response = await client.post(
-        "/api/auth/login",
-        json={"email": "security@example.com", "password": "correct-password"},
-    )
-    assert response.status_code == 200
-    return response.json()
 
 
 async def test_regional_preferences_and_session_revocation(security_client: AsyncClient) -> None:

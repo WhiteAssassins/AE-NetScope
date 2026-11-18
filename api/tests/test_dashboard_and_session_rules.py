@@ -4,14 +4,12 @@ from types import SimpleNamespace
 
 from httpx import ASGITransport, AsyncClient
 from starlette.responses import Response
+from support import FakeSession, login, request
 
 from app.core.config import settings
 from app.main import create_app
 from app.middleware import maintenance_mode
 from app.services.mfa import _totp_code
-from tests.test_account_security import login, security_client  # noqa: F401
-from tests.test_inventory import inventory_client  # noqa: F401
-from tests.test_maintenance_mode import FakeSession, request
 
 
 async def post(client, csrf, path, payload):
@@ -37,7 +35,7 @@ async def test_unknown_api_paths_are_not_served_as_web_pages(tmp_path: Path, mon
 
 
 async def test_dashboard_lists_five_recent_devices_with_several_addresses(
-    inventory_client,  # noqa: F811
+    inventory_client,
 ) -> None:
     client, csrf = inventory_client
     for index in range(6):
@@ -55,7 +53,7 @@ async def test_dashboard_lists_five_recent_devices_with_several_addresses(
 
 
 async def test_dashboard_service_status_reports_the_most_relevant_state(
-    inventory_client,  # noqa: F811
+    inventory_client,
 ) -> None:
     client, csrf = inventory_client
     device = (await post(client, csrf, "devices", {"name": "DNS", "device_type": "server"})).json()
@@ -80,7 +78,7 @@ async def test_dashboard_service_status_reports_the_most_relevant_state(
     }
 
 
-async def test_dashboard_busiest_subnet_considers_every_subnet(inventory_client) -> None:  # noqa: F811
+async def test_dashboard_busiest_subnet_considers_every_subnet(inventory_client) -> None:
     client, csrf = inventory_client
     for index in range(5):
         await post(client, csrf, "networks", {"cidr": f"10.{index}.0.0/24", "name": f"N{index}"})
@@ -100,7 +98,7 @@ async def test_dashboard_busiest_subnet_considers_every_subnet(inventory_client)
     assert dashboard["busiest_network"]["ip_count"] == 3
 
 
-async def test_blank_optional_details_are_stored_as_empty(inventory_client) -> None:  # noqa: F811
+async def test_blank_optional_details_are_stored_as_empty(inventory_client) -> None:
     client, csrf = inventory_client
     device = await post(
         client,
@@ -122,7 +120,7 @@ async def test_blank_optional_details_are_stored_as_empty(inventory_client) -> N
     assert "vendor" in missing["context"]["fields"]
 
 
-async def test_new_tabs_share_the_session_csrf_token(inventory_client) -> None:  # noqa: F811
+async def test_new_tabs_share_the_session_csrf_token(inventory_client) -> None:
     client, first_tab_csrf = inventory_client
     second_tab_csrf = (await client.get("/api/auth/csrf")).json()["csrf_token"]
 
@@ -133,7 +131,7 @@ async def test_new_tabs_share_the_session_csrf_token(inventory_client) -> None: 
     assert (first.status_code, second.status_code) == (201, 201)
 
 
-async def test_totp_codes_may_contain_spaces(security_client) -> None:  # noqa: F811
+async def test_totp_codes_may_contain_spaces(security_client) -> None:
     csrf = (await login(security_client))["csrf_token"]
     headers = {"X-CSRF-Token": csrf}
     secret = (
@@ -178,7 +176,7 @@ async def test_maintenance_keeps_session_state_readable(monkeypatch) -> None:
 
 
 async def test_import_limits_report_whether_the_inventory_can_be_restored(
-    inventory_client,  # noqa: F811
+    inventory_client,
     monkeypatch,
 ) -> None:
     client, csrf = inventory_client

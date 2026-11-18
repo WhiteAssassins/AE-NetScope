@@ -1,39 +1,10 @@
 from types import SimpleNamespace
 
 import pytest
-from starlette.requests import Request
 from starlette.responses import Response
+from support import FakeSession, request
 
 from app.middleware import maintenance_mode
-
-
-class FakeSession:
-    def __init__(self, state):
-        self.state = state
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_args):
-        return None
-
-    async def get(self, _model, _key):
-        return self.state
-
-
-def request(path: str = "/api/inventory/devices") -> Request:
-    return Request(
-        {
-            "type": "http",
-            "method": "GET",
-            "path": path,
-            "headers": [],
-            "query_string": b"",
-            "server": ("test", 80),
-            "client": ("127.0.0.1", 1234),
-            "scheme": "http",
-        }
-    )
 
 
 async def test_maintenance_blocks_non_admin_and_allows_admin(monkeypatch) -> None:

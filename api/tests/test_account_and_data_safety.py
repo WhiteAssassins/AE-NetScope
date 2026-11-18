@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from support import login
 
 from app.api.routes import version as version_route
 from app.core.config import settings
@@ -15,9 +16,6 @@ from app.models.user import User
 from app.schemas.security import PasskeyRegistrationVerifyRequest
 from app.services import data_protection
 from app.services.maintenance import purge_expired_records
-from tests.test_account_security import login, security_client  # noqa: F401
-from tests.test_admin_edge_cases import admin_api  # noqa: F401
-from tests.test_inventory import inventory_client  # noqa: F401
 
 
 @pytest.fixture()
@@ -91,7 +89,7 @@ async def test_startup_migration_skips_encrypted_values_without_a_rotation(
     assert checked == ["plain text"]
 
 
-async def test_credential_resets_revoke_integration_tokens(admin_api) -> None:  # noqa: F811
+async def test_credential_resets_revoke_integration_tokens(admin_api) -> None:
     client, headers, factory = admin_api
     created = await client.post(
         "/api/users",
@@ -154,7 +152,7 @@ async def test_credential_resets_revoke_integration_tokens(admin_api) -> None:  
     assert all(token.revoked_at is not None for token in tokens)
 
 
-async def test_unsupported_browser_time_zones_are_rejected(security_client) -> None:  # noqa: F811
+async def test_unsupported_browser_time_zones_are_rejected(security_client) -> None:
     csrf = (await login(security_client))["csrf_token"]
     for timezone, status in (("Factory", 422), ("localtime", 422), ("Europe/Madrid", 200)):
         response = await security_client.patch(
@@ -165,7 +163,7 @@ async def test_unsupported_browser_time_zones_are_rejected(security_client) -> N
         assert response.status_code == status, timezone
 
 
-async def test_passwords_cannot_be_padding_alone(security_client) -> None:  # noqa: F811
+async def test_passwords_cannot_be_padding_alone(security_client) -> None:
     csrf = (await login(security_client))["csrf_token"]
     blank = await security_client.post(
         "/api/auth/password",
@@ -194,7 +192,7 @@ async def test_token_and_passkey_names_cannot_be_blank(integration_api) -> None:
         PasskeyRegistrationVerifyRequest(challenge_id="x" * 32, name="  ", credential={})
 
 
-async def test_json_backup_downloads_as_a_file(inventory_client) -> None:  # noqa: F811
+async def test_json_backup_downloads_as_a_file(inventory_client) -> None:
     client, _ = inventory_client
     response = await client.get("/api/inventory/export.json")
 
@@ -277,7 +275,7 @@ async def test_retention_removes_old_revoked_and_expired_tokens(
     assert names == ["current", "recently-revoked"]
 
 
-async def test_csv_exports_start_with_identifying_columns(inventory_client) -> None:  # noqa: F811
+async def test_csv_exports_start_with_identifying_columns(inventory_client) -> None:
     client, csrf = inventory_client
     await client.post(
         "/api/inventory/devices",
@@ -290,7 +288,7 @@ async def test_csv_exports_start_with_identifying_columns(inventory_client) -> N
     assert response.text.splitlines()[0].startswith("id,name,")
 
 
-async def test_audit_events_can_be_filtered_by_group(admin_api) -> None:  # noqa: F811
+async def test_audit_events_can_be_filtered_by_group(admin_api) -> None:
     client, headers, factory = admin_api
     await client.patch(
         "/api/security/search-indexing", headers=headers, json={"allow_indexing": True}
