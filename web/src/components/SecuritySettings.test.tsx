@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import i18n from "../i18n";
 import type { User } from "../types";
 import SecuritySettings from "./SecuritySettings";
 
@@ -85,6 +86,9 @@ describe("SecuritySettings", () => {
     await user.type(screen.getAllByPlaceholderText("Password")[1], "secret-password");
     await user.click(screen.getByRole("button", { name: "Remove passkey" }));
     expect(await screen.findByText("Passkey removed.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Enter your current password before removing a passkey."),
+    ).not.toBeInTheDocument();
   });
 
   it("clears an earlier error when TOTP is enabled", async () => {
@@ -163,6 +167,30 @@ describe("SecuritySettings", () => {
     await user.click(await screen.findByRole("button", { name: "Add passkey" }));
 
     expect(screen.getByText("This browser does not support passkeys.")).toBeInTheDocument();
+  });
+
+  it("translates unknown browsers and systems", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/passkeys/capability")) return Promise.resolve(jsonResponse(capability));
+      if (url.endsWith("/auth/sessions")) {
+        return Promise.resolve(
+          jsonResponse([
+            { ...sessions[0], id: 2, user_agent: null, is_current: false },
+            { ...sessions[0], id: 3, user_agent: "Mozilla/5.0 (PlayStation) Firefox/130.0", is_current: false },
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse([]));
+    }));
+    await i18n.changeLanguage("es");
+    try {
+      render(<SecuritySettings csrfToken="csrf" onUserChanged={vi.fn()} user={currentUser} />);
+      expect(await screen.findByText(/Navegador desconocido/)).toBeInTheDocument();
+      expect(screen.getByText(/Firefox · Sistema desconocido/)).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 
   it("reports a failure when other sessions cannot be closed", async () => {

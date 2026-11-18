@@ -886,6 +886,8 @@ async def deactivate_device_endpoint(
     device = await get_device(session, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+    if device.status == "inactive":
+        return await device_to_detail_response(session, device)
 
     device = await deactivate_device(session, device)
     await write_audit_event(

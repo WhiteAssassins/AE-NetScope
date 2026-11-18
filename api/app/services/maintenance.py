@@ -6,7 +6,11 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.version import project_version
+from app.core.version import (
+    CONFIGURED_UPDATE_TARGET,
+    UNTAGGED_UPDATE_MESSAGE_PREFIX,
+    project_version,
+)
 from app.db.session import SessionLocal
 from app.models.audit import AuditEvent
 from app.models.security import UpdateHistory, WebAuthnChallenge
@@ -55,6 +59,17 @@ async def reconcile_interrupted_updates(session: AsyncSession) -> int:
     current_version = project_version()
     for item in rows:
         target = item.target_tag.strip().removeprefix("v").removeprefix("V")
+        if target == CONFIGURED_UPDATE_TARGET:
+            # Untagged commands record the version they started on.
+            message = item.message or ""
+            started_on = message.removeprefix(UNTAGGED_UPDATE_MESSAGE_PREFIX).removesuffix(".")
+            if message.startswith(UNTAGGED_UPDATE_MESSAGE_PREFIX) and started_on != current_version:
+                item.status = "succeeded"
+                item.message = f"The application restarted on version {current_version}."
+            else:
+                item.status = "unknown"
+                item.message = "The application restarted before the update result was recorded."
+            continue
         if target == current_version:
             item.status = "succeeded"
             item.message = "The application restarted on the requested version."

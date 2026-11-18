@@ -14,6 +14,7 @@ from app.core.security import (
     hash_session_token,
     session_token_hash_candidates,
     verify_password_and_update,
+    verify_user_password,
 )
 from app.models.session import UserSession
 from app.models.user import User
@@ -299,8 +300,7 @@ async def change_user_password(
     ip_address: str | None,
     current_session_id: int | None = None,
 ) -> None:
-    is_valid_password, _ = verify_password_and_update(current_password, user.password_hash)
-    if not is_valid_password:
+    if not verify_user_password(user, current_password):
         await write_audit_event(
             session,
             "auth.password_change_failed",
@@ -335,8 +335,7 @@ async def change_user_email(
     ip_address: str | None,
     current_session_id: int | None = None,
 ) -> None:
-    is_valid_password, _ = verify_password_and_update(current_password, user.password_hash)
-    if not is_valid_password:
+    if not verify_user_password(user, current_password):
         await write_audit_event(
             session,
             "auth.email_change_failed",

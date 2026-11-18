@@ -45,7 +45,10 @@ export default function IntegrationSettings({ csrfToken, canWrite }: {
         created_at: result.created_at, expires_at: result.expires_at, revoked_at: result.revoked_at,
       };
       setTokens((current) => [metadata, ...current]);
+      // Each token starts read-only so write access is never carried over by accident.
       setName("");
+      setAllowWrite(false);
+      setDays(30);
     } catch {
       setError(t("integrations.failed"));
     } finally {

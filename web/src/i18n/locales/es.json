@@ -161,7 +161,9 @@
       "all": "Todos",
       "auth": "Autenticación",
       "users": "Usuarios",
-      "inventory": "Inventario"
+      "inventory": "Inventario",
+      "settings": "Ajustes",
+      "integration": "Integraciones"
     },
     "resources": {
       "devices": "dispositivos",
@@ -233,6 +235,7 @@
       },
       "integration": {
         "token_created": "Token de integración creado",
+        "token_create_failed": "Falló la creación de un token de integración: contraseña incorrecta",
         "token_revoked": "Token de integración revocado"
       }
     }
@@ -245,6 +248,8 @@
     "checkFailed": "No se pudo consultar GitHub o el estado de actualización.",
     "started": "El comando de actualización fue iniciado. AE NetScope puede reiniciarse.",
     "startFailed": "No se pudo iniciar la actualización.",
+    "confirmStart": "¿Iniciar la actualización automática a {{version}}? La aplicación se reinicia mientras se reemplaza.",
+    "alreadyRunning": "Ya hay una actualización en curso. Espera a que termine antes de iniciar otra.",
     "installedVersion": "Versión instalada",
     "latestStable": "Última release estable",
     "latestPrerelease": "Última prerelease",
@@ -922,6 +927,8 @@
     "hourFormats": { "12": "12 horas", "24": "24 horas" },
     "security": {
       "sessions": "Dispositivos y navegadores conectados",
+      "unknownBrowser": "Navegador desconocido",
+      "unknownOs": "Sistema desconocido",
       "current": "actual",
       "closeOthers": "Cerrar otras sesiones",
       "sessionsClosed": "Las demás sesiones se cerraron.",
@@ -960,6 +967,8 @@
       "searchIndexingSaved": "Visibilidad en buscadores guardada.",
       "updateHistory": "Historial de actualizaciones",
       "updateHistoryUnavailable": "No se pudo cargar el historial de actualizaciones.",
+      "configuredTarget": "Comando de actualización configurado",
+      "maintenanceMessageRequired": "Escribe un mensaje de mantenimiento antes de activar el modo mantenimiento.",
       "noUpdates": "No hay intentos de actualización registrados desde la app.",
       "updateStatuses": {
         "started": "En curso",

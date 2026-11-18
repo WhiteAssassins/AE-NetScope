@@ -28,6 +28,18 @@ All notable changes to AE NetScope will be documented in this file.
 - Showed a message when the update history cannot be loaded, instead of loading indefinitely.
 - Reported a failure when other sessions cannot be closed, and cleared earlier errors when confirming or disabling TOTP.
 - Returned the interface to the saved language when leaving the settings page without saving a language change.
+- Allowed turning maintenance mode off without a message, keeping the stored message for the next activation, and asked for a message in the interface before enabling it.
+- Refused to disable TOTP when it was never enabled, and to confirm it again when it is already enabled.
+- Audited failed password checks when creating an integration token.
+- Kept a single audit event when an already inactive user or device is deactivated again, and skipped auditing user updates that change nothing.
+- Refused to reset multi-factor authentication for an account that has none, instead of revoking its sessions.
+- Upgraded outdated password hashes from every password prompt, not only at sign-in.
+- Recorded the starting version of untagged automatic updates, so a restart on a new version is reported as succeeded instead of unknown, and named them in the update history.
+- Stopped the audit log from loading indefinitely when it cannot be read, explained a failed refresh, and added settings and integration filters.
+- Asked for confirmation before starting an automatic update, kept the button disabled once it has started, and explained when another update is already running.
+- Cleared earlier errors and messages in the security settings, and translated unknown browsers and systems in the session list.
+- Disabled closing other sessions for your own account when only the current session is active, and cleared earlier success messages in user management when a later action fails.
+- Started each new integration token as read-only with the default expiry, instead of reusing the previous token's access.
 
 ### Documentation
 

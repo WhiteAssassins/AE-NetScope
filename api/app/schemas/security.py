@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.auth import SessionResponse
 from app.schemas.email import AccountEmail
@@ -58,13 +58,20 @@ class MaintenanceStatusResponse(BaseModel):
 
 class MaintenanceUpdateRequest(BaseModel):
     enabled: bool
-    message: str = Field(min_length=1, max_length=500)
+    message: str = Field(default="", max_length=500)
 
     @field_validator("message", mode="before")
     @classmethod
     def strip_message(cls, value: object) -> object:
         # Stripping before validation keeps a whitespace-only message from saving as empty.
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def require_message_when_enabled(self) -> "MaintenanceUpdateRequest":
+        # Users see the message while maintenance is on; turning it off needs none.
+        if self.enabled and not self.message:
+            raise ValueError("A maintenance message is required to enable maintenance mode.")
+        return self
 
 
 class SearchIndexingPolicyResponse(BaseModel):

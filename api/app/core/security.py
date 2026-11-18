@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import secrets
 from functools import lru_cache
+from typing import Protocol
 
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
@@ -21,6 +22,18 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def verify_password_and_update(password: str, password_hash: str) -> tuple[bool, str | None]:
     return password_hasher.verify_and_update(password, password_hash)
+
+
+class _HasPasswordHash(Protocol):
+    password_hash: str
+
+
+def verify_user_password(user: _HasPasswordHash, password: str) -> bool:
+    """Check an account password and upgrade a hash made with outdated parameters."""
+    valid, updated_hash = verify_password_and_update(password, user.password_hash)
+    if valid and updated_hash:
+        user.password_hash = updated_hash
+    return valid
 
 
 @lru_cache(maxsize=1)

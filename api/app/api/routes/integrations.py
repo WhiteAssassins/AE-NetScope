@@ -1,14 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import SessionDep, require_csrf, require_permission
 from app.core.permissions import permissions_for_role
 from app.core.rate_limit import rate_limit
-from app.core.security import verify_password
+from app.core.security import verify_user_password
 from app.models.integration import IntegrationToken
 from app.models.security import SystemSetting
 from app.models.user import User
@@ -62,10 +62,20 @@ class McpServerUpdate(BaseModel):
 )
 async def create_token(
     payload: TokenCreate,
+    request: Request,
     session: SessionDep,
     user: TokenUser,
 ):
-    if not verify_password(payload.password, user.password_hash):
+    if not verify_user_password(user, payload.password):
+        # Failed password checks are audited like the other account password prompts.
+        await write_audit_event(
+            session,
+            "integration.token_create_failed",
+            "Integration token creation failed: password verification failed",
+            actor_user_id=user.id,
+            ip_address=request.client.host if request.client else None,
+        )
+        await session.commit()
         raise HTTPException(403, "Password verification failed.")
     if payload.allow_write and "devices:create" not in permissions_for_role(user.role):
         raise HTTPException(403, "Write access requires an operator or administrator.")

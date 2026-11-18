@@ -25,7 +25,7 @@ from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permissi
 from app.api.routes.auth import serialize_user, set_session_cookie
 from app.core.config import settings
 from app.core.rate_limit import rate_limit
-from app.core.security import verify_password_and_update
+from app.core.security import verify_user_password
 from app.models.security import SystemSetting, WebAuthnChallenge, WebAuthnCredential
 from app.models.user import User
 from app.schemas.auth import SessionResponse
@@ -52,6 +52,7 @@ router = APIRouter(prefix="/security")
 # passkey rather than a server error.
 MALFORMED_PASSKEY_ERRORS = (WebAuthnException, ValueError, TypeError, KeyError, AttributeError)
 MAX_PASSKEYS_PER_USER = 8
+DEFAULT_MAINTENANCE_MESSAGE = "AE NetScope is undergoing maintenance."
 PASSKEY_TRANSPORTS = {"ble", "cable", "hybrid", "internal", "nfc", "smart-card", "usb"}
 
 
@@ -140,7 +141,7 @@ async def maintenance_status(session: SessionDep) -> MaintenanceStatusResponse:
     state = await session.get(SystemSetting, 1)
     return MaintenanceStatusResponse(
         enabled=bool(state and state.maintenance_enabled),
-        message=(state.maintenance_message if state else "AE NetScope is undergoing maintenance."),
+        message=(state.maintenance_message if state else DEFAULT_MAINTENANCE_MESSAGE),
     )
 
 
@@ -159,7 +160,11 @@ async def update_maintenance_status(
         state = SystemSetting(id=1)
         session.add(state)
     state.maintenance_enabled = payload.enabled
-    state.maintenance_message = payload.message.strip()
+    if payload.message:
+        # A blank message while disabling keeps the stored one for the next activation.
+        state.maintenance_message = payload.message
+    elif state.maintenance_message is None:
+        state.maintenance_message = DEFAULT_MAINTENANCE_MESSAGE
     state.updated_by_user_id = current_user.id
     state.updated_at = datetime.now(UTC)
     await write_audit_event(
@@ -240,10 +245,7 @@ async def passkey_registration_options(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> PasskeyOptionsResponse:
-    valid_password, _ = verify_password_and_update(
-        payload.current_password, current_user.password_hash
-    )
-    if not valid_password:
+    if not verify_user_password(current_user, payload.current_password):
         raise HTTPException(status_code=400, detail="Current password is invalid.")
     rp_id, _ = _webauthn_config()
     credentials = (
@@ -339,13 +341,8 @@ async def delete_passkey(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> None:
-    valid_password, updated_password_hash = verify_password_and_update(
-        payload.current_password, current_user.password_hash
-    )
-    if not valid_password:
+    if not verify_user_password(current_user, payload.current_password):
         raise HTTPException(status_code=400, detail="Current password is invalid.")
-    if updated_password_hash:
-        current_user.password_hash = updated_password_hash
     item = await session.get(WebAuthnCredential, credential_id)
     if item is None or item.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Passkey not found.")

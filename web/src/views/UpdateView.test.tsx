@@ -49,6 +49,18 @@ const updateStatus = {
   },
 };
 
+const availableUpdate = {
+  ...updateStatus,
+  update_available: true,
+  selected_release: { ...updateStatus.selected_release, tag_name: "v0.1.8-alpha" },
+  update_capability: {
+    platform: "docker",
+    automatic_updates_enabled: true,
+    automatic_updates_supported: true,
+    reason: null,
+  },
+};
+
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -325,10 +337,60 @@ describe("UpdateView", () => {
     expect(
       await screen.findByText((content) => content.includes("Update") && content.includes("available")),
     ).toBeInTheDocument();
+    const confirmMock = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmMock);
     await user.click(screen.getByRole("button", { name: /update automatically/i }));
 
     expect(
       await screen.findByText("The update command was started. AE NetScope may restart."),
+    ).toBeInTheDocument();
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining("v0.1.8-alpha"));
+    // A started update cannot be launched a second time from the same page.
+    expect(screen.getByRole("button", { name: /update automatically/i })).toBeDisabled();
+  });
+
+  it("does not start an update that was not confirmed", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((url: string | URL | Request) =>
+      Promise.resolve(
+        jsonResponse(requestUrl(url).includes("/version/updates") ? availableUpdate : installedVersion),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("confirm", vi.fn(() => false));
+
+    render(
+      <UpdateView csrfToken="csrf" initialVersionInfo={installedVersion} permissions={["settings:manage"]} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /update automatically/i }));
+
+    expect(fetchMock.mock.calls.some(([url]) => requestUrl(url).endsWith("/version/update"))).toBe(false);
+  });
+
+  it("explains that another update is already running", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string | URL | Request) => {
+        const urlText = requestUrl(url);
+        if (urlText.includes("/version/updates")) return Promise.resolve(jsonResponse(availableUpdate));
+        if (urlText.endsWith("/version/update")) {
+          return Promise.resolve(jsonResponse({ detail: "An update is already in progress." }, 409));
+        }
+        return Promise.resolve(jsonResponse(installedVersion));
+      }),
+    );
+    vi.stubGlobal("confirm", vi.fn(() => true));
+
+    render(
+      <UpdateView csrfToken="csrf" initialVersionInfo={installedVersion} permissions={["settings:manage"]} />,
+    );
+    await user.click(await screen.findByRole("button", { name: /update automatically/i }));
+
+    expect(
+      await screen.findByText(
+        "An update is already in progress. Wait for it to finish before starting another.",
+      ),
     ).toBeInTheDocument();
   });
 

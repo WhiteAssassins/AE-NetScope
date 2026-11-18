@@ -15,8 +15,10 @@ from app.api.deps import CurrentUser, SessionDep, require_csrf, require_permissi
 from app.core.config import settings
 from app.core.rate_limit import rate_limit
 from app.core.version import (
+    CONFIGURED_UPDATE_TARGET,
     PROJECT_RELEASES_URL,
     PROJECT_REPOSITORY_URL,
+    UNTAGGED_UPDATE_MESSAGE_PREFIX,
     project_version,
     release_channel,
 )
@@ -203,7 +205,7 @@ async def start_update(
             detail="Automatic update command is empty.",
         )
 
-    target_tag = tag_name or "configured-target"
+    target_tag = tag_name or CONFIGURED_UPDATE_TARGET
     try:
         process = subprocess.Popen(command_args, shell=False, cwd="/app")  # noqa: S603
     except OSError as exc:
@@ -221,7 +223,12 @@ async def start_update(
         requested_by_user_id=current_user.id,
         target_tag=target_tag,
         status="started",
-        message="The configured update command was started.",
+        # Without a tag, the starting version tells a restart on a new version apart.
+        message=(
+            "The configured update command was started."
+            if tag_name
+            else f"{UNTAGGED_UPDATE_MESSAGE_PREFIX}{project_version()}."
+        ),
     )
     session.add(history)
     await write_audit_event(

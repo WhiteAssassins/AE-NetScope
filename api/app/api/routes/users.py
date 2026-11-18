@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import CurrentSession, CurrentUser, SessionDep, require_csrf, require_permission
@@ -165,6 +165,8 @@ async def update_user_endpoint(
     previous_username = user.username
     previous_role = user.role
     previous_active = user.is_active
+    previous_must_change_password = user.must_change_password
+    was_locked = user.locked_until is not None or user.failed_login_count > 0
     try:
         user = await update_managed_user(session, user, payload)
     except LastAdminError as exc:
@@ -185,6 +187,22 @@ async def update_user_endpoint(
     if should_revoke_sessions:
         except_session_id = current_session.id if user.id == current_user.id else None
         await revoke_user_sessions(session, user, except_session_id=except_session_id)
+
+    changed = (
+        (user.email, user.username, user.role, user.is_active, user.must_change_password)
+        != (
+            previous_email,
+            previous_username,
+            previous_role,
+            previous_active,
+            previous_must_change_password,
+        )
+        or (payload.clear_lock and was_locked)
+    )
+    if not changed:
+        # Saving an unchanged form is not an account change worth auditing.
+        await session.commit()
+        return serialize_managed_user(user)
 
     await write_audit_event(
         session,
@@ -252,6 +270,14 @@ async def reset_user_mfa_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="Use account security settings to change your own MFA methods.",
         )
+    passkey_count = await session.scalar(
+        select(func.count(WebAuthnCredential.id)).where(WebAuthnCredential.user_id == user.id)
+    )
+    if not user.totp_enabled and not user.totp_secret_encrypted and not passkey_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User has no multi-factor authentication methods to reset.",
+        )
     user.totp_enabled = False
     user.totp_secret_encrypted = None
     user.last_totp_counter = None
@@ -285,6 +311,9 @@ async def delete_user_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="The current account cannot deactivate itself.",
         )
+    if not user.is_active:
+        # Already deactivated: keep the original audit record and revocations.
+        return serialize_managed_user(user)
 
     try:
         user = await deactivate_managed_user(session, user)

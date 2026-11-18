@@ -23,3 +23,8 @@ def release_channel(version: str | None = None) -> str:
     if "rc" in value:
         return "rc"
     return "stable"
+
+
+# Update history target for update commands that do not take a release tag.
+CONFIGURED_UPDATE_TARGET = "configured-target"
+UNTAGGED_UPDATE_MESSAGE_PREFIX = "The configured update command was started on version "

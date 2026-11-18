@@ -28,6 +28,7 @@ export const SUPPORTED_AUDIT_EVENT_TYPES = [
   "inventory.device_deleted",
   "inventory.device_updated",
   "inventory.exported",
+  "integration.token_create_failed",
   "integration.token_created",
   "integration.token_revoked",
   "inventory.imported",
@@ -120,6 +121,7 @@ function auditParameters(eventType: string, message: string): AuditParameters | 
     case "auth.email_change_failed":
     case "auth.passkey_login":
       return match(message, / for (.+)$/, ["subject"]);
+    case "integration.token_create_failed":
     case "integration.token_created":
     case "integration.token_revoked":
       return {};

@@ -57,6 +57,10 @@ export default function AdminSettings({ csrfToken }: { csrfToken: string }) {
   async function saveMaintenance() {
     setError("");
     setMessage("");
+    if (maintenance.enabled && !maintenance.message.trim()) {
+      setError(t("settings.admin.maintenanceMessageRequired"));
+      return;
+    }
     setSaving("maintenance");
     try {
       setMaintenance(await updateMaintenanceStatus(maintenance, csrfToken));
@@ -129,7 +133,7 @@ export default function AdminSettings({ csrfToken }: { csrfToken: string }) {
         <div className="settings-block-title"><History size={18} /><strong>{t("settings.admin.updateHistory")}</strong></div>
         {historyFailed ? <p>{t("settings.admin.updateHistoryUnavailable")}</p> : !loaded.history ? <p>{t("common.loading")}</p> : history.length === 0 ? <p>{t("settings.admin.noUpdates")}</p> : history.map((item) => (
           <div className="update-history-row" key={item.id}>
-            <div><strong>{item.target_tag}</strong><span>{item.requested_by ?? t("common.notAvailable")}</span></div>
+            <div><strong>{item.target_tag === "configured-target" ? t("settings.admin.configuredTarget") : item.target_tag}</strong><span>{item.requested_by ?? t("common.notAvailable")}</span></div>
             <div><span className={`status-badge ${updateStatusTone(item.status)}`}>{t(`settings.admin.updateStatuses.${item.status}`, { defaultValue: item.status })}</span><time>{formatDateTime(item.created_at, i18n.resolvedLanguage)}</time></div>
           </div>
         ))}

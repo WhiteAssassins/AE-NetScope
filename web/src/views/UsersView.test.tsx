@@ -126,6 +126,55 @@ describe("UsersView", () => {
     expect(screen.queryByText("admin@example.com")).not.toBeInTheDocument();
   });
 
+  it("keeps session revocation off when only the current session is active", async () => {
+    const user = userEvent.setup();
+    render(
+      <UsersView csrfToken="csrf" currentUser={currentUser} onCurrentUserChanged={vi.fn()} />,
+    );
+
+    const adminRow = (await screen.findByText("admin@example.com")).closest("tr");
+    await user.click(within(adminRow!).getByRole("button", { name: "Manage" }));
+
+    expect(await screen.findByText(/Chrome.*Windows/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close active sessions" })).toBeDisabled();
+  });
+
+  it("clears an earlier success message when a later action fails", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = requestUrl(input);
+        if (url.endsWith("/reset-password")) {
+          return Promise.resolve(
+            jsonResponse({ user: managedUsers[1], temporary_password: "temporary-secret" }),
+          );
+        }
+        if (init?.method === "DELETE") return Promise.resolve(jsonResponse({}, 500));
+        if (url.includes("/sessions")) {
+          return Promise.resolve(jsonResponse([{ ...sessions[0], user_id: 2, is_current: false }]));
+        }
+        return Promise.resolve(
+          jsonResponse([managedUsers[0], { ...managedUsers[1], active_session_count: 1 }]),
+        );
+      }),
+    );
+    render(
+      <UsersView csrfToken="csrf" currentUser={currentUser} onCurrentUserChanged={vi.fn()} />,
+    );
+    const viewerRow = (await screen.findByText("viewer@example.com")).closest("tr");
+    await user.click(within(viewerRow!).getByRole("button", { name: "Manage" }));
+
+    await user.click(await screen.findByRole("button", { name: /reset password/i }));
+    const success = await screen.findByText(/temporary password/i, { selector: ".form-success, .inline-success, p, div" });
+    expect(success).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close active sessions" }));
+    expect(await screen.findByText(/could not/i)).toBeInTheDocument();
+    expect(screen.queryByText(success.textContent ?? "")).not.toBeInTheDocument();
+  });
+
   it("edits a managed account through the dedicated panel", async () => {
     const user = userEvent.setup();
     let patchedBody: Record<string, unknown> | null = null;

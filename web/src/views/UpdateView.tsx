@@ -38,6 +38,7 @@ export default function UpdateView({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [updateStarted, setUpdateStarted] = useState(false);
   const [showReleaseHistory, setShowReleaseHistory] = useState(false);
   const [releaseHistory, setReleaseHistory] = useState<GitHubReleaseDetails[]>([]);
   const [releaseHistoryStatus, setReleaseHistoryStatus] =
@@ -84,14 +85,28 @@ export default function UpdateView({
     if (!updateInfo?.selected_release || !canManageSettings) {
       return;
     }
+    // The update replaces the running container, so it is never started by a stray click.
+    if (
+      !window.confirm(
+        t("updates.confirmStart", { version: updateInfo.selected_release.tag_name }),
+      )
+    ) {
+      return;
+    }
     setIsUpdating(true);
     setMessage("");
     setError("");
     try {
       await startAutomaticUpdate(updateInfo.selected_release.tag_name, csrfToken);
+      setUpdateStarted(true);
       setMessage(t("updates.started"));
-    } catch {
-      setError(t("updates.startFailed"));
+    } catch (startError) {
+      const detail = startError instanceof Error ? startError.message : "";
+      setError(
+        detail.includes("already in progress")
+          ? t("updates.alreadyRunning")
+          : t("updates.startFailed"),
+      );
     } finally {
       setIsUpdating(false);
     }
@@ -284,7 +299,7 @@ export default function UpdateView({
           </a>
           <button
             className="primary-action"
-            disabled={!canAutoUpdate || isUpdating}
+            disabled={!canAutoUpdate || isUpdating || updateStarted}
             onClick={() => installSelectedUpdate().catch(() => undefined)}
             title={capabilityReason ?? t("updates.startAutomatic")}
           >

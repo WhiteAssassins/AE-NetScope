@@ -8,7 +8,7 @@ from app.api.deps import CurrentSession, CurrentUser, SessionCookie, SessionDep,
 from app.core.config import settings
 from app.core.permissions import permissions_for_role
 from app.core.rate_limit import rate_limit
-from app.core.security import hash_password, verify_password_and_update
+from app.core.security import hash_password, verify_user_password
 from app.models.user import User
 from app.schemas.auth import (
     ChangeEmailRequest,
@@ -412,10 +412,7 @@ async def setup_totp(
 ) -> TotpSetupResponse:
     if current_user.totp_enabled:
         raise HTTPException(status_code=409, detail="TOTP authentication is already enabled.")
-    valid_password, _ = verify_password_and_update(
-        payload.current_password, current_user.password_hash
-    )
-    if not valid_password:
+    if not verify_user_password(current_user, payload.current_password):
         raise HTTPException(status_code=400, detail="Current password is invalid.")
     secret = generate_totp_secret()
     current_user.totp_secret_encrypted = encrypt_totp_secret(secret)
@@ -435,6 +432,8 @@ async def confirm_totp(
     current_user: CurrentUser,
     current_session: CurrentSession,
 ) -> SessionResponse:
+    if current_user.totp_enabled:
+        raise HTTPException(status_code=409, detail="TOTP authentication is already enabled.")
     if not current_user.totp_secret_encrypted:
         raise HTTPException(status_code=409, detail="Authenticator setup has not been started.")
     try:
@@ -467,9 +466,9 @@ async def disable_totp(
     current_user: CurrentUser,
     current_session: CurrentSession,
 ) -> SessionResponse:
-    password_valid, _ = verify_password_and_update(
-        payload.current_password, current_user.password_hash
-    )
+    if not current_user.totp_enabled:
+        raise HTTPException(status_code=409, detail="TOTP authentication is not enabled.")
+    password_valid = verify_user_password(current_user, payload.current_password)
     counter: int | None = None
     try:
         if current_user.totp_secret_encrypted:

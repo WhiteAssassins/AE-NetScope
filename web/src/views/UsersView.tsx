@@ -296,6 +296,7 @@ export default function UsersView({
     if (!window.confirm(t("users.confirmResetPassword", { email: user.email }))) return;
     setBusyAction("password");
     setError("");
+    setMessage("");
     setTemporaryPassword(null);
     try {
       const response = await fetch(`${API_BASE_URL}/users/${user.id}/reset-password`, {
@@ -326,6 +327,7 @@ export default function UsersView({
     if (!window.confirm(t("users.confirmResetMfa", { email: user.email }))) return;
     setBusyAction("mfa");
     setError("");
+    setMessage("");
     try {
       const response = await fetch(`${API_BASE_URL}/users/${user.id}/reset-mfa`, {
         method: "POST",
@@ -349,6 +351,7 @@ export default function UsersView({
     if (!window.confirm(t("users.confirmRevokeSessions", { email: user.email }))) return;
     setBusyAction("sessions");
     setError("");
+    setMessage("");
     try {
       const response = await fetch(`${API_BASE_URL}/users/${user.id}/sessions`, {
         method: "DELETE",
@@ -372,6 +375,7 @@ export default function UsersView({
     if (!window.confirm(t("users.confirmRevokeSession"))) return;
     setBusyAction(`session-${userSession.id}`);
     setError("");
+    setMessage("");
     try {
       const response = await fetch(
         `${API_BASE_URL}/users/${user.id}/sessions/${userSession.id}`,
@@ -417,6 +421,10 @@ export default function UsersView({
     selectedUser?.role === "admin" && selectedUser.is_active && activeAdminCount <= 1,
   );
   const isCurrentUser = selectedUser?.id === currentUser.id;
+  // The current session is never revoked from here, so it does not count as revocable.
+  const revocableSessionCount = isCurrentUser
+    ? sessions.filter((session) => session.is_active && !session.is_current).length
+    : (selectedUser?.active_session_count ?? 0);
 
   return (
     <>
@@ -815,7 +823,7 @@ export default function UsersView({
               </div>
               <button
                 className="danger-action form-wide"
-                disabled={Boolean(busyAction) || selectedUser.active_session_count === 0}
+                disabled={Boolean(busyAction) || revocableSessionCount === 0}
                 onClick={() => revokeSessions(selectedUser)}
               >
                 <LockKeyhole size={16} />

@@ -12,7 +12,7 @@ type AuditViewProps = {
   permissions: string[];
 };
 
-const eventGroups = ["all", "auth", "users", "inventory"] as const;
+const eventGroups = ["all", "auth", "users", "inventory", "settings", "integration"] as const;
 
 export default function AuditView({ initialQuery, permissions }: AuditViewProps) {
   const { i18n, t } = useTranslation();
@@ -62,14 +62,17 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
   async function loadEvents() {
     setIsLoading(true);
     setError("");
-    const response = await fetch(`${API_BASE_URL}/audit/events?limit=150`, {
-      credentials: "include",
-    });
-    if (!response.ok) {
-      throw new Error("audit");
+    try {
+      const response = await fetch(`${API_BASE_URL}/audit/events?limit=150`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("audit");
+      }
+      setEvents((await response.json()) as AuditEvent[]);
+    } finally {
+      setIsLoading(false);
     }
-    setEvents((await response.json()) as AuditEvent[]);
-    setIsLoading(false);
   }
 
   if (!canReadAudit) {
@@ -88,7 +91,7 @@ export default function AuditView({ initialQuery, permissions }: AuditViewProps)
           <h1>{t("audit.title")}</h1>
           <p>{t("audit.description")}</p>
         </div>
-        <button className="primary-action" onClick={() => loadEvents().catch(() => undefined)}>
+        <button className="primary-action" onClick={() => loadEvents().catch(() => setError(t("audit.loadError")))}>
           <Clock3 size={18} strokeWidth={2} />
           {t("audit.refresh")}
         </button>

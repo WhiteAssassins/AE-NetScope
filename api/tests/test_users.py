@@ -93,7 +93,8 @@ async def test_admin_manages_users_by_role(users_client) -> None:
         f"/api/users/{user_id}/reset-mfa",
         headers={"X-CSRF-Token": csrf_token},
     )
-    assert reset_mfa.status_code == 204
+    # The account has no MFA methods, so there is nothing to reset.
+    assert reset_mfa.status_code == 409
 
     deleted = await client.delete(
         f"/api/users/{user_id}",

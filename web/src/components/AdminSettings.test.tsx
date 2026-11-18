@@ -55,6 +55,44 @@ describe("AdminSettings", () => {
     );
   });
 
+  it("names untagged updates and asks for a message before enabling maintenance", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>((input) => {
+      const url = String(input);
+      if (url.endsWith("/security/maintenance")) {
+        return Promise.resolve(jsonResponse({ enabled: false, message: "" }));
+      }
+      if (url.endsWith("/security/search-indexing")) {
+        return Promise.resolve(jsonResponse({ allow_indexing: false }));
+      }
+      return Promise.resolve(
+        jsonResponse([
+          {
+            id: 1,
+            requested_by_user_id: 1,
+            requested_by: "admin@example.com",
+            target_tag: "configured-target",
+            status: "succeeded",
+            message: null,
+            created_at: "2026-07-01T12:00:00Z",
+          },
+        ]),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AdminSettings csrfToken="csrf-token" />);
+
+    expect(await screen.findByText("Configured update command")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /maintenance mode/i }));
+    const saveButtons = screen.getAllByRole("button", { name: "Save" });
+    await user.click(saveButtons[1]);
+    expect(
+      screen.getByText("Enter a maintenance message before enabling maintenance mode."),
+    ).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+  });
+
   it("explains when the update history cannot be loaded", async () => {
     vi.stubGlobal(
       "fetch",

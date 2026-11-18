@@ -24,14 +24,14 @@ type Props = {
   user: User;
 };
 
-function sessionDevice(userAgent: string | null) {
-  if (!userAgent) return "Unknown browser";
+function sessionDevice(userAgent: string | null, unknownBrowser: string, unknownOs: string) {
+  if (!userAgent) return unknownBrowser;
   const browser = userAgent.includes("Edg/") ? "Edge" : userAgent.includes("Firefox/")
     ? "Firefox" : userAgent.includes("Chrome/") ? "Chrome" : userAgent.includes("Safari/")
       ? "Safari" : "Browser";
   const os = userAgent.includes("Windows") ? "Windows" : userAgent.includes("Android")
     ? "Android" : /iPhone|iPad/.test(userAgent) ? "iOS" : userAgent.includes("Mac OS")
-      ? "macOS" : userAgent.includes("Linux") ? "Linux" : "Unknown OS";
+      ? "macOS" : userAgent.includes("Linux") ? "Linux" : unknownOs;
   return `${browser} · ${os}`;
 }
 
@@ -82,6 +82,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
 
   async function startTotp() {
     setError("");
+    setMessage("");
     try {
       setTotpSetup(await beginTotpSetup(password, csrfToken));
       setPassword("");
@@ -120,6 +121,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
 
   async function registerPasskey() {
     setError("");
+    setMessage("");
     if (!navigator.credentials?.create) {
       setError(t("settings.security.passkeyUnsupported"));
       return;
@@ -146,6 +148,8 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
   }
 
   async function removePasskey(credentialId: number) {
+    setError("");
+    setMessage("");
     if (!password) {
       setError(t("settings.security.passwordRequiredForPasskeyRemoval"));
       return;
@@ -174,7 +178,7 @@ export default function SecuritySettings({ csrfToken, onUserChanged, user }: Pro
             <div className="security-session-row" key={session.id}>
               <Smartphone size={18} />
               <div>
-                <strong>{sessionDevice(session.user_agent)} {session.is_current && `(${t("settings.security.current")})`}</strong>
+                <strong>{sessionDevice(session.user_agent, t("settings.security.unknownBrowser"), t("settings.security.unknownOs"))} {session.is_current && `(${t("settings.security.current")})`}</strong>
                 <span>{session.ip_address ?? t("common.notAvailable")} · {formatDateTime(session.created_at, i18n.resolvedLanguage)}</span>
               </div>
             </div>

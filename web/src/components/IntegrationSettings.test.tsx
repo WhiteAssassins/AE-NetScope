@@ -33,6 +33,8 @@ describe("IntegrationSettings", () => {
     await user.click(screen.getByRole("button", { name: "Create token" }));
     expect(await screen.findByDisplayValue("test-access-token")).toBeInTheDocument();
     expect(screen.getByLabelText("Current password")).toHaveValue("");
+    // The next token starts read-only again.
+    expect(screen.getByRole("checkbox")).not.toBeChecked();
     const options = fetchMock.mock.calls[1][1];
     expect(options.headers["X-CSRF-Token"]).toBe("csrf-value");
     expect(JSON.parse(options.body)).toMatchObject({ allow_write: true, expires_in_days: 30 });

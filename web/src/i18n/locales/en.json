@@ -161,7 +161,9 @@
       "all": "All",
       "auth": "Authentication",
       "users": "Users",
-      "inventory": "Inventory"
+      "inventory": "Inventory",
+      "settings": "Settings",
+      "integration": "Integrations"
     },
     "resources": {
       "devices": "devices",
@@ -233,6 +235,7 @@
       },
       "integration": {
         "token_created": "Integration token created",
+        "token_create_failed": "Integration token creation failed: password verification failed",
         "token_revoked": "Integration token revoked"
       }
     }
@@ -245,6 +248,8 @@
     "checkFailed": "GitHub or the update status could not be checked.",
     "started": "The update command was started. AE NetScope may restart.",
     "startFailed": "The update could not be started.",
+    "confirmStart": "Start the automatic update to {{version}}? The application restarts while it is replaced.",
+    "alreadyRunning": "An update is already in progress. Wait for it to finish before starting another.",
     "installedVersion": "Installed version",
     "latestStable": "Latest stable release",
     "latestPrerelease": "Latest prerelease",
@@ -922,6 +927,8 @@
     "hourFormats": { "12": "12-hour", "24": "24-hour" },
     "security": {
       "sessions": "Connected devices and browsers",
+      "unknownBrowser": "Unknown browser",
+      "unknownOs": "Unknown OS",
       "current": "current",
       "closeOthers": "Close other sessions",
       "sessionsClosed": "Other sessions were closed.",
@@ -960,6 +967,8 @@
       "searchIndexingSaved": "Search engine visibility saved.",
       "updateHistory": "Update history",
       "updateHistoryUnavailable": "Update history could not be loaded.",
+      "configuredTarget": "Configured update command",
+      "maintenanceMessageRequired": "Enter a maintenance message before enabling maintenance mode.",
       "noUpdates": "No in-app update attempts have been recorded.",
       "updateStatuses": {
         "started": "In progress",
